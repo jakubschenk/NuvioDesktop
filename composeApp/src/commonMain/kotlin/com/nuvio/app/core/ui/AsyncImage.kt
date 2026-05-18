@@ -121,12 +121,13 @@ private fun rememberSizedAsyncImageModel(
 
         val requestWidthPx = (widthPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(widthPx)
         val requestHeightPx = (heightPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(heightPx)
+        val coilScale = contentScale.toCoilScale()
         ImageRequest.Builder(platformContext)
             .data(url)
             .size(Size(requestWidthPx, requestHeightPx))
-            .scale(contentScale.toCoilScale())
+            .scale(coilScale)
             .precision(Precision.EXACT)
-            .nuvioPrescaleToDrawSize(widthPx, heightPx)
+            .nuvioPrescaleToDrawSize(widthPx, heightPx, coilScale)
             .build()
     }
 }

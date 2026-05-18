@@ -17,11 +17,12 @@ internal actual fun AsyncImagePainter.State.withNuvioImagePainterWorkaround(
 ): AsyncImagePainter.State {
     if (this !is AsyncImagePainter.State.Success) return this
     val bitmapImage = result.image as? BitmapImage ?: return this
-    return copy(painter = DesktopScaledBitmapPainter(bitmapImage.bitmap))
+    return copy(painter = DesktopScaledBitmapPainter(bitmapImage.bitmap, filterQuality))
 }
 
 private class DesktopScaledBitmapPainter(
     private val bitmap: Bitmap,
+    private val filterQuality: FilterQuality,
 ) : Painter() {
     override val intrinsicSize: Size = Size(bitmap.width.toFloat(), bitmap.height.toFloat())
 
@@ -40,7 +41,7 @@ private class DesktopScaledBitmapPainter(
             srcSize = IntSize(image.width, image.height),
             dstOffset = IntOffset.Zero,
             dstSize = destinationSize,
-            filterQuality = FilterQuality.None,
+            filterQuality = filterQuality,
         )
     }
 

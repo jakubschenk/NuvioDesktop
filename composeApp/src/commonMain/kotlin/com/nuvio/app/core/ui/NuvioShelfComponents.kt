@@ -147,7 +147,7 @@ fun NuvioPosterCard(
                 .size(Size(requestWidthPx, requestHeightPx))
                 .scale(Scale.FILL)
                 .precision(Precision.EXACT)
-                .nuvioPrescaleToDrawSize(widthPx, heightPx)
+                .nuvioPrescaleToDrawSize(widthPx, heightPx, Scale.FILL)
                 .build()
         }
     }
