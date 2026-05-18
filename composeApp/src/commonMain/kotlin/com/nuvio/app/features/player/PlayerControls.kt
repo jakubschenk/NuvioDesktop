@@ -33,7 +33,6 @@ import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SwapHoriz
@@ -95,7 +94,8 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 private val PlayerSeekHoverThumbSize = 10.dp
-private val PlayerSeekTimeTextWidth = 72.dp
+private val PlayerSeekTimeTextWidth = 60.dp
+private val PlayerSeekTimeHorizontalGap = 8.dp
 private val PlayerToolbarButtonSize = 44.dp
 private val PlayerToolbarIconSize = 23.dp
 
@@ -111,10 +111,8 @@ internal fun PlayerControlsShell(
     displayedPositionMs: Long,
     metrics: PlayerLayoutMetrics,
     resizeMode: PlayerResizeMode,
-    isLocked: Boolean,
     isFullscreenSupported: Boolean,
     isFullscreen: Boolean,
-    onLockToggle: () -> Unit,
     onFullscreenClick: () -> Unit,
     onBack: () -> Unit,
     onTogglePlayback: () -> Unit,
@@ -200,7 +198,6 @@ internal fun PlayerControlsShell(
                 displayedPositionMs = displayedPositionMs,
                 metrics = metrics,
                 resizeMode = resizeMode,
-                isLocked = isLocked,
                 isFullscreenSupported = isFullscreenSupported,
                 isFullscreen = isFullscreen,
                 onScrubChange = onScrubChange,
@@ -217,7 +214,6 @@ internal fun PlayerControlsShell(
                 volumeLevel = volumeLevel,
                 isVolumeMuted = isVolumeMuted,
                 onNextEpisodeClick = onNextEpisodeClick,
-                onLockToggle = onLockToggle,
                 onFullscreenClick = onFullscreenClick,
                 onSourcesClick = onSourcesClick,
                 onEpisodesClick = onEpisodesClick,
@@ -289,8 +285,8 @@ private fun PlayerClockReadout(
         Text(
             text = currentTimeText,
             style = MaterialTheme.nuvioTypeScale.labelSm.copy(
-                fontSize = metrics.metadataSize * 1.25f,
-                lineHeight = metrics.metadataSize * 1.4f,
+                fontSize = metrics.metadataSize * 1.4f,
+                lineHeight = metrics.metadataSize * 1.55f,
                 fontWeight = FontWeight.SemiBold,
             ),
             color = Color.White,
@@ -322,7 +318,6 @@ private fun ProgressControls(
     displayedPositionMs: Long,
     metrics: PlayerLayoutMetrics,
     resizeMode: PlayerResizeMode,
-    isLocked: Boolean,
     isFullscreenSupported: Boolean,
     isFullscreen: Boolean,
     onScrubChange: (Long) -> Unit,
@@ -339,7 +334,6 @@ private fun ProgressControls(
     volumeLevel: Float = 1f,
     isVolumeMuted: Boolean = false,
     onNextEpisodeClick: (() -> Unit)? = null,
-    onLockToggle: () -> Unit,
     onFullscreenClick: () -> Unit,
     onSourcesClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
@@ -368,11 +362,11 @@ private fun ProgressControls(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(PlayerSeekTimeHorizontalGap),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PlayerTimeText(
-                text = formatPlaybackTime(displayedPositionMs),
+                text = formatPlaybackTimeFixedHours(displayedPositionMs),
                 fontSize = metrics.timeSize,
                 modifier = Modifier.width(PlayerSeekTimeTextWidth),
                 textAlign = TextAlign.Start,
@@ -476,16 +470,6 @@ private fun ProgressControls(
                         onClick = onSubmitIntroClick,
                     )
                 }
-                PlayerToolbarIconButton(
-                    icon = if (isLocked) Icons.Rounded.LockOpen else Icons.Rounded.Lock,
-                    contentDescription = if (isLocked) {
-                        stringResource(Res.string.compose_player_unlock_controls)
-                    } else {
-                        stringResource(Res.string.compose_player_lock_controls)
-                    },
-                    onClick = onLockToggle,
-                    isActive = isLocked,
-                )
                 if (isFullscreenSupported) {
                     PlayerToolbarIconButton(
                         icon = if (isFullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
@@ -948,11 +932,11 @@ internal fun LockedPlayerOverlay(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(PlayerSeekTimeHorizontalGap),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 PlayerTimeText(
-                    text = formatPlaybackTime(displayedPositionMs),
+                    text = formatPlaybackTimeFixedHours(displayedPositionMs),
                     fontSize = metrics.timeSize,
                     modifier = Modifier.width(PlayerSeekTimeTextWidth),
                     textAlign = TextAlign.Start,

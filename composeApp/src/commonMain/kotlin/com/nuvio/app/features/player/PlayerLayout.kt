@@ -118,6 +118,17 @@ internal fun formatPlaybackTime(positionMs: Long): String {
     }
 }
 
+internal fun formatPlaybackTimeFixedHours(positionMs: Long): String {
+    val totalSeconds = (positionMs / 1000L).coerceAtLeast(0L)
+    val seconds = totalSeconds % 60
+    val minutes = (totalSeconds / 60) % 60
+    val hours = totalSeconds / 3600
+    val paddedHours = hours.toString().padStart(2, '0')
+    val paddedMinutes = minutes.toString().padStart(2, '0')
+    val paddedSeconds = seconds.toString().padStart(2, '0')
+    return "$paddedHours:$paddedMinutes:$paddedSeconds"
+}
+
 internal fun formatPlaybackSpeedLabel(speed: Float): String {
     val normalized = speed.toString().trimEnd('0').trimEnd('.')
     return "${normalized}x"

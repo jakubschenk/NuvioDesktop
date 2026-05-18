@@ -1854,16 +1854,8 @@ fun PlayerScreen(
                     displayedPositionMs = displayedPositionMs,
                     metrics = metrics,
                     resizeMode = resizeMode,
-                    isLocked = playerControlsLocked,
                     isFullscreenSupported = fullscreenController.isFullscreenSupported,
                     isFullscreen = fullscreenController.isFullscreen,
-                    onLockToggle = {
-                        if (playerControlsLocked) {
-                            unlockPlayerControls()
-                        } else {
-                            lockPlayerControls()
-                        }
-                    },
                     onFullscreenClick = ::toggleFullscreen,
                     onBack = onBackWithProgress,
                     onTogglePlayback = ::togglePlayback,

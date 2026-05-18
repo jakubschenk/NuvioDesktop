@@ -41,8 +41,8 @@ enum class SubtitleTab {
 data class SubtitleStyleState(
     val textColor: Color = Color.White,
     val outlineEnabled: Boolean = false,
-    val fontSizeSp: Int = 18,
-    val bottomOffset: Int = 20,
+    val fontSizeSp: Int = 28,
+    val bottomOffset: Int = 10,
 ) {
     companion object {
         val DEFAULT = SubtitleStyleState()

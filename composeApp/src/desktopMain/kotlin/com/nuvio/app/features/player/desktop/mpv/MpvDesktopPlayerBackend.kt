@@ -32,7 +32,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.openani.mediamp.InternalMediampApi
 import org.openani.mediamp.PlaybackState
-import org.openani.mediamp.features.PlaybackSpeed
 import org.openani.mediamp.mpv.MPVHandle
 import org.openani.mediamp.mpv.MpvMediampPlayer
 import org.openani.mediamp.source.UriMediaData
@@ -77,6 +76,7 @@ internal class MpvDesktopPlayerBackend private constructor(
     @Volatile private var currentRequest: DesktopPlayerRequest? = null
     @Volatile private var externalSubtitleActive = false
     @Volatile private var latestSubtitleStyle = SubtitleStyleState.DEFAULT
+    @Volatile private var latestPlaybackSpeed = 1.0f
     private val externalSubtitleRequestCounter = AtomicInteger(0)
     private val externalSubtitleTempFiles = mutableSetOf<Path>()
     private val subtitleHttpClient = HttpClient.newBuilder()
@@ -114,6 +114,12 @@ internal class MpvDesktopPlayerBackend private constructor(
                     .onFailure { DesktopRuntimeLog.error("MPV audio-add failed audio=${audioUrl.redactedMediaUrl()}", it) }
             }
             setResizeMode(request.resizeMode)
+            if (latestPlaybackSpeed != 1.0f) {
+                runCatching { player.impl.setMpvRuntimeOption("speed", latestPlaybackSpeed) }
+                    .onFailure {
+                        DesktopRuntimeLog.error("MPV restore playback speed failed speed=$latestPlaybackSpeed", it)
+                    }
+            }
             if (request.playWhenReady) {
                 player.resume()
                 runCatching { player.impl.setPropertyBoolean("pause", false) }
@@ -176,12 +182,14 @@ internal class MpvDesktopPlayerBackend private constructor(
             player.mediaProperties,
         ) { playbackState, position, props ->
             val phase = playbackState.toDesktopPhase()
+            val playbackSpeed = readPlaybackSpeed() ?: latestPlaybackSpeed
+            latestPlaybackSpeed = playbackSpeed
             DesktopPlayerState(
                 phase = phase,
                 positionMs = position,
                 durationMs = props?.durationMillis?.takeIf { it > 0 } ?: 0L,
                 bufferedPositionMs = 0L,
-                playbackSpeed = player.features[PlaybackSpeed]?.value ?: 1.0f,
+                playbackSpeed = playbackSpeed,
                 backendName = backendName,
                 diagnostics = runtime.diagnostics,
                 error = if (playbackState == PlaybackState.ERROR) {
@@ -225,6 +233,11 @@ internal class MpvDesktopPlayerBackend private constructor(
             player.impl.setMpvRuntimeOption("sub-ass-override", EmbeddedSubtitleAssOverride)
         }.onFailure { DesktopRuntimeLog.warn("MPV reset external subtitle state failed reason=$reason message=${it.message}") }
     }
+
+    private fun readPlaybackSpeed(): Float? =
+        player.impl.getMpvStringPropertyOrNull("speed")
+            ?.toFloatOrNull()
+            ?.coerceIn(0.25f, 4.0f)
 
     private inner class MpvController : PlayerEngineController {
         override fun release() = releaseSoft()
@@ -271,7 +284,14 @@ internal class MpvDesktopPlayerBackend private constructor(
 
         override fun setPlaybackSpeed(speed: Float) {
             if (!canReceiveCommands()) return
-            player.features[PlaybackSpeed]?.set(speed.coerceIn(0.25f, 4.0f))
+            val target = speed.coerceIn(0.25f, 4.0f)
+            val applied = runCatching { player.impl.setMpvRuntimeOption("speed", target) }
+                .onFailure { DesktopRuntimeLog.error("MPV setPlaybackSpeed failed target=$target", it) }
+                .getOrDefault(false)
+            if (applied) {
+                latestPlaybackSpeed = target
+                stateFlow.value = stateFlow.value.copy(playbackSpeed = target)
+            }
         }
 
         override fun currentVolume(): PlayerAudioLevel? =
