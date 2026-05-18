@@ -3,20 +3,14 @@ package com.nuvio.app.core.ui
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import coil3.BitmapImage
 import coil3.compose.AsyncImagePainter
 import kotlin.math.roundToInt
 import org.jetbrains.skia.Bitmap
-import org.jetbrains.skia.FilterMipmap
-import org.jetbrains.skia.FilterMode
-import org.jetbrains.skia.Image
-import org.jetbrains.skia.MipmapMode
 
 internal actual fun AsyncImagePainter.State.withNuvioImagePainterWorkaround(
     filterQuality: FilterQuality,
@@ -53,31 +47,10 @@ private class DesktopScaledBitmapPainter(
     private fun imageFor(destinationSize: IntSize): ImageBitmap {
         cachedImage?.takeIf { cachedSize == destinationSize }?.let { return it }
 
-        val image = if (destinationSize.width == bitmap.width && destinationSize.height == bitmap.height) {
-            bitmap.asComposeImageBitmap()
-        } else {
-            bitmap.scaleToImageBitmap(destinationSize)
-        }
+        val image = bitmap.nuvioScaleToImageBitmap(destinationSize)
 
         cachedSize = destinationSize
         cachedImage = image
         return image
-    }
-}
-
-private fun Bitmap.scaleToImageBitmap(size: IntSize): ImageBitmap {
-    val output = Bitmap()
-    output.allocN32Pixels(size.width, size.height)
-    val pixels = output.peekPixels() ?: return asComposeImageBitmap()
-    val image = Image.makeFromBitmap(this)
-    val scaled = image.scalePixels(
-        dst = pixels,
-        samplingMode = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR),
-        cache = false,
-    )
-    return if (scaled) {
-        Image.makeFromBitmap(output).toComposeImageBitmap()
-    } else {
-        asComposeImageBitmap()
     }
 }

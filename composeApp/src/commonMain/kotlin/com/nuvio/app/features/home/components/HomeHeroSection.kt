@@ -28,8 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -115,19 +113,6 @@ fun HomeHeroSection(
         )
         val heroWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
         val heroHeightPx = with(LocalDensity.current) { layout.heroHeight.toPx() }
-        val useScrollParallax = !layout.isTablet
-        val scrollOffsetPx by remember(listState, heroHeightPx, useScrollParallax) {
-            derivedStateOf {
-                when {
-                    !useScrollParallax -> 0f
-                    listState == null -> 0f
-                    listState.firstVisibleItemIndex > 0 -> heroHeightPx
-                    else -> listState.firstVisibleItemScrollOffset.toFloat()
-                }
-            }
-        }
-        val heroScrollScale = heroBackgroundScrollScale(scrollOffsetPx)
-        val heroScrollTranslationY = heroBackgroundScrollTranslationY(scrollOffsetPx)
         val backgroundColor = MaterialTheme.colorScheme.background
         val heroScrimBrush = remember(backgroundColor) { heroScrimBrush(backgroundColor) }
         val heroBottomFadeBrush = remember(backgroundColor) { heroBottomFadeBrush(backgroundColor) }
@@ -182,9 +167,11 @@ fun HomeHeroSection(
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
+                                val scrollOffsetPx = heroScrollOffsetPx(listState, heroHeightPx)
+                                val heroScrollScale = heroBackgroundScrollScale(scrollOffsetPx)
                                 alpha = layer.visibility
                                 translationX = -layer.offset * heroWidthPx * HERO_BACKGROUND_PARALLAX
-                                translationY = heroScrollTranslationY
+                                translationY = heroBackgroundScrollTranslationY(scrollOffsetPx)
                                 scaleX = HERO_BACKGROUND_SCALE * heroScrollScale
                                 scaleY = HERO_BACKGROUND_SCALE * heroScrollScale
                             },
@@ -576,6 +563,16 @@ private fun heroBackgroundScrollScale(scrollOffsetPx: Float): Float {
 private fun heroBackgroundScrollTranslationY(scrollOffsetPx: Float): Float {
     return scrollOffsetPx * HERO_SCROLL_PARALLAX
 }
+
+private fun heroScrollOffsetPx(
+    listState: LazyListState?,
+    heroHeightPx: Float,
+): Float =
+    when {
+        listState == null -> 0f
+        listState.firstVisibleItemIndex > 0 -> heroHeightPx
+        else -> listState.firstVisibleItemScrollOffset.toFloat()
+    }
 
 private fun Modifier.homeHeroPagerGesture(
     pagerState: PagerState,
