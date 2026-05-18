@@ -1,6 +1,7 @@
 package com.nuvio.app.features.player.desktop
 
 import com.nuvio.app.desktop.DesktopRuntimeLog
+import com.nuvio.app.desktop.DesktopSkikoRenderer
 import com.nuvio.app.features.player.desktop.mpv.MpvDesktopPlayerBackend
 import com.nuvio.app.features.player.desktop.mpv.MpvRuntimeBootstrap
 import com.nuvio.app.features.player.desktop.mpv.MpvRuntimeLocator
@@ -52,6 +53,14 @@ internal object DesktopPlayerBackendFactory {
     }
 
     private fun createMpvOrNull(selection: DesktopPlayerBackendSelection): DesktopPlayerBackend? {
+        if (!DesktopSkikoRenderer.isOpenGlRequested()) {
+            DesktopRuntimeLog.warn(
+                "MPV backend skipped because embedded MPV requires Skiko OPENGL renderer " +
+                    "requested=${DesktopSkikoRenderer.requestedRenderApi() ?: "default"}",
+            )
+            return null
+        }
+
         val runtime = MpvRuntimeLocator.resolve()
         val bootstrap = MpvRuntimeBootstrap.apply(runtime)
         if (!bootstrap.success) {
