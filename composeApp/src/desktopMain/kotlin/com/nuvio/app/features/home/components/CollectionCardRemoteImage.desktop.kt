@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.nuvioImageDecodeSizeMultiplier
 import com.nuvio.app.core.ui.nuvioImageFilterQuality
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -39,6 +40,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 private const val DefaultGifDelayCentiseconds = 10
 private const val DecodeSizeBucketPx = 32
@@ -156,6 +158,7 @@ internal actual fun CollectionCardRemoteImage(
 
     BoxWithConstraints(modifier = modifier) {
         val density = LocalDensity.current
+        val decodeSizeMultiplier = nuvioImageDecodeSizeMultiplier.coerceAtLeast(1f)
         val targetWidthPx = maxWidth.value
             .takeIf { it.isFinite() && it > 0f }
             ?.let { with(density) { maxWidth.roundToPx() } }
@@ -164,10 +167,12 @@ internal actual fun CollectionCardRemoteImage(
             .takeIf { it.isFinite() && it > 0f }
             ?.let { with(density) { maxHeight.roundToPx() } }
             ?: FallbackDecodeDimensionPx
-        val decodeTarget = remember(targetWidthPx, targetHeightPx) {
+        val decodeTarget = remember(targetWidthPx, targetHeightPx, decodeSizeMultiplier) {
+            val requestWidthPx = (targetWidthPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(targetWidthPx)
+            val requestHeightPx = (targetHeightPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(targetHeightPx)
             GifDecodeTarget(
-                widthPx = targetWidthPx.roundUpToDecodeBucket().coerceIn(1, MaxDecodedDimensionPx),
-                heightPx = targetHeightPx.roundUpToDecodeBucket().coerceIn(1, MaxDecodedDimensionPx),
+                widthPx = requestWidthPx.roundUpToDecodeBucket().coerceIn(1, MaxDecodedDimensionPx),
+                heightPx = requestHeightPx.roundUpToDecodeBucket().coerceIn(1, MaxDecodedDimensionPx),
             )
         }
         val cacheKey = remember(imageUrl, decodeTarget) {
@@ -305,7 +310,7 @@ private fun decodeGifForCompose(
                 target.widthPx.toDouble() / baseW.toDouble(),
                 target.heightPx.toDouble() / baseH.toDouble(),
             )
-            val scale = minOf(1.0, coverScale)
+            val scale = coverScale
             val canvasW = max(1, (baseW * scale).toInt())
             val canvasH = max(1, (baseH * scale).toInt())
             val approxBytes = frameCount.toLong() * canvasW.toLong() * canvasH.toLong() * 4L
@@ -320,6 +325,9 @@ private fun decodeGifForCompose(
 
             val gLogicalCanvas = logicalCanvas.createGraphics().apply {
                 composite = AlphaComposite.SrcOver
+                setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY)
+                setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY)
+                setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
                 setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
             }
             val gPreviousLogicalCanvas = previousLogicalCanvas.createGraphics().apply {
@@ -327,7 +335,9 @@ private fun decodeGifForCompose(
             }
             val gOutputCanvas = outputCanvas.createGraphics().apply {
                 composite = AlphaComposite.SrcOver
-                setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+                setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY)
+                setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY)
+                setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
                 setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
             }
 

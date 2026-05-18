@@ -1,15 +1,26 @@
 package com.nuvio.app.core.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import coil3.compose.AsyncImage as CoilAsyncImage
 import coil3.compose.AsyncImagePainter
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.size.Precision
+import coil3.size.Scale
+import coil3.size.Size
+import kotlin.math.roundToInt
 
 internal expect val nuvioImageFilterQuality: FilterQuality
 
@@ -31,7 +42,12 @@ internal fun AsyncImage(
     filterQuality: FilterQuality = nuvioImageFilterQuality,
     clipToBounds: Boolean = true,
 ) {
-    val resolvedModel = remember(model) { model.upgradeTmdbImageModelQuality() }
+    var drawnSize by remember { mutableStateOf(IntSize.Zero) }
+    val resolvedModel = rememberSizedAsyncImageModel(
+        model = model,
+        drawnSize = drawnSize,
+        contentScale = contentScale,
+    )
     val useFallbackPainter = resolvedModel == null
     val transform = remember(placeholder, error, fallback, filterQuality, useFallbackPainter) {
         { state: AsyncImagePainter.State ->
@@ -66,7 +82,11 @@ internal fun AsyncImage(
     CoilAsyncImage(
         model = resolvedModel,
         contentDescription = contentDescription,
-        modifier = modifier,
+        modifier = modifier.onSizeChanged { size ->
+            if (drawnSize != size) {
+                drawnSize = size
+            }
+        },
         transform = transform,
         onState = onState,
         alignment = alignment,
@@ -77,6 +97,44 @@ internal fun AsyncImage(
         clipToBounds = clipToBounds,
     )
 }
+
+@Composable
+private fun rememberSizedAsyncImageModel(
+    model: Any?,
+    drawnSize: IntSize,
+    contentScale: ContentScale,
+): Any? {
+    val platformContext = LocalPlatformContext.current
+    val decodeSizeMultiplier = nuvioImageDecodeSizeMultiplier.coerceAtLeast(1f)
+    val upgradedModel = remember(model) { model.upgradeTmdbImageModelQuality() }
+    return remember(upgradedModel, drawnSize, contentScale, platformContext, decodeSizeMultiplier) {
+        val url = upgradedModel as? String ?: return@remember upgradedModel
+        val widthPx = drawnSize.width.coerceAtLeast(1)
+        val heightPx = drawnSize.height.coerceAtLeast(1)
+        if (drawnSize == IntSize.Zero) return@remember url
+
+        val requestWidthPx = (widthPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(widthPx)
+        val requestHeightPx = (heightPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(heightPx)
+        ImageRequest.Builder(platformContext)
+            .data(url)
+            .size(Size(requestWidthPx, requestHeightPx))
+            .scale(contentScale.toCoilScale())
+            .precision(Precision.EXACT)
+            .build()
+    }
+}
+
+private fun ContentScale.toCoilScale(): Scale =
+    if (
+        this == ContentScale.Crop ||
+        this == ContentScale.FillBounds ||
+        this == ContentScale.FillHeight ||
+        this == ContentScale.FillWidth
+    ) {
+        Scale.FILL
+    } else {
+        Scale.FIT
+    }
 
 private fun AsyncImagePainter.State.withFallbackPainters(
     placeholder: Painter?,

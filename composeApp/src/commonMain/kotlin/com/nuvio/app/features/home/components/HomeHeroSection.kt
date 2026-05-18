@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -124,6 +125,9 @@ fun HomeHeroSection(
         }
         val heroScrollScale = heroBackgroundScrollScale(scrollOffsetPx)
         val heroScrollTranslationY = heroBackgroundScrollTranslationY(scrollOffsetPx)
+        val backgroundColor = MaterialTheme.colorScheme.background
+        val heroScrimBrush = remember(backgroundColor) { heroScrimBrush(backgroundColor) }
+        val heroBottomFadeBrush = remember(backgroundColor) { heroBottomFadeBrush(backgroundColor) }
         val currentPage = pagerState.currentPage.coerceIn(items.indices)
         val visiblePages = listOf(
             currentPage,
@@ -189,16 +193,7 @@ fun HomeHeroSection(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.02f),
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.12f),
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.34f),
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.78f),
-                                ),
-                            ),
-                        ),
+                        .background(heroScrimBrush),
                 )
 
                 Box(
@@ -206,14 +201,7 @@ fun HomeHeroSection(
                         .fillMaxWidth()
                         .height(layout.bottomFadeHeight)
                         .align(Alignment.BottomCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0f),
-                                    MaterialTheme.colorScheme.background,
-                                ),
-                            ),
-                        ),
+                        .background(heroBottomFadeBrush),
                 )
 
                 Column(
@@ -323,6 +311,35 @@ private fun MetaPreview.heroBackgroundImageUrl(): String? =
 
 private fun MetaPreview.heroLogoImageUrl(): String? =
     logo?.withTmdbImageSize("original")
+
+private fun heroScrimBrush(backgroundColor: Color): Brush =
+    Brush.verticalGradient(
+        colorStops = arrayOf(
+            0.00f to backgroundColor.copy(alpha = 0.015f),
+            0.12f to backgroundColor.copy(alpha = 0.035f),
+            0.24f to backgroundColor.copy(alpha = 0.075f),
+            0.36f to backgroundColor.copy(alpha = 0.145f),
+            0.50f to backgroundColor.copy(alpha = 0.250f),
+            0.64f to backgroundColor.copy(alpha = 0.390f),
+            0.78f to backgroundColor.copy(alpha = 0.575f),
+            0.90f to backgroundColor.copy(alpha = 0.735f),
+            1.00f to backgroundColor.copy(alpha = 0.840f),
+        ),
+    )
+
+private fun heroBottomFadeBrush(backgroundColor: Color): Brush =
+    Brush.verticalGradient(
+        colorStops = arrayOf(
+            0.00f to backgroundColor.copy(alpha = 0.000f),
+            0.16f to backgroundColor.copy(alpha = 0.025f),
+            0.32f to backgroundColor.copy(alpha = 0.080f),
+            0.48f to backgroundColor.copy(alpha = 0.180f),
+            0.64f to backgroundColor.copy(alpha = 0.360f),
+            0.78f to backgroundColor.copy(alpha = 0.610f),
+            0.90f to backgroundColor.copy(alpha = 0.830f),
+            1.00f to backgroundColor,
+        ),
+    )
 
 @Composable
 fun HomeHeroReservedSpace(
