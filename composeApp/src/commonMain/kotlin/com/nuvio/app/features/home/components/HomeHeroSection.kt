@@ -115,9 +115,11 @@ fun HomeHeroSection(
         )
         val heroWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
         val heroHeightPx = with(LocalDensity.current) { layout.heroHeight.toPx() }
-        val scrollOffsetPx by remember(listState, heroHeightPx) {
+        val useScrollParallax = !layout.isTablet
+        val scrollOffsetPx by remember(listState, heroHeightPx, useScrollParallax) {
             derivedStateOf {
                 when {
+                    !useScrollParallax -> 0f
                     listState == null -> 0f
                     listState.firstVisibleItemIndex > 0 -> heroHeightPx
                     else -> listState.firstVisibleItemScrollOffset.toFloat()

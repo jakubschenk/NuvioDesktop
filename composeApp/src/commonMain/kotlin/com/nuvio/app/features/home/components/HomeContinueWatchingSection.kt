@@ -52,6 +52,7 @@ import com.nuvio.app.core.ui.localizedContinueWatchingSubtitle
 import com.nuvio.app.core.ui.nuvioImageDecodeSizeMultiplier
 import com.nuvio.app.core.ui.NuvioProgressBar
 import com.nuvio.app.core.ui.NuvioShelfSection
+import com.nuvio.app.core.ui.nuvioPrescaleToDrawSize
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.upgradeTmdbImageQuality
@@ -611,6 +612,7 @@ private fun rememberSizedContinueWatchingImageRequest(
             .size(Size(requestWidthPx, requestHeightPx))
             .scale(Scale.FILL)
             .precision(Precision.EXACT)
+            .nuvioPrescaleToDrawSize(widthPx, heightPx)
             .build()
     }
 }

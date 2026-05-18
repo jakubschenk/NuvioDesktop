@@ -126,6 +126,7 @@ private fun rememberSizedAsyncImageModel(
             .size(Size(requestWidthPx, requestHeightPx))
             .scale(contentScale.toCoilScale())
             .precision(Precision.EXACT)
+            .nuvioPrescaleToDrawSize(widthPx, heightPx)
             .build()
     }
 }
