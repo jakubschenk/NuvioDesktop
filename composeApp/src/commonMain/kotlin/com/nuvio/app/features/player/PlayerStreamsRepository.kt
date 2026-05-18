@@ -8,6 +8,7 @@ import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.plugins.PluginRepository
 import com.nuvio.app.features.plugins.pluginContentId
+import com.nuvio.app.features.plugins.PluginRepositoryItem
 import com.nuvio.app.features.plugins.PluginRuntimeResult
 import com.nuvio.app.features.plugins.PluginScraper
 import com.nuvio.app.features.streams.AddonStreamGroup
@@ -19,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -152,14 +154,23 @@ object PlayerStreamsRepository {
         }
 
         val installedAddons = AddonRepository.uiState.value.addons
-        val pluginScrapers = if (AppFeaturePolicy.pluginsEnabled) {
+        val pluginUiState = if (AppFeaturePolicy.pluginsEnabled) {
             PluginRepository.initialize()
+            PluginRepository.uiState.value
+        } else {
+            null
+        }
+        val pluginScrapers = if (pluginUiState != null) {
             PluginRepository.getEnabledScrapersForType(type)
         } else {
             emptyList()
         }
+        val pluginProviderGroups = pluginScrapers.toPlayerPluginProviderGroups(
+            repositories = pluginUiState?.repositories.orEmpty(),
+            groupByRepository = pluginUiState?.groupStreamsByRepository == true,
+        )
 
-        if (installedAddons.isEmpty() && pluginScrapers.isEmpty()) {
+        if (installedAddons.isEmpty() && pluginProviderGroups.isEmpty()) {
             stateFlow.value = StreamsUiState(
                 isAnyLoading = false,
                 emptyStateReason = com.nuvio.app.features.streams.StreamsEmptyStateReason.NoAddonsInstalled,
@@ -185,7 +196,7 @@ object PlayerStreamsRepository {
                 )
             }
 
-        if (streamAddons.isEmpty() && pluginScrapers.isEmpty()) {
+        if (streamAddons.isEmpty() && pluginProviderGroups.isEmpty()) {
             stateFlow.value = StreamsUiState(
                 isAnyLoading = false,
                 emptyStateReason = com.nuvio.app.features.streams.StreamsEmptyStateReason.NoCompatibleAddons,
@@ -200,10 +211,10 @@ object PlayerStreamsRepository {
                 streams = emptyList(),
                 isLoading = true,
             )
-        } + pluginScrapers.map { scraper ->
+        } + pluginProviderGroups.map { providerGroup ->
             AddonStreamGroup(
-                addonName = scraper.name,
-                addonId = "plugin:${scraper.id}",
+                addonName = providerGroup.addonName,
+                addonId = providerGroup.addonId,
                 streams = emptyList(),
                 isLoading = true,
             )
@@ -240,37 +251,50 @@ object PlayerStreamsRepository {
                 }
             }
 
-            val pluginJobs = pluginScrapers.map { scraper ->
+            val pluginJobs = pluginProviderGroups.map { providerGroup ->
                 async {
-                    PluginRepository.executeScraper(
-                        scraper = scraper,
-                        tmdbId = pluginContentId(
-                            videoId = videoId,
-                            season = season,
-                            episode = episode,
-                        ),
-                        mediaType = type,
-                        season = season,
-                        episode = episode,
-                    ).fold(
-                        onSuccess = { results ->
-                            AddonStreamGroup(
-                                addonName = scraper.name,
-                                addonId = "plugin:${scraper.id}",
-                                streams = results.map { it.toStreamItem(scraper) },
-                                isLoading = false,
+                    val scraperResults = providerGroup.scrapers.map { scraper ->
+                        async {
+                            PluginRepository.executeScraper(
+                                scraper = scraper,
+                                tmdbId = pluginContentId(
+                                    videoId = videoId,
+                                    season = season,
+                                    episode = episode,
+                                ),
+                                mediaType = type,
+                                season = season,
+                                episode = episode,
+                            ).fold(
+                                onSuccess = { results ->
+                                    PlayerPluginScraperResult(
+                                        streams = results.map { result ->
+                                            result.toStreamItem(
+                                                scraper = scraper,
+                                                addonName = providerGroup.addonName,
+                                                addonId = providerGroup.addonId,
+                                            )
+                                        },
+                                        error = null,
+                                    )
+                                },
+                                onFailure = { err ->
+                                    log.w(err) { "Plugin scraper failed: ${scraper.name}" }
+                                    PlayerPluginScraperResult(
+                                        streams = emptyList(),
+                                        error = err.message,
+                                    )
+                                },
                             )
-                        },
-                        onFailure = { err ->
-                            log.w(err) { "Plugin scraper failed: ${scraper.name}" }
-                            AddonStreamGroup(
-                                addonName = scraper.name,
-                                addonId = "plugin:${scraper.id}",
-                                streams = emptyList(),
-                                isLoading = false,
-                                error = err.message,
-                            )
-                        },
+                        }
+                    }.awaitAll()
+                    val streams = scraperResults.flatMap { it.streams }.sortedForPlayerGroupedDisplay()
+                    AddonStreamGroup(
+                        addonName = providerGroup.addonName,
+                        addonId = providerGroup.addonId,
+                        streams = streams,
+                        isLoading = false,
+                        error = if (streams.isEmpty()) scraperResults.firstNotNullOfOrNull { it.error } else null,
                     )
                 }
             }
@@ -305,10 +329,51 @@ private data class PlayerInstalledStreamAddonTarget(
     val manifest: com.nuvio.app.features.addons.AddonManifest,
 )
 
+private data class PlayerPluginProviderGroup(
+    val addonId: String,
+    val addonName: String,
+    val scrapers: List<PluginScraper>,
+)
+
+private data class PlayerPluginScraperResult(
+    val streams: List<StreamItem>,
+    val error: String?,
+)
+
 private fun com.nuvio.app.features.addons.ManagedAddon.streamAddonInstanceId(manifestId: String): String =
     "addon:$manifestId:$manifestUrl"
 
-private fun PluginRuntimeResult.toStreamItem(scraper: PluginScraper): StreamItem {
+private fun List<PluginScraper>.toPlayerPluginProviderGroups(
+    repositories: List<PluginRepositoryItem>,
+    groupByRepository: Boolean,
+): List<PlayerPluginProviderGroup> {
+    if (!groupByRepository) {
+        return map { scraper ->
+            PlayerPluginProviderGroup(
+                addonId = "plugin:${scraper.id}",
+                addonName = scraper.name,
+                scrapers = listOf(scraper),
+            )
+        }
+    }
+
+    val repoNameByUrl = repositories.associate { it.manifestUrl to it.name }
+    return groupBy { it.repositoryUrl }
+        .map { (repositoryUrl, scrapers) ->
+            PlayerPluginProviderGroup(
+                addonId = "plugin-repo:${repositoryUrl.lowercase()}",
+                addonName = repoNameByUrl[repositoryUrl].orEmpty().ifBlank { repositoryUrl.fallbackRepositoryLabel() },
+                scrapers = scrapers.sortedBy { it.name.lowercase() },
+            )
+        }
+        .sortedBy { it.addonName.lowercase() }
+}
+
+private fun PluginRuntimeResult.toStreamItem(
+    scraper: PluginScraper,
+    addonName: String,
+    addonId: String,
+): StreamItem {
     val subtitleParts = listOfNotNull(
         quality?.takeIf { it.isNotBlank() },
         size?.takeIf { it.isNotBlank() },
@@ -332,8 +397,9 @@ private fun PluginRuntimeResult.toStreamItem(scraper: PluginScraper): StreamItem
         description = subtitleParts.joinToString(" • ").ifBlank { null },
         url = url,
         infoHash = infoHash,
-        addonName = scraper.name,
-        addonId = "plugin:${scraper.id}",
+        sourceName = scraper.name,
+        addonName = addonName,
+        addonId = addonId,
         behaviorHints = if (requestHeaders.isEmpty()) {
             com.nuvio.app.features.streams.StreamBehaviorHints()
         } else {
@@ -343,4 +409,22 @@ private fun PluginRuntimeResult.toStreamItem(scraper: PluginScraper): StreamItem
             )
         },
     )
+}
+
+private fun List<StreamItem>.sortedForPlayerGroupedDisplay(): List<StreamItem> =
+    sortedWith(
+        compareBy<StreamItem>(
+            { it.sourceName.orEmpty().lowercase() },
+            { it.streamLabel.lowercase() },
+            { it.streamSubtitle.orEmpty().lowercase() },
+        ),
+    )
+
+private fun String.fallbackRepositoryLabel(): String {
+    val withoutQuery = substringBefore("?")
+    val withoutManifest = withoutQuery.removeSuffix("/manifest.json")
+    val host = withoutManifest.substringAfter("://", withoutManifest).substringBefore('/')
+    return host.ifBlank {
+        withoutManifest.substringAfterLast('/').ifBlank { "Plugin repository" }
+    }
 }

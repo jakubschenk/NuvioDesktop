@@ -67,6 +67,70 @@ class StreamAutoPlaySelectorTest {
     }
 
     @Test
+    fun `provider preference selects current addon after missing bingeGroup`() {
+        val first = stream(
+            addonName = "AddonA",
+            addonId = "addon-a",
+            url = "https://example.com/first.m3u8",
+            name = "First",
+        )
+        val currentProvider = stream(
+            addonName = "AddonB",
+            addonId = "addon-b",
+            url = "https://example.com/current-provider.m3u8",
+            name = "Current provider",
+        )
+
+        val selected = StreamAutoPlaySelector.selectAutoPlayStream(
+            streams = listOf(first, currentProvider),
+            mode = StreamAutoPlayMode.FIRST_STREAM,
+            regexPattern = "",
+            source = StreamAutoPlaySource.ALL_SOURCES,
+            installedAddonNames = setOf("AddonA", "AddonB"),
+            selectedAddons = emptySet(),
+            selectedPlugins = emptySet(),
+            preferredBingeGroup = "missing-group",
+            preferredAddonId = "addon-b",
+            preferBingeGroupInSelection = true,
+            preferCurrentProviderInSelection = true,
+        )
+
+        assertEquals(currentProvider, selected)
+    }
+
+    @Test
+    fun `bingeGroup preference wins over provider preference`() {
+        val providerMatch = stream(
+            addonName = "AddonA",
+            addonId = "addon-a",
+            url = "https://example.com/provider.m3u8",
+            bingeGroup = "other-group",
+        )
+        val bingeMatch = stream(
+            addonName = "AddonB",
+            addonId = "addon-b",
+            url = "https://example.com/binge.m3u8",
+            bingeGroup = "same-group",
+        )
+
+        val selected = StreamAutoPlaySelector.selectAutoPlayStream(
+            streams = listOf(providerMatch, bingeMatch),
+            mode = StreamAutoPlayMode.FIRST_STREAM,
+            regexPattern = "",
+            source = StreamAutoPlaySource.ALL_SOURCES,
+            installedAddonNames = setOf("AddonA", "AddonB"),
+            selectedAddons = emptySet(),
+            selectedPlugins = emptySet(),
+            preferredBingeGroup = "same-group",
+            preferredAddonId = "addon-a",
+            preferBingeGroupInSelection = true,
+            preferCurrentProviderInSelection = true,
+        )
+
+        assertEquals(bingeMatch, selected)
+    }
+
+    @Test
     fun `bingeGroup-first respects source and addon plugin filters`() {
         val filteredOutAddonMatch = stream(
             addonName = "AddonFilteredOut",
@@ -147,6 +211,7 @@ class StreamAutoPlaySelectorTest {
 
     private fun stream(
         addonName: String,
+        addonId: String = addonName,
         url: String? = null,
         name: String? = null,
         bingeGroup: String? = null,
@@ -154,7 +219,7 @@ class StreamAutoPlaySelectorTest {
         name = name,
         url = url,
         addonName = addonName,
-        addonId = addonName,
+        addonId = addonId,
         behaviorHints = StreamBehaviorHints(
             bingeGroup = bingeGroup,
         ),

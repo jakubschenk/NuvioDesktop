@@ -74,7 +74,7 @@ import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -116,6 +116,20 @@ private enum class PlayerGestureMode {
     HorizontalSeek,
     Brightness,
     Volume,
+}
+
+private fun String?.normalizedPlayerPreference(): String? =
+    this?.trim()?.takeIf { it.isNotEmpty() }
+
+private fun StreamItem.matchesPlaybackContinuationPreference(
+    preferredBingeGroup: String?,
+    preferredAddonId: String?,
+    preferredAddonName: String?,
+): Boolean {
+    if (directPlaybackUrl == null) return false
+    return preferredBingeGroup != null && behaviorHints.bingeGroup == preferredBingeGroup ||
+        preferredAddonId != null && addonId == preferredAddonId ||
+        preferredAddonName != null && addonName == preferredAddonName
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -986,6 +1000,24 @@ fun PlayerScreen(
             } else {
                 settings.streamAutoPlayRegex
             }
+            val preferContinuationSource = settings.streamAutoPlayPreferBingeGroup
+            val preferredBingeGroup = if (preferContinuationSource) {
+                currentStreamBingeGroup.normalizedPlayerPreference()
+            } else {
+                null
+            }
+            val preferredAddonId = if (preferContinuationSource) {
+                activeProviderAddonId.normalizedPlayerPreference()
+            } else {
+                null
+            }
+            val preferredAddonName = if (preferContinuationSource) {
+                activeProviderName.normalizedPlayerPreference()
+            } else {
+                null
+            }
+            val hasContinuationPreference =
+                preferredBingeGroup != null || preferredAddonId != null || preferredAddonName != null
 
             nextEpisodeAutoPlayJob = scope.launch {
                 PlayerStreamsRepository.loadEpisodeStreams(
@@ -996,60 +1028,92 @@ fun PlayerScreen(
                 )
 
                 val installedAddonNames = AddonRepository.uiState.value.addons
-                    .map { it.displayTitle }
+                    .map { addon -> addon.displayTitle.ifBlank { addon.manifest?.name.orEmpty() } }
+                    .filter { it.isNotBlank() }
                     .toSet()
 
                 val timeoutMs = settings.streamAutoPlayTimeoutSeconds * 1000L
-                val startTime = WatchProgressClock.nowEpochMs()
+                var nextEpisodeHandled = false
+
+                fun selectNextEpisodeStream(state: StreamsUiState, allowFallback: Boolean): StreamItem? {
+                    val streams = state.groups.flatMap { it.streams }
+                    if (streams.isEmpty()) return null
+
+                    val hasPreferredStream = hasContinuationPreference &&
+                        streams.any {
+                            it.matchesPlaybackContinuationPreference(
+                                preferredBingeGroup = preferredBingeGroup,
+                                preferredAddonId = preferredAddonId,
+                                preferredAddonName = preferredAddonName,
+                            )
+                        }
+                    if (!allowFallback && hasContinuationPreference && !hasPreferredStream) return null
+
+                    return StreamAutoPlaySelector.selectAutoPlayStream(
+                        streams = streams,
+                        mode = effectiveMode,
+                        regexPattern = effectiveRegex,
+                        source = effectiveSource,
+                        installedAddonNames = installedAddonNames,
+                        selectedAddons = effectiveSelectedAddons,
+                        selectedPlugins = effectiveSelectedPlugins,
+                        preferredBingeGroup = preferredBingeGroup,
+                        preferredAddonId = preferredAddonId,
+                        preferredAddonName = preferredAddonName,
+                        preferBingeGroupInSelection = preferContinuationSource,
+                        preferCurrentProviderInSelection = preferContinuationSource,
+                    )
+                }
+
+                suspend fun finishNextEpisodeSelection(selected: StreamItem?) {
+                    nextEpisodeHandled = true
+                    nextEpisodeAutoPlaySearching = false
+                    if (selected != null) {
+                        nextEpisodeAutoPlaySourceName = selected.addonName
+                        for (i in 3 downTo 1) {
+                            nextEpisodeAutoPlayCountdown = i
+                            delay(1000)
+                        }
+                        switchToEpisodeStream(selected, nextVideo)
+                        showNextEpisodeCard = false
+                        nextEpisodeAutoPlayCountdown = null
+                        nextEpisodeAutoPlaySourceName = null
+                    } else {
+                        episodeStreamsPanelState = EpisodeStreamsPanelState(
+                            showStreams = true,
+                            selectedEpisode = nextVideo,
+                        )
+                        showEpisodesPanel = true
+                        showNextEpisodeCard = false
+                        nextEpisodeAutoPlayJob?.cancel()
+                    }
+                }
+
+                val timeoutJob = if (timeoutMs > 0L) {
+                    launch {
+                        delay(timeoutMs)
+                        if (nextEpisodeHandled) return@launch
+                        finishNextEpisodeSelection(
+                            selectNextEpisodeStream(
+                                state = PlayerStreamsRepository.episodeStreamsState.value,
+                                allowFallback = true,
+                            ),
+                        )
+                    }
+                } else {
+                    null
+                }
 
                 // Collect streams as they arrive
-                PlayerStreamsRepository.episodeStreamsState.collectLatest { state ->
-                    if (state.groups.isEmpty() && state.isAnyLoading) return@collectLatest
+                PlayerStreamsRepository.episodeStreamsState.collect { state ->
+                    if (nextEpisodeHandled) return@collect
+                    if (state.groups.isEmpty() && state.isAnyLoading) return@collect
 
-                    val allStreams = state.groups.flatMap { it.streams }
-                    val elapsed = WatchProgressClock.nowEpochMs() - startTime
+                    val selected = selectNextEpisodeStream(state, allowFallback = !state.isAnyLoading)
 
-                    val selected = if (allStreams.isNotEmpty()) {
-                        StreamAutoPlaySelector.selectAutoPlayStream(
-                            streams = allStreams,
-                            mode = effectiveMode,
-                            regexPattern = effectiveRegex,
-                            source = effectiveSource,
-                            installedAddonNames = installedAddonNames,
-                            selectedAddons = effectiveSelectedAddons,
-                            selectedPlugins = effectiveSelectedPlugins,
-                            preferredBingeGroup = if (settings.streamAutoPlayPreferBingeGroup) {
-                                currentStreamBingeGroup
-                            } else {
-                                null
-                            },
-                            preferBingeGroupInSelection = settings.streamAutoPlayPreferBingeGroup,
-                        )
-                    } else null
-
-                    if (selected != null || !state.isAnyLoading || elapsed >= timeoutMs) {
-                        nextEpisodeAutoPlaySearching = false
-                        if (selected != null) {
-                            nextEpisodeAutoPlaySourceName = selected.addonName
-                            // Countdown before playing
-                            for (i in 3 downTo 1) {
-                                nextEpisodeAutoPlayCountdown = i
-                                delay(1000)
-                            }
-                            switchToEpisodeStream(selected, nextVideo)
-                            showNextEpisodeCard = false
-                            nextEpisodeAutoPlayCountdown = null
-                            nextEpisodeAutoPlaySourceName = null
-                        } else if (!state.isAnyLoading || elapsed >= timeoutMs) {
-                            // No stream found — open the episode streams panel for manual selection
-                            episodeStreamsPanelState = EpisodeStreamsPanelState(
-                                showStreams = true,
-                                selectedEpisode = nextVideo,
-                            )
-                            showEpisodesPanel = true
-                            showNextEpisodeCard = false
-                        }
-                        return@collectLatest
+                    if (selected != null || !state.isAnyLoading) {
+                        timeoutJob?.cancel()
+                        finishNextEpisodeSelection(selected)
                     }
                 }
             }

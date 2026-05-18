@@ -382,7 +382,7 @@ private fun ProgressControls(
                 onScrubFinished = onScrubFinished,
             )
             PlayerTimeText(
-                text = formatPlaybackTime(durationMs),
+                text = formatPlaybackTimeFixedHours(durationMs),
                 fontSize = metrics.timeSize,
                 modifier = Modifier.width(PlayerSeekTimeTextWidth),
                 textAlign = TextAlign.End,
@@ -954,7 +954,7 @@ internal fun LockedPlayerOverlay(
                     colors = sliderColors,
                 )
                 PlayerTimeText(
-                    text = formatPlaybackTime(durationMs),
+                    text = formatPlaybackTimeFixedHours(durationMs),
                     fontSize = metrics.timeSize,
                     modifier = Modifier.width(PlayerSeekTimeTextWidth),
                     textAlign = TextAlign.End,
