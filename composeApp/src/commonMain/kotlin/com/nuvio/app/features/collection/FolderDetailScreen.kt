@@ -278,6 +278,7 @@ private fun TabbedGridContent(
                         items(
                             items = selectedTab.items.withDuplicateSafeLazyKeys { item -> item.stableKey() },
                             key = { item -> item.lazyKey },
+                            contentType = { item -> item.value.posterShape },
                         ) { keyedItem ->
                             val item = keyedItem.value
                             NuvioPosterCard(
@@ -290,7 +291,10 @@ private fun TabbedGridContent(
                         }
 
                         if (uiState.selectedTabIsLoadingMore) {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
+                            item(
+                                span = { GridItemSpan(maxLineSpan) },
+                                contentType = "pagination_footer",
+                            ) {
                                 PaginationLoadingFooter()
                             }
                         }
@@ -330,6 +334,7 @@ private fun RowsContent(
         items(
             items = sections.withDuplicateSafeLazyKeys { it.key },
             key = { it.lazyKey },
+            contentType = { "folder_row_section" },
         ) { keyedSection ->
             val section = keyedSection.value
             HomeCatalogRowSection(

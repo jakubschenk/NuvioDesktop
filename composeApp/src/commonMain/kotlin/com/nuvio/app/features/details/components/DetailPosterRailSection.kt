@@ -32,6 +32,7 @@ fun DetailPosterRailSection(
         rowContentPadding = PaddingValues(horizontal = headerHorizontalPadding),
         showHeaderAccent = false,
         key = { item -> item.stableKey() },
+        contentType = { item -> item.posterShape },
     ) { item ->
         HomePosterCard(
             item = item,

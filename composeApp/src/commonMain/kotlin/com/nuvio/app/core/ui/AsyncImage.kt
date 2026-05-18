@@ -42,6 +42,7 @@ internal fun AsyncImage(
     filterQuality: FilterQuality = nuvioImageFilterQuality,
     clipToBounds: Boolean = true,
 ) {
+    val shouldMeasureStringModel = model is String
     var drawnSize by remember { mutableStateOf(IntSize.Zero) }
     val resolvedModel = rememberSizedAsyncImageModel(
         model = model,
@@ -82,10 +83,14 @@ internal fun AsyncImage(
     CoilAsyncImage(
         model = resolvedModel,
         contentDescription = contentDescription,
-        modifier = modifier.onSizeChanged { size ->
-            if (drawnSize != size) {
-                drawnSize = size
+        modifier = if (shouldMeasureStringModel) {
+            modifier.onSizeChanged { size ->
+                if (drawnSize != size) {
+                    drawnSize = size
+                }
             }
+        } else {
+            modifier
         },
         transform = transform,
         onState = onState,
@@ -109,9 +114,10 @@ private fun rememberSizedAsyncImageModel(
     val upgradedModel = remember(model) { model.upgradeTmdbImageModelQuality() }
     return remember(upgradedModel, drawnSize, contentScale, platformContext, decodeSizeMultiplier) {
         val url = upgradedModel as? String ?: return@remember upgradedModel
+        if (url.isBlank()) return@remember null
         val widthPx = drawnSize.width.coerceAtLeast(1)
         val heightPx = drawnSize.height.coerceAtLeast(1)
-        if (drawnSize == IntSize.Zero) return@remember url
+        if (drawnSize == IntSize.Zero) return@remember null
 
         val requestWidthPx = (widthPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(widthPx)
         val requestHeightPx = (heightPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(heightPx)

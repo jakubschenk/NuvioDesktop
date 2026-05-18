@@ -110,13 +110,16 @@ fun LibraryScreen(
 
         when {
             !uiState.isLoaded || (uiState.isLoading && uiState.sections.isEmpty()) -> {
-                items(3) {
+                items(
+                    count = 3,
+                    contentType = { "library_skeleton_row" },
+                ) {
                     HomeSkeletonRow(modifier = Modifier.padding(horizontal = 16.dp))
                 }
             }
 
             !uiState.errorMessage.isNullOrBlank() && uiState.sections.isEmpty() -> {
-                item {
+                item(contentType = "library_empty") {
                     if (networkStatusUiState.isOfflineLike) {
                         NuvioNetworkOfflineCard(
                             condition = networkStatusUiState.condition,
@@ -140,7 +143,7 @@ fun LibraryScreen(
             }
 
             uiState.sections.isEmpty() -> {
-                item {
+                item(contentType = "library_empty") {
                     if (networkStatusUiState.isOfflineLike && isTraktSource) {
                         NuvioNetworkOfflineCard(
                             condition = networkStatusUiState.condition,
@@ -210,6 +213,7 @@ private fun LazyListScope.librarySections(
     items(
         items = sections,
         key = { section -> section.type },
+        contentType = { "library_section" },
     ) { section ->
         val previewItems = section.items.take(LIBRARY_SECTION_PREVIEW_LIMIT)
         NuvioShelfSection(
@@ -224,6 +228,7 @@ private fun LazyListScope.librarySections(
             },
             viewAllPillSize = NuvioViewAllPillSize.Compact,
             key = { item -> "${item.type}:${item.id}" },
+            contentType = { item -> item.type },
         ) { item ->
             HomePosterCard(
                 item = item.toMetaPreview(),

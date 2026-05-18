@@ -440,7 +440,10 @@ fun HomeScreen(
             listState = homeListState,
         ) {
             if (showHeroSlot) {
-                item {
+                item(
+                    key = "home_hero",
+                    contentType = "home_hero",
+                ) {
                     when {
                         showHeroSkeleton -> HomeSkeletonHero(
                             modifier = Modifier,
@@ -469,7 +472,10 @@ fun HomeScreen(
             when {
                 addonsUiState.addons.none { it.manifest != null } -> {
                     if (continueWatchingPreferences.isVisible && continueWatchingItems.isNotEmpty()) {
-                        item {
+                        item(
+                            key = "continue_watching",
+                            contentType = "continue_watching",
+                        ) {
                             HomeContinueWatchingSection(
                                 items = continueWatchingItems,
                                 style = continueWatchingPreferences.style,
@@ -483,7 +489,7 @@ fun HomeScreen(
                             )
                         }
                     }
-                    item {
+                    item(contentType = "home_empty") {
                         HomeEmptyStateCard(
                             modifier = Modifier.padding(horizontal = 16.dp),
                             title = stringResource(Res.string.compose_search_empty_no_active_addons_title),
@@ -494,7 +500,10 @@ fun HomeScreen(
 
                 homeUiState.isLoading && homeUiState.sections.isEmpty() -> {
                     if (continueWatchingPreferences.isVisible && continueWatchingItems.isNotEmpty()) {
-                        item {
+                        item(
+                            key = "continue_watching",
+                            contentType = "continue_watching",
+                        ) {
                             HomeContinueWatchingSection(
                                 items = continueWatchingItems,
                                 style = continueWatchingPreferences.style,
@@ -508,14 +517,17 @@ fun HomeScreen(
                             )
                         }
                     }
-                    items(3) {
+                    items(
+                        count = 3,
+                        contentType = { "home_skeleton_row" },
+                    ) {
                         HomeSkeletonRow(modifier = Modifier.padding(horizontal = 16.dp))
                     }
                 }
 
                 homeUiState.sections.isEmpty() && homeUiState.heroItems.isEmpty() &&
                     (!continueWatchingPreferences.isVisible || continueWatchingItems.isEmpty()) -> {
-                    item {
+                    item(contentType = "home_empty") {
                         if (networkStatusUiState.isOfflineLike) {
                             NuvioNetworkOfflineCard(
                                 condition = networkStatusUiState.condition,
@@ -538,7 +550,10 @@ fun HomeScreen(
 
                 else -> {
                     if (continueWatchingPreferences.isVisible && continueWatchingItems.isNotEmpty()) {
-                        item {
+                        item(
+                            key = "continue_watching",
+                            contentType = "continue_watching",
+                        ) {
                             HomeContinueWatchingSection(
                                 items = continueWatchingItems,
                                 style = continueWatchingPreferences.style,
@@ -557,7 +572,10 @@ fun HomeScreen(
                         if (settingsItem.isCollection) {
                             val collection = collectionsMap[settingsItem.key]
                             if (collection != null) {
-                                item(key = settingsItem.key) {
+                                item(
+                                    key = settingsItem.key,
+                                    contentType = "collection_row",
+                                ) {
                                     HomeCollectionRowSection(
                                         collection = collection,
                                         modifier = Modifier.padding(bottom = 12.dp),
@@ -569,7 +587,10 @@ fun HomeScreen(
                         } else {
                             val section = sectionsMap[settingsItem.key]
                             if (section != null && section.items.isNotEmpty()) {
-                                item(key = settingsItem.key) {
+                                item(
+                                    key = settingsItem.key,
+                                    contentType = "catalog_row",
+                                ) {
                                     HomeCatalogRowSection(
                                         section = section,
                                         entries = section.items.take(HOME_CATALOG_PREVIEW_LIMIT),

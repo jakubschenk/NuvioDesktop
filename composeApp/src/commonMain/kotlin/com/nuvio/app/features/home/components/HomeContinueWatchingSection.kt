@@ -150,6 +150,7 @@ private fun HomeContinueWatchingSectionContent(
         rowContentPadding = PaddingValues(horizontal = sectionPadding),
         itemSpacing = layout.itemGap,
         key = { item -> item.videoId },
+        contentType = { style },
     ) { item ->
         val itemClick = onItemClick?.let { callback ->
             remember(item, callback) { { callback(item) } }

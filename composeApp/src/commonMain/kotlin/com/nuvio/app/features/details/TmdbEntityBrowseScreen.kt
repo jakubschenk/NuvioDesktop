@@ -255,7 +255,9 @@ private fun EntityHeroSection(
                 AsyncImage(
                     model = header.logo,
                     contentDescription = header.name,
-                    modifier = Modifier.height(44.dp),
+                    modifier = Modifier
+                        .width(180.dp)
+                        .height(44.dp),
                     contentScale = ContentScale.Fit,
                 )
             }

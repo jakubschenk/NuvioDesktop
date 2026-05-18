@@ -69,6 +69,7 @@ fun <T> NuvioShelfSection(
     onViewAllClick: (() -> Unit)? = null,
     viewAllPillSize: NuvioViewAllPillSize = NuvioViewAllPillSize.Default,
     key: ((T) -> Any)? = null,
+    contentType: ((T) -> Any?)? = null,
     itemContent: @Composable (T) -> Unit,
 ) {
     val rowState = rememberLazyListState()
@@ -97,11 +98,15 @@ fun <T> NuvioShelfSection(
                 items(
                     items = entries.withDuplicateSafeLazyKeys(key),
                     key = { entry -> entry.lazyKey },
+                    contentType = { entry -> contentType?.invoke(entry.value) },
                 ) { keyedEntry ->
                     itemContent(keyedEntry.value)
                 }
             } else {
-                items(entries) { entry ->
+                items(
+                    items = entries,
+                    contentType = { entry -> contentType?.invoke(entry) },
+                ) { entry ->
                     itemContent(entry)
                 }
             }

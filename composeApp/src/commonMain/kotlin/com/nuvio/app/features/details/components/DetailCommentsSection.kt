@@ -89,7 +89,10 @@ fun DetailCommentsSection(
                         .desktopHorizontalLazyRowGestures(listState),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(3) {
+                    items(
+                        count = 3,
+                        contentType = { "comment_skeleton" },
+                    ) {
                         LoadingCommentCard()
                     }
                 }
@@ -133,6 +136,7 @@ fun DetailCommentsSection(
                     items(
                         items = comments.withDuplicateSafeLazyKeys { it.id },
                         key = { it.lazyKey },
+                        contentType = { "comment" },
                     ) { keyedReview ->
                         val review = keyedReview.value
                         CommentCard(
@@ -141,7 +145,10 @@ fun DetailCommentsSection(
                         )
                     }
                     if (isLoadingMore) {
-                        item(key = "loading_more_comments") {
+                        item(
+                            key = "loading_more_comments",
+                            contentType = "comment_skeleton",
+                        ) {
                             LoadingCommentCard()
                         }
                     }

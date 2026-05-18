@@ -279,13 +279,16 @@ fun SearchScreen(
             } else {
             when {
                 uiState.isLoading && uiState.sections.isEmpty() -> {
-                    items(2) {
+                    items(
+                        count = 2,
+                        contentType = { "search_skeleton_row" },
+                    ) {
                         HomeSkeletonRow(modifier = Modifier.padding(horizontal = homeSectionPadding))
                     }
                 }
 
                 uiState.sections.isEmpty() -> {
-                    item {
+                    item(contentType = "search_empty") {
                         SearchEmptyStateCard(
                             reason = uiState.emptyStateReason,
                             errorMessage = uiState.errorMessage,
@@ -308,6 +311,7 @@ fun SearchScreen(
                     items(
                         items = uiState.sections.withDuplicateSafeLazyKeys { section -> section.key },
                         key = { section -> section.lazyKey },
+                        contentType = { "search_section" },
                     ) { keyedSection ->
                         val section = keyedSection.value
                         HomeCatalogRowSection(

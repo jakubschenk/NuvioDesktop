@@ -34,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -599,7 +600,11 @@ fun MetaDetailsScreen(
                 }
                 var heroHeightPx by remember(meta.id) { mutableIntStateOf(0) }
                 val thresholdPx = (heroHeightPx - safeAreaTopPx).coerceAtLeast(0f)
-                val headerTarget = if (heroHeightPx > 0 && scrollState.value > thresholdPx) 1f else 0f
+                val headerTarget by remember(scrollState, heroHeightPx, thresholdPx) {
+                    derivedStateOf {
+                        if (heroHeightPx > 0 && scrollState.value > thresholdPx) 1f else 0f
+                    }
+                }
                 val headerProgress by animateFloatAsState(
                     targetValue = headerTarget,
                     animationSpec = tween(
@@ -644,7 +649,7 @@ fun MetaDetailsScreen(
                                 meta = meta,
                                 isTablet = isTablet,
                                 contentMaxWidth = contentMaxWidth,
-                                scrollOffset = scrollState.value,
+                                scrollOffsetProvider = { scrollState.value },
                                 onHeightChanged = { heroHeightPx = it },
                             )
 

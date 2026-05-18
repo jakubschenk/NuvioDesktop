@@ -33,6 +33,7 @@ fun DetailHero(
     meta: MetaDetails,
     isTablet: Boolean = false,
     scrollOffset: Int = 0,
+    scrollOffsetProvider: () -> Int = { scrollOffset },
     contentMaxWidth: Dp = 560.dp,
     onHeightChanged: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -64,7 +65,7 @@ fun DetailHero(
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
-                                translationY = scrollOffset * 0.5f
+                                translationY = scrollOffsetProvider() * 0.5f
                                 val baseScale = if (isTablet) 1.02f else 1.05f
                                 scaleX = baseScale
                                 scaleY = baseScale
