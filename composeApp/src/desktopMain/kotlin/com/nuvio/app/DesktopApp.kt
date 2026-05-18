@@ -18,7 +18,6 @@ import com.nuvio.app.core.network.SupabaseConfig
 import com.nuvio.app.desktop.DesktopSingleInstanceManager
 import com.nuvio.app.desktop.DesktopPlayerRegistry
 import com.nuvio.app.desktop.DesktopRuntimeLog
-import com.nuvio.app.desktop.DesktopSkikoRenderer
 import com.nuvio.app.desktop.DesktopUriHandler
 import com.nuvio.app.desktop.DesktopWindowStateStore
 import com.nuvio.app.desktop.WindowsUrlProtocolRegistrar
@@ -74,7 +73,6 @@ private fun clampDpSizeToDisplay(size: DpSize): DpSize {
 
 fun main(args: Array<String>) {
     DesktopRuntimeLog.initialize()
-    DesktopSkikoRenderer.configureFromEnvironment()
     WindowsNativeBootstrap.configureProcessDpiAwareness()
     DesktopRuntimeLog.installGlobalExceptionHandlers()
     val pid = DesktopRuntimeLog.processPid()
