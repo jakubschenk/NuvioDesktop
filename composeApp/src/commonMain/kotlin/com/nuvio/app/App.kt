@@ -108,7 +108,6 @@ import com.nuvio.app.features.catalog.CatalogScreen
 import com.nuvio.app.features.catalog.INTERNAL_LIBRARY_MANIFEST_URL
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.downloads.DownloadsScreen
-import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.MetaDetailsScreen
 import com.nuvio.app.features.details.MetaPerson
 import com.nuvio.app.features.details.PersonDetailScreen
@@ -129,6 +128,7 @@ import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.player.ManageFullscreenKeyboardShortcuts
 import com.nuvio.app.features.player.PlayerRoute
 import com.nuvio.app.features.player.PlayerScreen
+import com.nuvio.app.features.player.fetchPlayerMetaVideos
 import com.nuvio.app.features.player.sanitizePlaybackHeaders
 import com.nuvio.app.features.player.sanitizePlaybackResponseHeaders
 import com.nuvio.app.features.profiles.AvatarRepository
@@ -751,6 +751,25 @@ private fun MainAppContent(
             }
         }
 
+        fun prefetchPlaybackEpisodeMetadata(
+            contentType: String?,
+            parentMetaType: String?,
+            parentMetaId: String?,
+            seasonNumber: Int?,
+            episodeNumber: Int?,
+        ) {
+            if (parentMetaId.isNullOrBlank()) return
+            if (seasonNumber == null && episodeNumber == null) return
+            val lookupType = parentMetaType?.takeIf { it.isNotBlank() } ?: contentType ?: return
+            coroutineScope.launch {
+                fetchPlayerMetaVideos(
+                    parentMetaType = lookupType,
+                    contentType = contentType,
+                    parentMetaId = parentMetaId,
+                )
+            }
+        }
+
         fun launchPlaybackWithDownloadPreference(
             type: String,
             videoId: String,
@@ -772,6 +791,13 @@ private fun MainAppContent(
         ) {
             val targetResumePositionMs = if (startFromBeginning) 0L else (resumePositionMs ?: 0L)
             val targetResumeProgressFraction = if (startFromBeginning) null else resumeProgressFraction
+            prefetchPlaybackEpisodeMetadata(
+                contentType = type,
+                parentMetaType = parentMetaType,
+                parentMetaId = parentMetaId,
+                seasonNumber = seasonNumber,
+                episodeNumber = episodeNumber,
+            )
 
             if (!manualSelection) {
                 val downloadedItem = DownloadsRepository.findPlayableDownload(
@@ -1304,6 +1330,13 @@ private fun MainAppContent(
                         launch.seasonNumber,
                         launch.episodeNumber,
                     ) {
+                        prefetchPlaybackEpisodeMetadata(
+                            contentType = launch.type,
+                            parentMetaType = launch.parentMetaType,
+                            parentMetaId = launch.parentMetaId,
+                            seasonNumber = launch.seasonNumber,
+                            episodeNumber = launch.episodeNumber,
+                        )
                         effectiveVideoId = launch.videoId
                         if (!shouldResolveEpisodeVideoId) {
                             hasResolvedVideoId = true
@@ -1314,10 +1347,13 @@ private fun MainAppContent(
                         val metaType = launch.parentMetaType ?: launch.type
                         val metaId = launch.parentMetaId
                         val resolvedVideoId = runCatching {
-                            MetaDetailsRepository.fetch(metaType, metaId)
-                        }.getOrNull()
-                            ?.videos
-                            ?.firstOrNull { video ->
+                            fetchPlayerMetaVideos(
+                                parentMetaType = metaType,
+                                contentType = launch.type,
+                                parentMetaId = metaId,
+                            )
+                        }.getOrDefault(emptyList())
+                            .firstOrNull { video ->
                                 video.season == launch.seasonNumber &&
                                     video.episode == launch.episodeNumber
                             }
@@ -1645,6 +1681,13 @@ private fun MainAppContent(
                                 .takeIf { it.isNotBlank() }
                                 ?.let(WatchProgressRepository::progressForVideo)
                                 ?.takeIf { it.isResumable }
+                            prefetchPlaybackEpisodeMetadata(
+                                contentType = item.contentType,
+                                parentMetaType = item.parentMetaType,
+                                parentMetaId = item.parentMetaId,
+                                seasonNumber = item.seasonNumber,
+                                episodeNumber = item.episodeNumber,
+                            )
 
                             val launchId = PlayerLaunchStore.put(
                                 PlayerLaunch(
