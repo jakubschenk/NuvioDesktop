@@ -43,6 +43,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 private const val DefaultGifDelayCentiseconds = 10
+private const val MinDesktopGifFrameDelayMs = 33
 private const val DecodeSizeBucketPx = 32
 private const val FallbackDecodeDimensionPx = 360
 private const val MaxDecodedGifEntries = 3
@@ -242,7 +243,9 @@ private fun AnimatedComposeGif(
         if (gif.frames.size <= 1) return@LaunchedEffect
         var nextFrameAtNanos = System.nanoTime()
         while (isActive) {
-            val delayMs = gif.delaysMs.getOrElse(frameIndex) { DefaultGifDelayCentiseconds * 10 }.coerceAtLeast(10)
+            val delayMs = gif.delaysMs
+                .getOrElse(frameIndex) { DefaultGifDelayCentiseconds * 10 }
+                .coerceAtLeast(MinDesktopGifFrameDelayMs)
             nextFrameAtNanos += delayMs * 1_000_000L
             val waitNanos = nextFrameAtNanos - System.nanoTime()
             if (waitNanos > 0L) {

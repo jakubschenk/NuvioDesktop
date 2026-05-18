@@ -53,6 +53,7 @@ private const val ExternalSubtitleCodepage = "+utf-8"
 private const val EmbeddedSubtitleCodepage = "auto"
 private const val ExternalSubtitleAssOverride = "strip"
 private const val EmbeddedSubtitleAssOverride = "no"
+private const val DesktopPlaybackPositionBucketMs = 250L
 
 @OptIn(InternalMediampApi::class)
 internal class MpvDesktopPlayerBackend private constructor(
@@ -184,9 +185,14 @@ internal class MpvDesktopPlayerBackend private constructor(
             val phase = playbackState.toDesktopPhase()
             val playbackSpeed = readPlaybackSpeed() ?: latestPlaybackSpeed
             latestPlaybackSpeed = playbackSpeed
+            val uiPositionMs = if (phase == DesktopPlayerPhase.Playing) {
+                position.toPlaybackPositionBucket()
+            } else {
+                position.coerceAtLeast(0L)
+            }
             DesktopPlayerState(
                 phase = phase,
-                positionMs = position,
+                positionMs = uiPositionMs,
                 durationMs = props?.durationMillis?.takeIf { it > 0 } ?: 0L,
                 bufferedPositionMs = 0L,
                 playbackSpeed = playbackSpeed,
@@ -199,7 +205,7 @@ internal class MpvDesktopPlayerBackend private constructor(
                 },
             )
         }.onEach { mapped ->
-            if (!nativeClosed) {
+            if (!nativeClosed && stateFlow.value != mapped) {
                 stateFlow.value = mapped
             }
         }.launchIn(scope)
@@ -643,6 +649,11 @@ internal class MpvDesktopPlayerBackend private constructor(
                 )
             }
     }
+}
+
+private fun Long.toPlaybackPositionBucket(): Long {
+    val normalized = coerceAtLeast(0L)
+    return normalized - (normalized % DesktopPlaybackPositionBucketMs)
 }
 
 private fun parseHeadersJson(headersJson: String?): Map<String, String> {

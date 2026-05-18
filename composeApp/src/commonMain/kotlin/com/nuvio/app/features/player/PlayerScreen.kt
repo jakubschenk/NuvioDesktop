@@ -123,6 +123,40 @@ private enum class PlayerGestureMode {
 private fun String?.normalizedPlayerPreference(): String? =
     this?.trim()?.takeIf { it.isNotEmpty() }
 
+private fun String?.isSeriesLikePlayerType(): Boolean =
+    equals("series", ignoreCase = true) || equals("tv", ignoreCase = true)
+
+private fun List<MetaVideo>.hasEpisodeMetadata(): Boolean =
+    any { video -> video.season != null || video.episode != null }
+
+private fun playerMetaLookupTypes(parentMetaType: String, contentType: String?): List<String> =
+    buildList {
+        add(parentMetaType)
+        contentType?.takeIf { type -> type.isNotBlank() }?.let(::add)
+        if (parentMetaType.isSeriesLikePlayerType() || contentType.isSeriesLikePlayerType()) {
+            add("series")
+        }
+    }.distinctBy { type -> type.lowercase() }
+
+private fun peekPlayerMetaVideos(parentMetaType: String, contentType: String?, parentMetaId: String): List<MetaVideo> {
+    for (type in playerMetaLookupTypes(parentMetaType, contentType)) {
+        val videos = MetaDetailsRepository.peek(type, parentMetaId)?.videos.orEmpty()
+        if (videos.isNotEmpty()) return videos
+    }
+    return emptyList()
+}
+
+private suspend fun fetchPlayerMetaVideos(parentMetaType: String, contentType: String?, parentMetaId: String): List<MetaVideo> {
+    val cached = peekPlayerMetaVideos(parentMetaType, contentType, parentMetaId)
+    if (cached.isNotEmpty()) return cached
+
+    for (type in playerMetaLookupTypes(parentMetaType, contentType)) {
+        val videos = MetaDetailsRepository.fetch(type, parentMetaId)?.videos.orEmpty()
+        if (videos.isNotEmpty()) return videos
+    }
+    return emptyList()
+}
+
 private fun StreamItem.matchesPlaybackContinuationPreference(
     preferredBingeGroup: String?,
     preferredAddonId: String?,
@@ -307,11 +341,16 @@ fun PlayerScreen(
         val sourceStreamsState by PlayerStreamsRepository.sourceState.collectAsStateWithLifecycle()
         val episodeStreamsRepoState by PlayerStreamsRepository.episodeStreamsState.collectAsStateWithLifecycle()
         val metaUiState by MetaDetailsRepository.uiState.collectAsStateWithLifecycle()
-        var playerMetaVideos by remember(parentMetaType, parentMetaId) {
-            mutableStateOf(MetaDetailsRepository.peek(parentMetaType, parentMetaId)?.videos ?: emptyList())
+        var playerMetaVideos by remember(parentMetaType, contentType, parentMetaId) {
+            mutableStateOf(peekPlayerMetaVideos(parentMetaType, contentType, parentMetaId))
         }
         val allEpisodes = remember(playerMetaVideos) { playerMetaVideos }
-        val isSeries = parentMetaType == "series"
+        val isSeries =
+            parentMetaType.isSeriesLikePlayerType() ||
+                contentType.isSeriesLikePlayerType() ||
+                activeSeasonNumber != null ||
+                activeEpisodeNumber != null ||
+                playerMetaVideos.hasEpisodeMetadata()
 
         // Skip intro/outro/recap state
         var skipIntervals by remember { mutableStateOf<List<SkipInterval>>(emptyList()) }
@@ -327,16 +366,17 @@ fun PlayerScreen(
         var nextEpisodeAutoPlayJob by remember { mutableStateOf<Job?>(null) }
         var nextEpisodeAutoPlayAttemptedVideoId by remember { mutableStateOf<String?>(null) }
 
-        LaunchedEffect(parentMetaType, parentMetaId) {
-            playerMetaVideos = MetaDetailsRepository.peek(parentMetaType, parentMetaId)?.videos ?: emptyList()
-            if (playerMetaVideos.isEmpty()) {
-                playerMetaVideos = MetaDetailsRepository.fetch(parentMetaType, parentMetaId)?.videos ?: emptyList()
-            }
+        LaunchedEffect(parentMetaType, contentType, parentMetaId) {
+            playerMetaVideos = fetchPlayerMetaVideos(parentMetaType, contentType, parentMetaId)
         }
 
-        LaunchedEffect(metaUiState.meta, parentMetaType, parentMetaId) {
+        LaunchedEffect(metaUiState.meta, parentMetaType, contentType, parentMetaId) {
             val currentMeta = metaUiState.meta ?: return@LaunchedEffect
-            if (currentMeta.type == parentMetaType && currentMeta.id == parentMetaId) {
+            val matchesPlayerMeta =
+                currentMeta.id == parentMetaId &&
+                    playerMetaLookupTypes(parentMetaType, contentType)
+                        .any { type -> currentMeta.type.equals(type, ignoreCase = true) }
+            if (matchesPlayerMeta) {
                 playerMetaVideos = currentMeta.videos
             }
         }
@@ -1138,12 +1178,20 @@ fun PlayerScreen(
             // Ensure meta is loaded for episodes
             if (allEpisodes.isEmpty()) {
                 scope.launch {
-                    playerMetaVideos = MetaDetailsRepository.fetch(parentMetaType, parentMetaId)?.videos ?: emptyList()
+                    playerMetaVideos = fetchPlayerMetaVideos(parentMetaType, contentType, parentMetaId)
                 }
             }
             showEpisodesPanel = true
             showSourcesPanel = false
             controlsVisible = false
+        }
+
+        fun openNextEpisodeOrEpisodes() {
+            if (nextEpisodeInfo != null) {
+                playNextEpisode(force = true)
+            } else {
+                openEpisodesPanel()
+            }
         }
 
         fun fetchAddonSubtitlesForActiveItem() {
@@ -1672,8 +1720,8 @@ fun PlayerScreen(
                         }
 
                         event.key == Key.N -> {
-                            if (!blockingPanelOpen && !playerControlsLocked && nextEpisodeInfo != null) {
-                                playNextEpisode(force = true)
+                            if (!blockingPanelOpen && !playerControlsLocked && isSeries) {
+                                openNextEpisodeOrEpisodes()
                                 true
                             } else {
                                 false
@@ -2028,7 +2076,7 @@ fun PlayerScreen(
                     onVolumeChange = ::setPlayerVolume,
                     volumeLevel = playerAudioLevel?.fraction ?: 1f,
                     isVolumeMuted = playerAudioLevel?.isMuted == true,
-                    onNextEpisodeClick = if (nextEpisodeInfo != null) { { playNextEpisode(force = true) } } else null,
+                    onNextEpisodeClick = if (isSeries) { ::openNextEpisodeOrEpisodes } else null,
                     onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
                     onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
                     onSubmitIntroClick = if (isSeries && playerSettingsUiState.introSubmitEnabled && playerSettingsUiState.introDbApiKey.isNotBlank()) { { showSubmitIntroModal = true } } else null,

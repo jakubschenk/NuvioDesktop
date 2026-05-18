@@ -201,7 +201,7 @@ internal class NativeBridgeDesktopPlayerBackend private constructor(
                     close()
                     break
                 }
-                stateFlow.value = DesktopPlayerState(
+                val nextState = DesktopPlayerState(
                     phase = when {
                         pollState.error != null -> DesktopPlayerPhase.Error
                         pollState.snapshot.isEnded -> DesktopPlayerPhase.Ended
@@ -216,6 +216,9 @@ internal class NativeBridgeDesktopPlayerBackend private constructor(
                     backendName = backendName,
                     error = pollState.error?.let { DesktopPlayerError.PlaybackFailed(backendName, it) },
                 )
+                if (stateFlow.value != nextState) {
+                    stateFlow.value = nextState
+                }
                 if (pollState.addonSubtitlesFetchRequested) onAddonSubtitlesFetchCallback?.invoke()
                 if (pollState.subtitleStyleChanged) {
                     val colorIndex = pollState.subtitleStyleColorIndex.coerceIn(0, SubtitleColorSwatches.lastIndex)
