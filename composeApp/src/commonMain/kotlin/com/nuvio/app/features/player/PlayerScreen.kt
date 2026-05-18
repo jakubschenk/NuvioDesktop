@@ -90,6 +90,11 @@ private const val PlayerRightGestureBoundary = 0.6f
 private const val PlayerVerticalGestureSensitivity = 1f
 private const val PlayerSeekStepMs = 10_000L
 private const val PlayerKeyboardVolumeStep = 0.05f
+private const val PlayerScrollVolumeStep = 0.025f
+private const val PlayerScrollVolumeApplyIntervalMs = 40L
+private const val PlayerScrollVolumePixelThreshold = 8f
+private const val PlayerScrollVolumePixelUnit = 120f
+private const val PlayerScrollVolumeMaxQueuedDelta = 0.06f
 private const val PlayerNextEpisodeStreamPollIntervalMs = 100L
 private val PlayerSliderOverlayGap = 12.dp
 private val PlayerMetadataBlockHeight = 88.dp
@@ -118,6 +123,24 @@ private enum class PlayerGestureMode {
     HorizontalSeek,
     Brightness,
     Volume,
+}
+
+private class PlayerVolumeScrollAccumulator {
+    var pendingDelta = 0f
+    var lastAppliedEpochMs = 0L
+    var applyJob: Job? = null
+}
+
+private fun playerVolumeDeltaForScroll(scrollY: Float): Float {
+    if (scrollY == 0f) return 0f
+    val magnitude = abs(scrollY)
+    val scrollUnits = if (magnitude > PlayerScrollVolumePixelThreshold) {
+        (magnitude / PlayerScrollVolumePixelUnit).coerceAtMost(1f)
+    } else {
+        magnitude.coerceIn(0.05f, 1f)
+    }
+    val direction = if (scrollY < 0f) 1f else -1f
+    return direction * PlayerScrollVolumeStep * scrollUnits
 }
 
 private fun String?.normalizedPlayerPreference(): String? =
@@ -250,6 +273,7 @@ fun PlayerScreen(
         var playerController by remember { mutableStateOf<PlayerEngineController?>(null) }
         var playerControllerSourceUrl by remember { mutableStateOf<String?>(null) }
         var playerAudioLevel by remember(activeSourceUrl) { mutableStateOf<PlayerAudioLevel?>(null) }
+        val volumeScrollAccumulator = remember { PlayerVolumeScrollAccumulator() }
         var errorMessage by remember { mutableStateOf<String?>(null) }
         val keepScreenAwake = errorMessage == null &&
             (playbackSnapshot.isPlaying || (shouldPlay && playbackSnapshot.isLoading))
@@ -713,6 +737,40 @@ fun PlayerScreen(
                 ?: playerController?.currentVolume()?.also { playerAudioLevel = it }
             val base = current?.fraction ?: 0.5f
             setPlayerVolume(base + delta)
+        }
+
+        fun flushVolumeScrollDelta() {
+            val delta = volumeScrollAccumulator.pendingDelta
+                .coerceIn(-PlayerScrollVolumeMaxQueuedDelta, PlayerScrollVolumeMaxQueuedDelta)
+            volumeScrollAccumulator.pendingDelta = 0f
+            volumeScrollAccumulator.lastAppliedEpochMs = WatchProgressClock.nowEpochMs()
+            if (abs(delta) >= 0.001f) {
+                adjustPlayerVolume(delta)
+            }
+        }
+
+        fun handlePlayerVolumeScroll(scrollY: Float): Boolean {
+            val delta = playerVolumeDeltaForScroll(scrollY)
+            if (delta == 0f) return false
+
+            volumeScrollAccumulator.pendingDelta =
+                (volumeScrollAccumulator.pendingDelta + delta)
+                    .coerceIn(-PlayerScrollVolumeMaxQueuedDelta, PlayerScrollVolumeMaxQueuedDelta)
+
+            if (volumeScrollAccumulator.applyJob?.isActive == true) {
+                return true
+            }
+
+            val now = WatchProgressClock.nowEpochMs()
+            val elapsedMs = now - volumeScrollAccumulator.lastAppliedEpochMs
+            val delayMs = (PlayerScrollVolumeApplyIntervalMs - elapsedMs).coerceAtLeast(0L)
+            volumeScrollAccumulator.applyJob = scope.launch {
+                if (delayMs > 0L) {
+                    delay(delayMs)
+                }
+                flushVolumeScrollDelta()
+            }
+            return true
         }
 
         fun togglePlayback() {
@@ -1611,9 +1669,9 @@ fun PlayerScreen(
                 .onPointerEvent(PointerEventType.Scroll) { event ->
                     if (blockingPanelOpen || playerControlsLocked) return@onPointerEvent
                     val scrollY = event.changes.firstOrNull()?.scrollDelta?.y ?: return@onPointerEvent
-                    if (scrollY == 0f) return@onPointerEvent
-                    adjustPlayerVolume(if (scrollY < 0f) 0.05f else -0.05f)
-                    event.changes.forEach { change -> change.consume() }
+                    if (handlePlayerVolumeScroll(scrollY)) {
+                        event.changes.forEach { change -> change.consume() }
+                    }
                 }
                 .onPreviewKeyEvent { event ->
                     when {

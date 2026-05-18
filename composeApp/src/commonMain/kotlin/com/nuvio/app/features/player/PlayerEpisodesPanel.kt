@@ -274,7 +274,11 @@ private fun EpisodesListSubView(
                     .padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(availableSeasons, key = { season -> season }) { season ->
+                items(
+                    items = availableSeasons,
+                    key = { season -> season },
+                    contentType = { "player_season" },
+                ) { season ->
                     val label = if (season == 0) {
                         stringResource(Res.string.episodes_specials)
                     } else {
@@ -316,6 +320,7 @@ private fun EpisodesListSubView(
                 itemsIndexed(
                     items = seasonEpisodes,
                     key = { index, episode -> "${episode.season}:${episode.episode}:${episode.id}#$index" },
+                    contentType = { _, _ -> "player_episode" },
                 ) { _, episode ->
                     val isCurrent = episode.season == currentSeason && episode.episode == currentEpisode
                     val episodeVideoId = buildPlaybackVideoId(
@@ -602,6 +607,9 @@ private fun EpisodeStreamsSubView(
                     itemsIndexed(
                         items = streams,
                         key = { index, stream -> "${stream.addonId}::${index}::${stream.url ?: stream.infoHash ?: stream.name}" },
+                        contentType = { _, stream ->
+                            if (stream.isTorrentStream) "player_episode_torrent_stream" else "player_episode_direct_stream"
+                        },
                     ) { _, stream ->
                         EpisodeSourceStreamRow(
                             stream = stream,
