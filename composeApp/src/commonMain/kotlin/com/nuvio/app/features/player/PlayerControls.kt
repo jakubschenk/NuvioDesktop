@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -120,6 +121,8 @@ internal fun PlayerControlsShell(
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onVolumeClick: (() -> Unit)? = null,
+    onVolumeChange: ((Float) -> Unit)? = null,
+    volumeLevel: Float = 1f,
     isVolumeMuted: Boolean = false,
     onNextEpisodeClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
@@ -193,7 +196,7 @@ internal fun PlayerControlsShell(
                     .padding(
                         start = metrics.horizontalPadding,
                         end = metrics.horizontalPadding,
-                        top = metrics.verticalPadding / 4,
+                        top = metrics.verticalPadding,
                     ),
             )
 
@@ -221,6 +224,8 @@ internal fun PlayerControlsShell(
                 onSubtitleClick = onSubtitleClick,
                 onAudioClick = onAudioClick,
                 onVolumeClick = onVolumeClick,
+                onVolumeChange = onVolumeChange,
+                volumeLevel = volumeLevel,
                 isVolumeMuted = isVolumeMuted,
                 onNextEpisodeClick = onNextEpisodeClick,
                 onLockToggle = onLockToggle,
@@ -273,41 +278,30 @@ private fun PlayerClockReadout(
     endTimeText: String?,
     metrics: PlayerLayoutMetrics,
 ) {
-    Surface(
-        color = Color.Black.copy(alpha = 0.38f),
-        shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.border(
-            width = 1.dp,
-            color = Color.White.copy(alpha = 0.14f),
-            shape = RoundedCornerShape(14.dp),
-        ),
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(1.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(1.dp),
-        ) {
+        Text(
+            text = currentTimeText,
+            style = MaterialTheme.nuvioTypeScale.labelSm.copy(
+                fontSize = metrics.metadataSize * 1.25f,
+                lineHeight = metrics.metadataSize * 1.4f,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = Color.White,
+            maxLines = 1,
+        )
+        if (endTimeText != null) {
             Text(
-                text = currentTimeText,
+                text = "Ends $endTimeText",
                 style = MaterialTheme.nuvioTypeScale.labelSm.copy(
                     fontSize = metrics.metadataSize,
-                    lineHeight = metrics.metadataSize * 1.15f,
-                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = metrics.metadataSize * 1.2f,
                 ),
-                color = Color.White,
+                color = Color.White.copy(alpha = 0.72f),
                 maxLines = 1,
             )
-            if (endTimeText != null) {
-                Text(
-                    text = "Ends $endTimeText",
-                    style = MaterialTheme.nuvioTypeScale.labelSm.copy(
-                        fontSize = metrics.metadataSize * 0.86f,
-                        lineHeight = metrics.metadataSize,
-                    ),
-                    color = Color.White.copy(alpha = 0.72f),
-                    maxLines = 1,
-                )
-            }
         }
     }
 }
@@ -337,6 +331,8 @@ private fun ProgressControls(
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onVolumeClick: (() -> Unit)? = null,
+    onVolumeChange: ((Float) -> Unit)? = null,
+    volumeLevel: Float = 1f,
     isVolumeMuted: Boolean = false,
     onNextEpisodeClick: (() -> Unit)? = null,
     onLockToggle: () -> Unit,
@@ -364,26 +360,31 @@ private fun ProgressControls(
                 .fillMaxWidth()
                 .padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
         )
-        PlayerSeekBar(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(metrics.sliderTouchHeight),
-            positionMs = displayedPositionMs,
-            durationMs = durationMs,
-            idleScaleY = metrics.sliderScaleY,
-            onScrubChange = onScrubChange,
-            onScrubFinished = onScrubFinished,
-        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp)
-                .padding(top = 4.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TimePill(text = formatPlaybackTime(displayedPositionMs), fontSize = metrics.timeSize)
-            TimePill(text = formatPlaybackTime(durationMs), fontSize = metrics.timeSize)
+            PlayerTimeText(
+                text = formatPlaybackTime(displayedPositionMs),
+                fontSize = metrics.timeSize,
+            )
+            PlayerSeekBar(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(metrics.sliderTouchHeight),
+                positionMs = displayedPositionMs,
+                durationMs = durationMs,
+                idleScaleY = metrics.sliderScaleY,
+                onScrubChange = onScrubChange,
+                onScrubFinished = onScrubFinished,
+            )
+            PlayerTimeText(
+                text = formatPlaybackTime(durationMs),
+                fontSize = metrics.timeSize,
+            )
         }
         Row(
             modifier = Modifier
@@ -415,11 +416,12 @@ private fun ProgressControls(
                         onClick = onNextEpisodeClick,
                     )
                 }
-                if (onVolumeClick != null) {
-                    PlayerToolbarIconButton(
-                        icon = if (isVolumeMuted) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeUp,
-                        contentDescription = stringResource(Res.string.compose_player_audio),
-                        onClick = onVolumeClick,
+                if (onVolumeClick != null || onVolumeChange != null) {
+                    PlayerVolumeControl(
+                        volumeLevel = volumeLevel,
+                        isMuted = isVolumeMuted,
+                        onMuteClick = onVolumeClick,
+                        onVolumeChange = onVolumeChange,
                     )
                 }
             }
@@ -633,6 +635,36 @@ private fun PlayerToolbarTextButton(
         onClick = onClick,
         buttonSize = 46.dp,
     )
+}
+
+@Composable
+private fun PlayerVolumeControl(
+    volumeLevel: Float,
+    isMuted: Boolean,
+    onMuteClick: (() -> Unit)?,
+    onVolumeChange: ((Float) -> Unit)?,
+) {
+    Row(
+        modifier = Modifier.padding(end = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PlayerToolbarIconButton(
+            icon = if (isMuted) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeUp,
+            contentDescription = stringResource(Res.string.compose_player_audio),
+            onClick = { onMuteClick?.invoke() },
+        )
+        Slider(
+            modifier = Modifier
+                .width(96.dp)
+                .height(32.dp)
+                .graphicsLayer(scaleY = 0.72f),
+            value = volumeLevel.coerceIn(0f, 1f),
+            onValueChange = { value -> onVolumeChange?.invoke(value.coerceIn(0f, 1f)) },
+            valueRange = 0f..1f,
+            enabled = onVolumeChange != null,
+        )
+    }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -904,53 +936,45 @@ internal fun LockedPlayerOverlay(
                 .padding(horizontal = horizontalSafePadding + metrics.horizontalPadding)
                 .padding(bottom = metrics.sliderBottomOffset),
         ) {
-            Slider(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(metrics.sliderTouchHeight)
-                    .graphicsLayer(scaleY = metrics.sliderScaleY),
-                value = displayedPositionMs.coerceIn(0L, durationMs).toFloat(),
-                onValueChange = {},
-                onValueChangeFinished = {},
-                valueRange = 0f..durationMs.toFloat(),
-                enabled = false,
-                colors = sliderColors,
-            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .padding(top = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TimePill(text = formatPlaybackTime(displayedPositionMs), fontSize = metrics.timeSize)
-                TimePill(text = formatPlaybackTime(durationMs), fontSize = metrics.timeSize)
+                PlayerTimeText(text = formatPlaybackTime(displayedPositionMs), fontSize = metrics.timeSize)
+                Slider(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(metrics.sliderTouchHeight)
+                        .graphicsLayer(scaleY = metrics.sliderScaleY),
+                    value = displayedPositionMs.coerceIn(0L, durationMs).toFloat(),
+                    onValueChange = {},
+                    onValueChangeFinished = {},
+                    valueRange = 0f..durationMs.toFloat(),
+                    enabled = false,
+                    colors = sliderColors,
+                )
+                PlayerTimeText(text = formatPlaybackTime(durationMs), fontSize = metrics.timeSize)
             }
         }
     }
 }
 
 @Composable
-private fun TimePill(
+private fun PlayerTimeText(
     text: String,
     fontSize: androidx.compose.ui.unit.TextUnit,
 ) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.Black.copy(alpha = 0.5f))
-            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.nuvioTypeScale.labelSm.copy(
-                fontSize = fontSize,
-                lineHeight = fontSize * 1.25f,
-                fontWeight = FontWeight.Medium,
-            ),
-            color = Color.White,
-        )
-    }
+    Text(
+        text = text,
+        style = MaterialTheme.nuvioTypeScale.labelSm.copy(
+            fontSize = fontSize,
+            lineHeight = fontSize * 1.25f,
+            fontWeight = FontWeight.Medium,
+        ),
+        color = Color.White.copy(alpha = 0.88f),
+        maxLines = 1,
+    )
 }

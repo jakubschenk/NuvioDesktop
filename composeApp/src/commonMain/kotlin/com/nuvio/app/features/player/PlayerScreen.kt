@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -40,6 +41,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -123,6 +126,7 @@ private data class PlayerAccumulatedSeekState(
     val amountMs: Long,
 )
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PlayerScreen(
     title: String,
@@ -684,6 +688,18 @@ fun PlayerScreen(
         fun toggleMute() {
             playerController?.toggleMute()?.let(::applyVolumeFeedback)
             revealPlayerChrome()
+        }
+
+        fun setPlayerVolume(level: Float) {
+            playerController?.setVolume(level.coerceIn(0f, 1f))?.let(::applyVolumeFeedback)
+            revealPlayerChrome()
+        }
+
+        fun adjustPlayerVolume(delta: Float) {
+            val current = playerController?.currentVolume()?.also { playerAudioLevel = it }
+                ?: playerAudioLevel
+            val base = current?.fraction ?: 0.5f
+            setPlayerVolume(base + delta)
         }
 
         fun togglePlayback() {
@@ -1548,6 +1564,13 @@ fun PlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .onPointerEvent(PointerEventType.Scroll) { event ->
+                    if (blockingPanelOpen || playerControlsLocked) return@onPointerEvent
+                    val scrollY = event.changes.firstOrNull()?.scrollDelta?.y ?: return@onPointerEvent
+                    if (scrollY == 0f) return@onPointerEvent
+                    adjustPlayerVolume(if (scrollY < 0f) 0.05f else -0.05f)
+                    event.changes.forEach { change -> change.consume() }
+                }
                 .onPreviewKeyEvent { event ->
                     when {
                         event.type == KeyEventType.KeyDown &&
@@ -1915,6 +1938,8 @@ fun PlayerScreen(
                         showAudioModal = true
                     },
                     onVolumeClick = ::toggleMute,
+                    onVolumeChange = ::setPlayerVolume,
+                    volumeLevel = playerAudioLevel?.fraction ?: 1f,
                     isVolumeMuted = playerAudioLevel?.isMuted == true,
                     onNextEpisodeClick = if (nextEpisodeInfo?.hasAired == true) { { playNextEpisode() } } else null,
                     onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
