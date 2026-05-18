@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.app.core.ui.desktopClickablePointer
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
@@ -124,6 +125,7 @@ private fun StyleControlsCard(
                         else colorScheme.surface.copy(alpha = 0.8f)
                     )
                     .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(10.dp))
+                    .desktopClickablePointer()
                     .clickable { onStyleChanged(style.copy(outlineEnabled = !style.outlineEnabled)) }
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             ) {
@@ -188,6 +190,7 @@ private fun StyleControlsCard(
                             if (isSelected) colorScheme.primary else colorScheme.outlineVariant,
                             CircleShape,
                         )
+                        .desktopClickablePointer()
                         .clickable { onStyleChanged(style.copy(textColor = color)) },
                 )
             }
@@ -202,6 +205,7 @@ private fun StyleControlsCard(
                     .clip(RoundedCornerShape(8.dp))
                     .background(colorScheme.surface.copy(alpha = 0.82f))
                     .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
+                    .desktopClickablePointer()
                     .clickable { onStyleChanged(SubtitleStyleState.DEFAULT) }
                     .padding(horizontal = if (isCompact) 8.dp else 12.dp, vertical = if (isCompact) 6.dp else 8.dp),
             ) {
@@ -238,6 +242,7 @@ private fun StepperControl(
                 .size(buttonSize)
                 .clip(RoundedCornerShape(buttonRadius))
                 .background(colorScheme.primaryContainer)
+                .desktopClickablePointer()
                 .clickable(onClick = onMinus),
             contentAlignment = Alignment.Center,
         ) {
@@ -271,6 +276,7 @@ private fun StepperControl(
                 .size(buttonSize)
                 .clip(RoundedCornerShape(buttonRadius))
                 .background(colorScheme.primaryContainer)
+                .desktopClickablePointer()
                 .clickable(onClick = onPlus),
             contentAlignment = Alignment.Center,
         ) {

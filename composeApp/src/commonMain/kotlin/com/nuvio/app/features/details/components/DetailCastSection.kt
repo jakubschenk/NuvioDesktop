@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +31,8 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.desktopClickablePointer
+import com.nuvio.app.core.ui.desktopHorizontalLazyRowGestures
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.nuvio.app.features.details.MetaPerson
@@ -56,8 +59,11 @@ fun DetailCastSection(
     ) {
         BoxWithConstraints {
             val sizing = castSectionSizing(maxWidth.value)
+            val listState = rememberLazyListState()
 
             LazyRow(
+                state = listState,
+                modifier = Modifier.desktopHorizontalLazyRowGestures(listState),
                 horizontalArrangement = Arrangement.spacedBy(sizing.avatarGap),
             ) {
                 itemsIndexed(
@@ -131,7 +137,15 @@ private fun CastItem(
     Column(
         modifier = modifier
             .width(sizing.itemWidth)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            .then(
+                if (onClick != null) {
+                    Modifier
+                        .desktopClickablePointer()
+                        .clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {

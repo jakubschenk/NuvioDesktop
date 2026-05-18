@@ -38,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.app.core.ui.desktopClickablePointer
+import com.nuvio.app.core.ui.desktopHorizontalLazyRowGestures
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import com.nuvio.app.features.trakt.TraktCommentReview
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -81,7 +83,10 @@ fun DetailCommentsSection(
         when {
             isLoading -> {
                 LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .desktopHorizontalLazyRowGestures(listState),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(3) {
@@ -119,8 +124,10 @@ fun DetailCommentsSection(
 
             else -> {
                 LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
                     state = listState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .desktopHorizontalLazyRowGestures(listState),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(
@@ -184,6 +191,7 @@ private fun CommentCard(
             modifier = modifier
                 .width(cardWidth)
                 .height(cardHeight)
+                .desktopClickablePointer()
                 .clickable(onClick = onClick),
             shape = RoundedCornerShape(16.dp),
             color = if (isAmoled) Color(0xFF121212) else colorScheme.surfaceVariant.copy(alpha = 0.5f),

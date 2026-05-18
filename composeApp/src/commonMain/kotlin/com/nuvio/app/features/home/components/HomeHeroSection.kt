@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.withTmdbImageSize
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.features.home.MetaPreview
@@ -240,6 +241,7 @@ fun HomeHeroSection(
                         Spacer(modifier = Modifier.height(14.dp))
                         Surface(
                             modifier = Modifier
+                                .then(if (onItemClick != null) Modifier.desktopClickablePointer() else Modifier)
                                 .clickable(enabled = onItemClick != null) {
                                     onItemClick?.invoke(currentItem)
                                 },
@@ -384,6 +386,7 @@ private fun HeroContentBlock(
                 modifier = Modifier
                     .fillMaxWidth(layout.logoWidthFraction)
                     .aspectRatio(2.6f)
+                    .then(if (onItemClick != null) Modifier.desktopClickablePointer() else Modifier)
                     .clickable(enabled = onItemClick != null) {
                         onItemClick?.invoke(item)
                     },
@@ -395,6 +398,7 @@ private fun HeroContentBlock(
                 text = item.name,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(if (onItemClick != null) Modifier.desktopClickablePointer() else Modifier)
                     .clickable(enabled = onItemClick != null) {
                         onItemClick?.invoke(item)
                     },

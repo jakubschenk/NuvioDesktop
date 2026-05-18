@@ -1,8 +1,13 @@
 package com.nuvio.app.features.player
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,14 +44,35 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,9 +80,11 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.appIconPainter
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.nuvioTypeScale
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.roundToLong
 
 @Composable
 internal fun PlayerControlsShell(
@@ -335,6 +363,7 @@ private fun PlayerHeaderIconButton(
             .size(buttonSize)
             .clip(CircleShape)
             .background(Color.Black.copy(alpha = 0.35f))
+            .desktopClickablePointer()
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -392,6 +421,7 @@ private fun SideControlButton(
     Box(
         modifier = Modifier
             .clip(CircleShape)
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(metrics.sideButtonPadding),
         contentAlignment = Alignment.Center,
@@ -419,6 +449,7 @@ private fun PlayPauseControlButton(
     Box(
         modifier = Modifier
             .clip(CircleShape)
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(metrics.playButtonPadding),
         contentAlignment = Alignment.Center,
@@ -466,15 +497,14 @@ private fun ProgressControls(
     val audioPainter = appIconPainter(AppIconResource.PlayerAudioFilled)
 
     Column(modifier = modifier) {
-        Slider(
+        PlayerSeekBar(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(metrics.sliderTouchHeight)
-                .graphicsLayer(scaleY = metrics.sliderScaleY),
-            value = displayedPositionMs.coerceIn(0L, durationMs).toFloat(),
-            onValueChange = { value -> onScrubChange(value.toLong()) },
-            onValueChangeFinished = { onScrubFinished(displayedPositionMs.coerceIn(0L, durationMs)) },
-            valueRange = 0f..durationMs.toFloat(),
+                .height(metrics.sliderTouchHeight),
+            positionMs = displayedPositionMs,
+            durationMs = durationMs,
+            onScrubChange = onScrubChange,
+            onScrubFinished = onScrubFinished,
         )
         Row(
             modifier = Modifier
@@ -545,6 +575,135 @@ private fun ProgressControls(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun PlayerSeekBar(
+    positionMs: Long,
+    durationMs: Long,
+    onScrubChange: (Long) -> Unit,
+    onScrubFinished: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val focusRequester = remember { FocusRequester() }
+    var isHovered by remember { mutableStateOf(false) }
+    var isFocused by remember { mutableStateOf(false) }
+    val onScrubChangeState = rememberUpdatedState(onScrubChange)
+    val onScrubFinishedState = rememberUpdatedState(onScrubFinished)
+    val coercedDurationMs = durationMs.coerceAtLeast(1L)
+    val coercedPositionMs = positionMs.coerceIn(0L, coercedDurationMs)
+    val progressFraction = (coercedPositionMs.toFloat() / coercedDurationMs.toFloat()).coerceIn(0f, 1f)
+    val trackHeight by animateDpAsState(
+        targetValue = if (isHovered || isFocused) 6.dp else 4.dp,
+        label = "player_seek_track_height",
+    )
+    val thumbRadius by animateDpAsState(
+        targetValue = if (isHovered || isFocused) 7.dp else 5.dp,
+        label = "player_seek_thumb_radius",
+    )
+
+    fun positionToMs(x: Float, width: Float): Long {
+        if (width <= 0f) return coercedPositionMs
+        return ((x / width).coerceIn(0f, 1f) * coercedDurationMs).roundToLong()
+    }
+
+    fun commitSeek(targetMs: Long) {
+        val coercedTarget = targetMs.coerceIn(0L, coercedDurationMs)
+        onScrubChangeState.value(coercedTarget)
+        onScrubFinishedState.value(coercedTarget)
+    }
+
+    Box(
+        modifier = modifier
+            .desktopClickablePointer()
+            .focusRequester(focusRequester)
+            .onFocusChanged { isFocused = it.isFocused }
+            .focusable()
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.DirectionLeft -> {
+                        commitSeek(coercedPositionMs - 5_000L)
+                        true
+                    }
+
+                    Key.DirectionRight -> {
+                        commitSeek(coercedPositionMs + 5_000L)
+                        true
+                    }
+
+                    else -> false
+                }
+            }
+            .onPointerEvent(PointerEventType.Enter) { isHovered = true }
+            .onPointerEvent(PointerEventType.Exit) { isHovered = false }
+            .pointerInput(coercedDurationMs) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    focusRequester.requestFocus()
+                    val width = size.width.toFloat().takeIf { it > 0f } ?: return@awaitEachGesture
+                    var latestTargetMs = positionToMs(down.position.x, width)
+                    onScrubChangeState.value(latestTargetMs)
+                    down.consume()
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        latestTargetMs = positionToMs(change.position.x, width)
+                        onScrubChangeState.value(latestTargetMs)
+                        change.consume()
+                    }
+
+                    onScrubFinishedState.value(latestTargetMs)
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val trackHeightPx = trackHeight.toPx()
+            val thumbRadiusPx = thumbRadius.toPx()
+            val centerY = size.height / 2f
+            val activeWidth = size.width * progressFraction
+            val trackTopLeft = Offset(0f, centerY - trackHeightPx / 2f)
+            val trackSize = Size(size.width, trackHeightPx)
+            val trackCorner = CornerRadius(trackHeightPx / 2f, trackHeightPx / 2f)
+
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.26f),
+                topLeft = trackTopLeft,
+                size = trackSize,
+                cornerRadius = trackCorner,
+            )
+            drawRoundRect(
+                color = Color.White,
+                topLeft = trackTopLeft,
+                size = Size(activeWidth.coerceAtLeast(0f), trackHeightPx),
+                cornerRadius = trackCorner,
+            )
+
+            val thumbX = if (size.width > thumbRadiusPx * 2f) {
+                activeWidth.coerceIn(thumbRadiusPx, size.width - thumbRadiusPx)
+            } else {
+                activeWidth.coerceIn(0f, size.width)
+            }
+            val thumbCenter = Offset(thumbX, centerY)
+            if (isFocused) {
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.18f),
+                    radius = thumbRadiusPx + 5.dp.toPx(),
+                    center = thumbCenter,
+                    style = Stroke(width = 2.dp.toPx()),
+                )
+            }
+            drawCircle(
+                color = Color.White,
+                radius = thumbRadiusPx,
+                center = thumbCenter,
+            )
+        }
+    }
+}
+
 @Composable
 internal fun LockedPlayerOverlay(
     playbackSnapshot: PlayerPlaybackSnapshot,
@@ -592,6 +751,7 @@ internal fun LockedPlayerOverlay(
                     .clip(CircleShape)
                     .background(Color.Black.copy(alpha = 0.52f))
                     .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape)
+                    .desktopClickablePointer()
                     .clickable(onClick = onUnlock),
                 contentAlignment = Alignment.Center,
             ) {
@@ -678,6 +838,7 @@ private fun PlayerActionPillButton(
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(22.dp))
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),

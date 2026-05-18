@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
@@ -37,6 +38,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.desktopClickablePointer
+import com.nuvio.app.core.ui.desktopHorizontalLazyRowGestures
 import com.nuvio.app.features.details.MetaTrailer
 import nuvio.composeapp.generated.resources.*
 import nuvio.composeapp.generated.resources.detail_tab_trailer
@@ -100,6 +103,7 @@ fun DetailTrailersSection(
                         tonalElevation = 0.dp,
                         modifier = Modifier
                             .clip(RoundedCornerShape(sizing.selectorRadius))
+                            .desktopClickablePointer()
                             .clickable { menuExpanded = true },
                     ) {
                         Row(
@@ -154,8 +158,12 @@ fun DetailTrailersSection(
 
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val sizing = trailerSectionSizing(maxWidth.value)
+            val listState = rememberLazyListState()
             LazyRow(
-                modifier = Modifier.fillMaxWidth(),
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .desktopHorizontalLazyRowGestures(listState),
                 horizontalArrangement = Arrangement.spacedBy(sizing.cardSpacing),
             ) {
                 itemsIndexed(
@@ -193,6 +201,7 @@ private fun TrailerCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(cornerRadius))
+                .desktopClickablePointer()
                 .clickable(onClick = onClick),
         ) {
             AsyncImage(

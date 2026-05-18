@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.app.core.ui.desktopClickablePointer
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.addon_title
 import nuvio.composeapp.generated.resources.compose_player_built_in
@@ -193,6 +194,7 @@ private fun SubtitleTabBar(
                     .weight(1f)
                     .clip(RoundedCornerShape(radius))
                     .background(bgColor)
+                    .desktopClickablePointer()
                     .clickable { onTabSelected(tab) }
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center,
@@ -232,6 +234,7 @@ private fun BuiltInSubtitleList(
                     if (isNoneSelected) colorScheme.primaryContainer
                     else colorScheme.surfaceVariant.copy(alpha = 0.6f)
                 )
+                .desktopClickablePointer()
                 .clickable { onTrackSelected(-1) }
                 .padding(vertical = 10.dp, horizontal = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -260,6 +263,7 @@ private fun BuiltInSubtitleList(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                    .desktopClickablePointer()
                     .clickable { onTrackSelected(track.index) }
                     .padding(vertical = 10.dp, horizontal = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -315,6 +319,7 @@ private fun AddonSubtitleList(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
+                .desktopClickablePointer()
                 .clickable(onClick = onFetch)
                 .padding(40.dp),
             contentAlignment = Alignment.Center,
@@ -351,6 +356,7 @@ private fun AddonSubtitleList(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                    .desktopClickablePointer()
                     .clickable { onSubtitleSelected(sub) }
                     .padding(vertical = 5.dp, horizontal = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,

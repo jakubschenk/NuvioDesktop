@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.AsyncImage
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.desktopHorizontalLazyRowGestures
 import com.nuvio.app.core.ui.desktopContextMenuPointer
 import com.nuvio.app.core.i18n.localizedSeasonEpisodeCode
@@ -353,6 +354,7 @@ private fun SeasonViewModeToggle(
                 color = Color.White.copy(alpha = if (isPosters) 0.2f else 0.3f),
                 shape = RoundedCornerShape(8.dp),
             )
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
@@ -499,6 +501,7 @@ private fun SeasonPosterButton(
     Column(
         modifier = Modifier
             .width(sizing.seasonPosterWidth)
+            .desktopClickablePointer()
             .clickable(onClick = onClick),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -665,6 +668,9 @@ private fun EpisodeHorizontalCard(
                 width = 1.dp,
                 color = Color.White.copy(alpha = 0.12f),
                 shape = cardShape,
+            )
+            .then(
+                if (onClick != null || onLongPress != null) Modifier.desktopClickablePointer() else Modifier
             )
             .combinedClickable(
                 enabled = onClick != null || onLongPress != null,
@@ -1021,6 +1027,9 @@ private fun EpisodeListCard(
                 width = 1.dp,
                 color = Color.White.copy(alpha = 0.1f),
                 shape = cardShape,
+            )
+            .then(
+                if (onClick != null || onLongPress != null) Modifier.desktopClickablePointer() else Modifier
             )
             .combinedClickable(
                 enabled = onClick != null || onLongPress != null,

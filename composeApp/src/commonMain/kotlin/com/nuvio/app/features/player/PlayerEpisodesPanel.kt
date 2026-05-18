@@ -58,6 +58,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.desktopClickablePointer
+import com.nuvio.app.core.ui.desktopHorizontalLazyRowGestures
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamsUiState
@@ -267,6 +269,7 @@ private fun EpisodesListSubView(
                 state = seasonListState,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .desktopHorizontalLazyRowGestures(seasonListState)
                     .padding(horizontal = 20.dp)
                     .padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -366,6 +369,7 @@ private fun EpisodeRow(
                     Modifier
                 },
             )
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -622,6 +626,7 @@ private fun EpisodeSourceStreamRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,

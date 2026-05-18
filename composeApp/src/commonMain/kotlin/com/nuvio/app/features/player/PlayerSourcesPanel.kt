@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.i18n.localizedByteUnit
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamsUiState
 import kotlin.math.round
@@ -256,6 +257,7 @@ private fun SourceStreamRow(
                     Modifier
                 },
             )
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(14.dp),
         verticalAlignment = Alignment.Top,
@@ -382,6 +384,7 @@ internal fun AddonFilterChip(
                     Modifier.border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.7f), RoundedCornerShape(20.dp))
                 },
             )
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
@@ -423,6 +426,7 @@ internal fun PanelChipButton(
             .clip(RoundedCornerShape(16.dp))
             .background(colorScheme.surfaceVariant.copy(alpha = 0.9f))
             .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.7f), RoundedCornerShape(16.dp))
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {

@@ -123,6 +123,7 @@ fun TraktListPickerDialog(
                                         },
                                         shape = RoundedCornerShape(12.dp),
                                     )
+                                    .then(if (!isPending) Modifier.desktopClickablePointer() else Modifier)
                                     .clickable(enabled = !isPending) { onToggle(tab.key) }
                                     .padding(horizontal = 14.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,

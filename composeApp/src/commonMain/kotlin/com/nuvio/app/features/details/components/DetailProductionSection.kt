@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.features.details.MetaCompany
 import com.nuvio.app.features.details.MetaDetails
 import nuvio.composeapp.generated.resources.*
@@ -114,7 +115,13 @@ private fun ProductionChip(
             .clip(RoundedCornerShape(12.dp))
             .background(color = ProductionChipBackground)
             .then(
-                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+                if (onClick != null) {
+                    Modifier
+                        .desktopClickablePointer()
+                        .clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
             )
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .height(chipHeight),

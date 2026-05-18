@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -50,6 +51,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.core.ui.desktopClickablePointer
+import com.nuvio.app.core.ui.desktopHorizontalLazyRowGestures
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.player.AudioLanguageOption
 import com.nuvio.app.features.player.AvailableLanguageOptions
@@ -1793,17 +1796,24 @@ private fun StreamAutoPlayRegexDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val presetsListState = rememberLazyListState()
+                LazyRow(
+                    state = presetsListState,
+                    modifier = Modifier.desktopHorizontalLazyRowGestures(presetsListState),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     items(
                         count = presets.size,
                         key = { presets[it].first },
                     ) { index ->
                         val (label, pattern) = presets[index]
                         Surface(
-                            modifier = Modifier.clickable {
-                                regex = pattern
-                                regexError = null
-                            },
+                            modifier = Modifier
+                                .desktopClickablePointer()
+                                .clickable {
+                                    regex = pattern
+                                    regexError = null
+                                },
                             shape = RoundedCornerShape(20.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                         ) {

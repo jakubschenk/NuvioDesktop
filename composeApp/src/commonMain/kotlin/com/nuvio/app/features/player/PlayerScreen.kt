@@ -1536,11 +1536,94 @@ fun PlayerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .onPreviewKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyUp && event.key == Key.F) {
-                        toggleFullscreen()
-                        true
-                    } else {
-                        false
+                    when {
+                        event.type == KeyEventType.KeyDown &&
+                            !blockingPanelOpen &&
+                            !playerControlsLocked &&
+                            event.key == Key.DirectionLeft -> {
+                            seekBy(-10_000L)
+                            true
+                        }
+
+                        event.type == KeyEventType.KeyDown &&
+                            !blockingPanelOpen &&
+                            !playerControlsLocked &&
+                            event.key == Key.DirectionRight -> {
+                            seekBy(10_000L)
+                            true
+                        }
+
+                        event.type != KeyEventType.KeyUp -> false
+
+                        event.key == Key.F -> {
+                            toggleFullscreen()
+                            true
+                        }
+
+                        event.key == Key.Spacebar || event.key == Key.K -> {
+                            if (!blockingPanelOpen && !playerControlsLocked) {
+                                togglePlayback()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        event.key == Key.J -> {
+                            if (!blockingPanelOpen && !playerControlsLocked) {
+                                seekBy(-10_000L)
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        event.key == Key.L -> {
+                            if (!blockingPanelOpen && !playerControlsLocked) {
+                                seekBy(10_000L)
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        event.key == Key.Escape -> {
+                            when {
+                                showSubmitIntroModal -> {
+                                    showSubmitIntroModal = false
+                                    true
+                                }
+
+                                showSubtitleModal -> {
+                                    showSubtitleModal = false
+                                    true
+                                }
+
+                                showAudioModal -> {
+                                    showAudioModal = false
+                                    true
+                                }
+
+                                showSourcesPanel -> {
+                                    showSourcesPanel = false
+                                    true
+                                }
+
+                                showEpisodesPanel -> {
+                                    showEpisodesPanel = false
+                                    true
+                                }
+
+                                fullscreenController.isFullscreen -> {
+                                    toggleFullscreen()
+                                    true
+                                }
+
+                                else -> false
+                            }
+                        }
+
+                        else -> false
                     }
                 }
                 .focusRequester(playerFocusRequester)

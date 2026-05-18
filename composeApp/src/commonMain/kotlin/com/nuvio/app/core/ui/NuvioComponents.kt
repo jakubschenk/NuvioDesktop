@@ -194,7 +194,9 @@ fun NuvioActionLabel(
         text = text,
         modifier = modifier.then(
             if (onClick != null) {
-                Modifier.clickable(onClick = onClick)
+                Modifier
+                    .desktopClickablePointer()
+                    .clickable(onClick = onClick)
             } else {
                 Modifier
             }
@@ -244,6 +246,7 @@ fun NuvioBackButton(
             .size(buttonSize)
             .clip(shape)
             .background(containerColor)
+            .desktopClickablePointer()
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

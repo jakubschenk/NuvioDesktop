@@ -46,6 +46,7 @@ import coil3.size.Scale
 import coil3.size.Size
 import com.nuvio.app.core.ui.AsyncImage
 import com.nuvio.app.core.ui.PosterCardStyleUiState
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.desktopContextMenuPointer
 import com.nuvio.app.core.ui.localizedContinueWatchingSubtitle
 import com.nuvio.app.core.ui.nuvioImageDecodeSizeMultiplier
@@ -342,6 +343,9 @@ private fun ContinueWatchingWideCard(
                 width = 1.5.dp,
                 color = Color.White.copy(alpha = 0.15f),
                 shape = RoundedCornerShape(layout.cardRadius),
+            )
+            .then(
+                if (onClick != null || onLongClick != null) Modifier.desktopClickablePointer() else Modifier
             )
             .combinedClickable(
                 enabled = onClick != null || onLongClick != null,

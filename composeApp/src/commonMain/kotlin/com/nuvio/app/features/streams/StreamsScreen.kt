@@ -72,6 +72,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.nuvio.app.core.i18n.localizedByteUnit
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.desktopContextMenuPointer
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
@@ -261,6 +262,7 @@ fun StreamsScreen(
                         color = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
                         shape = CircleShape,
                     )
+                    .desktopClickablePointer()
                     .clickable(
                         onClick = {
                             StreamsRepository.reload(
@@ -712,6 +714,7 @@ private fun FilterChip(
             }
             .clip(RoundedCornerShape(16.dp))
             .background(containerColor)
+            .desktopClickablePointer()
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -964,6 +967,7 @@ private fun StreamCard(
             )
             .clip(cardShape)
             .background(Color.White.copy(alpha = 0.05f))
+            .then(if (isEnabled) Modifier.desktopClickablePointer() else Modifier)
             .combinedClickable(
                 enabled = isEnabled,
                 onClick = onClick,

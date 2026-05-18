@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import com.nuvio.app.core.ui.AsyncImage
 import com.nuvio.app.core.ui.NuvioBackButton
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.isIos
 import nuvio.composeapp.generated.resources.*
@@ -163,6 +164,7 @@ private fun DetailFloatingHeaderAction(
     Box(
         modifier = Modifier
             .size(40.dp)
+            .then(if (enabled) Modifier.desktopClickablePointer() else Modifier)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
