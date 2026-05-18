@@ -5,7 +5,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import coil3.compose.AsyncImage
+import com.nuvio.app.core.ui.AsyncImage
 import coil3.request.ImageRequest
 
 @Composable

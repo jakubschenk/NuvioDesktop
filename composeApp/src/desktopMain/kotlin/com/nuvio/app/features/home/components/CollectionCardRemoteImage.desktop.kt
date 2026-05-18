@@ -15,7 +15,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
-import coil3.compose.AsyncImage
+import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.nuvioImageFilterQuality
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.java.Java
@@ -254,6 +255,7 @@ private fun AnimatedComposeGif(
         contentDescription = contentDescription,
         modifier = modifier,
         contentScale = contentScale,
+        filterQuality = nuvioImageFilterQuality,
     )
 }
 

@@ -8,6 +8,7 @@ import com.nuvio.app.features.home.PosterShape
 import com.nuvio.app.features.tmdb.TmdbSettingsRepository
 import com.nuvio.app.features.tmdb.buildTmdbUrl
 import com.nuvio.app.features.tmdb.normalizeTmdbLanguage
+import com.nuvio.app.features.tmdb.preferredTmdbImageSourceSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -533,7 +534,8 @@ private fun MutableMap<String, String>.putIfNotBlank(key: String, value: String?
 
 private fun imageUrl(path: String?, size: String): String? {
     val clean = path?.takeIf { it.isNotBlank() } ?: return null
-    return "https://image.tmdb.org/t/p/$size$clean"
+    val sourceSize = preferredTmdbImageSourceSize(size)
+    return "https://image.tmdb.org/t/p/$sourceSize$clean"
 }
 
 @Serializable

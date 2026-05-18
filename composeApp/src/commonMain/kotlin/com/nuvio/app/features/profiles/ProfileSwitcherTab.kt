@@ -63,7 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
+import com.nuvio.app.core.ui.AsyncImage
 import com.nuvio.app.core.ui.desktopContextMenuPointer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

@@ -1418,7 +1418,8 @@ private fun List<MetaPerson>.dedupePeople(): List<MetaPerson> {
 
 private fun buildImageUrl(path: String?, size: String): String? {
     val clean = path?.trim()?.takeIf(String::isNotBlank) ?: return null
-    return "https://image.tmdb.org/t/p/$size$clean"
+    val sourceSize = preferredTmdbImageSourceSize(size)
+    return "https://image.tmdb.org/t/p/$sourceSize$clean"
 }
 
 private fun List<TmdbImage>.selectBestLocalizedImagePath(normalizedLanguage: String): String? {

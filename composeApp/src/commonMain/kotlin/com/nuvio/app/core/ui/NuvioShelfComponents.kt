@@ -41,10 +41,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.size.Precision
+import coil3.size.Scale
 import coil3.size.Size
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -173,15 +173,19 @@ fun NuvioPosterCard(
     val cardShape = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
     val platformContext = LocalPlatformContext.current
     val density = LocalDensity.current
+    val decodeSizeMultiplier = nuvioImageDecodeSizeMultiplier.coerceAtLeast(1f)
     val resolvedImageUrl = remember(imageUrl) { imageUrl?.upgradeTmdbImageQuality() }
     val resolvedBottomLeftLogoUrl = remember(bottomLeftLogoUrl) { bottomLeftLogoUrl?.upgradeTmdbImageQuality() }
-    val imageRequest = remember(resolvedImageUrl, cardWidth, shape, density) {
+    val imageRequest = remember(resolvedImageUrl, cardWidth, shape, density, decodeSizeMultiplier) {
         resolvedImageUrl?.let {
             val widthPx = with(density) { cardWidth.roundToPx() }.coerceAtLeast(1)
             val heightPx = (widthPx / shape.aspectRatio).roundToInt().coerceAtLeast(1)
+            val requestWidthPx = (widthPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(widthPx)
+            val requestHeightPx = (heightPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(heightPx)
             ImageRequest.Builder(platformContext)
                 .data(it)
-                .size(Size(widthPx, heightPx))
+                .size(Size(requestWidthPx, requestHeightPx))
+                .scale(Scale.FILL)
                 .precision(Precision.EXACT)
                 .build()
         }
@@ -430,12 +434,4 @@ internal fun Modifier.posterCardClickable(
             this
         }
     return withPrimaryGestures.desktopContextMenuPointer(onLongClick)
-}
-
-private fun String.upgradeTmdbImageQuality(): String {
-    if (!contains("image.tmdb.org/t/p/", ignoreCase = true)) return this
-    return replace("/w300/", "/original/")
-        .replace("/w500/", "/original/")
-        .replace("/w780/", "/original/")
-        .replace("/w1280/", "/original/")
 }
