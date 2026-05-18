@@ -94,8 +94,8 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 private val PlayerSeekHoverThumbSize = 10.dp
-private val PlayerSeekTimeTextWidth = 60.dp
-private val PlayerSeekTimeHorizontalGap = 8.dp
+private val PlayerSeekTimeTextWidth = 84.dp
+private val PlayerSeekTimeHorizontalGap = 6.dp
 private val PlayerToolbarButtonSize = 44.dp
 private val PlayerToolbarIconSize = 23.dp
 

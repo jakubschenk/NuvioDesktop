@@ -74,7 +74,6 @@ import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -89,6 +88,9 @@ private const val PlayerLockedOverlayDurationMs = 2_000L
 private const val PlayerLeftGestureBoundary = 0.4f
 private const val PlayerRightGestureBoundary = 0.6f
 private const val PlayerVerticalGestureSensitivity = 1f
+private const val PlayerSeekStepMs = 10_000L
+private const val PlayerKeyboardVolumeStep = 0.05f
+private const val PlayerNextEpisodeStreamPollIntervalMs = 100L
 private val PlayerSliderOverlayGap = 12.dp
 private val PlayerMetadataBlockHeight = 88.dp
 private val PlayerTimeRowHeight = 36.dp
@@ -323,6 +325,7 @@ fun PlayerScreen(
         var nextEpisodeAutoPlaySourceName by remember { mutableStateOf<String?>(null) }
         var nextEpisodeAutoPlayCountdown by remember { mutableStateOf<Int?>(null) }
         var nextEpisodeAutoPlayJob by remember { mutableStateOf<Job?>(null) }
+        var nextEpisodeAutoPlayAttemptedVideoId by remember { mutableStateOf<String?>(null) }
 
         LaunchedEffect(parentMetaType, parentMetaId) {
             playerMetaVideos = MetaDetailsRepository.peek(parentMetaType, parentMetaId)?.videos ?: emptyList()
@@ -944,10 +947,15 @@ fun PlayerScreen(
             revealPlayerChrome()
         }
 
-        fun playNextEpisode() {
-            val nextVideoId = nextEpisodeInfo?.videoId ?: return
+        fun playNextEpisode(force: Boolean = false) {
+            val info = nextEpisodeInfo ?: return
+            val nextVideoId = info.videoId
+            if (!force && nextEpisodeAutoPlayAttemptedVideoId == nextVideoId) return
             val nextVideo = allEpisodes.firstOrNull { video -> video.id == nextVideoId } ?: return
-            if (nextEpisodeInfo?.hasAired != true) return
+            if (info.hasAired != true) return
+            if (!force) {
+                nextEpisodeAutoPlayAttemptedVideoId = nextVideoId
+            }
 
             val downloadedNextEpisode = DownloadsRepository.findPlayableDownload(
                 parentMetaId = parentMetaId,
@@ -1033,7 +1041,6 @@ fun PlayerScreen(
                     .toSet()
 
                 val timeoutMs = settings.streamAutoPlayTimeoutSeconds * 1000L
-                var nextEpisodeHandled = false
 
                 fun selectNextEpisodeStream(state: StreamsUiState, allowFallback: Boolean): StreamItem? {
                     val streams = state.groups.flatMap { it.streams }
@@ -1066,7 +1073,6 @@ fun PlayerScreen(
                 }
 
                 suspend fun finishNextEpisodeSelection(selected: StreamItem?) {
-                    nextEpisodeHandled = true
                     nextEpisodeAutoPlaySearching = false
                     if (selected != null) {
                         nextEpisodeAutoPlaySourceName = selected.addonName
@@ -1085,37 +1091,32 @@ fun PlayerScreen(
                         )
                         showEpisodesPanel = true
                         showNextEpisodeCard = false
-                        nextEpisodeAutoPlayJob?.cancel()
                     }
                 }
 
-                val timeoutJob = if (timeoutMs > 0L) {
-                    launch {
-                        delay(timeoutMs)
-                        if (nextEpisodeHandled) return@launch
-                        finishNextEpisodeSelection(
-                            selectNextEpisodeStream(
-                                state = PlayerStreamsRepository.episodeStreamsState.value,
-                                allowFallback = true,
-                            ),
+                val startTimeMs = WatchProgressClock.nowEpochMs()
+                var selected: StreamItem? = null
+                while (true) {
+                    val state = PlayerStreamsRepository.episodeStreamsState.value
+                    val timedOut = timeoutMs > 0L &&
+                        WatchProgressClock.nowEpochMs() - startTimeMs >= timeoutMs
+
+                    if (!(state.groups.isEmpty() && state.isAnyLoading)) {
+                        selected = selectNextEpisodeStream(
+                            state = state,
+                            allowFallback = !state.isAnyLoading || timedOut,
                         )
+                        if (selected != null || !state.isAnyLoading || timedOut) {
+                            break
+                        }
+                    } else if (timedOut) {
+                        break
                     }
-                } else {
-                    null
+
+                    delay(PlayerNextEpisodeStreamPollIntervalMs)
                 }
 
-                // Collect streams as they arrive
-                PlayerStreamsRepository.episodeStreamsState.collect { state ->
-                    if (nextEpisodeHandled) return@collect
-                    if (state.groups.isEmpty() && state.isAnyLoading) return@collect
-
-                    val selected = selectNextEpisodeStream(state, allowFallback = !state.isAnyLoading)
-
-                    if (selected != null || !state.isAnyLoading) {
-                        timeoutJob?.cancel()
-                        finishNextEpisodeSelection(selected)
-                    }
-                }
+                finishNextEpisodeSelection(selected)
             }
         }
 
@@ -1440,6 +1441,9 @@ fun PlayerScreen(
             showNextEpisodeCard = false
             nextEpisodeAutoPlayJob?.cancel()
             nextEpisodeAutoPlaySearching = false
+            nextEpisodeAutoPlaySourceName = null
+            nextEpisodeAutoPlayCountdown = null
+            nextEpisodeAutoPlayAttemptedVideoId = null
 
             val season = activeSeasonNumber
             val episode = activeEpisodeNumber
@@ -1487,7 +1491,7 @@ fun PlayerScreen(
                 currentSeason = curSeason,
                 currentEpisode = curEpisode,
             )
-            nextEpisodeInfo = if (nextVideo != null && nextVideo.season != null && nextVideo.episode != null) {
+            val resolvedNextEpisodeInfo = if (nextVideo != null && nextVideo.season != null && nextVideo.episode != null) {
                 NextEpisodeInfo(
                     videoId = nextVideo.id,
                     season = nextVideo.season!!,
@@ -1502,6 +1506,10 @@ fun PlayerScreen(
                     } else null,
                 )
             } else null
+            if (resolvedNextEpisodeInfo?.videoId != nextEpisodeInfo?.videoId) {
+                nextEpisodeAutoPlayAttemptedVideoId = null
+            }
+            nextEpisodeInfo = resolvedNextEpisodeInfo
         }
 
         // Show next episode card at threshold
@@ -1583,7 +1591,7 @@ fun PlayerScreen(
                             !blockingPanelOpen &&
                             !playerControlsLocked &&
                             event.key == Key.DirectionLeft -> {
-                            seekBy(-10_000L)
+                            seekBy(-PlayerSeekStepMs)
                             true
                         }
 
@@ -1591,7 +1599,23 @@ fun PlayerScreen(
                             !blockingPanelOpen &&
                             !playerControlsLocked &&
                             event.key == Key.DirectionRight -> {
-                            seekBy(10_000L)
+                            seekBy(PlayerSeekStepMs)
+                            true
+                        }
+
+                        event.type == KeyEventType.KeyDown &&
+                            !blockingPanelOpen &&
+                            !playerControlsLocked &&
+                            event.key == Key.DirectionUp -> {
+                            adjustPlayerVolume(PlayerKeyboardVolumeStep)
+                            true
+                        }
+
+                        event.type == KeyEventType.KeyDown &&
+                            !blockingPanelOpen &&
+                            !playerControlsLocked &&
+                            event.key == Key.DirectionDown -> {
+                            adjustPlayerVolume(-PlayerKeyboardVolumeStep)
                             true
                         }
 
@@ -1613,7 +1637,7 @@ fun PlayerScreen(
 
                         event.key == Key.J -> {
                             if (!blockingPanelOpen && !playerControlsLocked) {
-                                seekBy(-10_000L)
+                                seekBy(-PlayerSeekStepMs)
                                 true
                             } else {
                                 false
@@ -1622,7 +1646,72 @@ fun PlayerScreen(
 
                         event.key == Key.L -> {
                             if (!blockingPanelOpen && !playerControlsLocked) {
-                                seekBy(10_000L)
+                                seekBy(PlayerSeekStepMs)
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        event.key == Key.M -> {
+                            if (!blockingPanelOpen && !playerControlsLocked) {
+                                toggleMute()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        event.key == Key.R -> {
+                            if (!blockingPanelOpen && !playerControlsLocked) {
+                                cycleResizeMode()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        event.key == Key.N -> {
+                            if (!blockingPanelOpen && !playerControlsLocked && nextEpisodeInfo != null) {
+                                playNextEpisode(force = true)
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        event.key == Key.A -> {
+                            if (!blockingPanelOpen && !playerControlsLocked) {
+                                refreshTracks()
+                                showAudioModal = true
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        event.key == Key.S -> {
+                            if (!blockingPanelOpen && !playerControlsLocked) {
+                                refreshTracks()
+                                showSubtitleModal = true
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        event.key == Key.O -> {
+                            if (!blockingPanelOpen && !playerControlsLocked && activeVideoId != null) {
+                                openSourcesPanel()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        event.key == Key.E -> {
+                            if (!blockingPanelOpen && !playerControlsLocked && isSeries) {
+                                openEpisodesPanel()
                                 true
                             } else {
                                 false
@@ -1923,8 +2012,8 @@ fun PlayerScreen(
                     onFullscreenClick = ::toggleFullscreen,
                     onBack = onBackWithProgress,
                     onTogglePlayback = ::togglePlayback,
-                    onSeekBack = { seekBy(-10_000L) },
-                    onSeekForward = { seekBy(10_000L) },
+                    onSeekBack = { seekBy(-PlayerSeekStepMs) },
+                    onSeekForward = { seekBy(PlayerSeekStepMs) },
                     onResizeModeClick = ::cycleResizeMode,
                     onSpeedClick = ::cyclePlaybackSpeed,
                     onSubtitleClick = {
@@ -1939,7 +2028,7 @@ fun PlayerScreen(
                     onVolumeChange = ::setPlayerVolume,
                     volumeLevel = playerAudioLevel?.fraction ?: 1f,
                     isVolumeMuted = playerAudioLevel?.isMuted == true,
-                    onNextEpisodeClick = if (nextEpisodeInfo?.hasAired == true) { { playNextEpisode() } } else null,
+                    onNextEpisodeClick = if (nextEpisodeInfo != null) { { playNextEpisode(force = true) } } else null,
                     onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
                     onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
                     onSubmitIntroClick = if (isSeries && playerSettingsUiState.introSubmitEnabled && playerSettingsUiState.introDbApiKey.isNotBlank()) { { showSubmitIntroModal = true } } else null,
@@ -2032,7 +2121,7 @@ fun PlayerScreen(
                     autoPlayCountdownSec = nextEpisodeAutoPlayCountdown,
                     onPlayNext = {
                         nextEpisodeAutoPlayJob?.cancel()
-                        playNextEpisode()
+                        playNextEpisode(force = true)
                     },
                     onDismiss = {
                         nextEpisodeAutoPlayJob?.cancel()
