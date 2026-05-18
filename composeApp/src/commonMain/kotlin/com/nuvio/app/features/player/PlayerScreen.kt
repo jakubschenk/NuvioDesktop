@@ -89,11 +89,13 @@ private const val PlayerLeftGestureBoundary = 0.4f
 private const val PlayerRightGestureBoundary = 0.6f
 private const val PlayerVerticalGestureSensitivity = 1f
 private val PlayerSliderOverlayGap = 12.dp
+private val PlayerMetadataBlockHeight = 88.dp
 private val PlayerTimeRowHeight = 36.dp
 private val PlayerActionRowHeight = 50.dp
 
 private fun sliderOverlayBottomPadding(metrics: PlayerLayoutMetrics) =
     metrics.sliderBottomOffset +
+        PlayerMetadataBlockHeight +
         metrics.sliderTouchHeight +
         PlayerTimeRowHeight +
         PlayerActionRowHeight +
