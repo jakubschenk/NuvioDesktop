@@ -85,8 +85,6 @@ import kotlin.math.roundToInt
 private const val PlaybackProgressPersistIntervalMs = 60_000L
 private const val PlayerControlsAutoHideDelayMs = 3_500L
 private const val PlayerCursorAutoHideDelayMs = 700L
-private const val PlayerDoubleTapSeekStepMs = 10_000L
-private const val PlayerDoubleTapSeekResetDelayMs = 800L
 private const val PlayerLockedOverlayDurationMs = 2_000L
 private const val PlayerLeftGestureBoundary = 0.4f
 private const val PlayerRightGestureBoundary = 0.6f
@@ -94,7 +92,7 @@ private const val PlayerVerticalGestureSensitivity = 1f
 private val PlayerSliderOverlayGap = 12.dp
 private val PlayerMetadataBlockHeight = 88.dp
 private val PlayerTimeRowHeight = 36.dp
-private val PlayerActionRowHeight = 50.dp
+private val PlayerActionRowHeight = 58.dp
 
 private fun sliderOverlayBottomPadding(metrics: PlayerLayoutMetrics) =
     metrics.sliderBottomOffset +
@@ -119,12 +117,6 @@ private enum class PlayerGestureMode {
     Brightness,
     Volume,
 }
-
-private data class PlayerAccumulatedSeekState(
-    val direction: PlayerSeekDirection,
-    val baselinePositionMs: Long,
-    val amountMs: Long,
-)
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -253,8 +245,6 @@ fun PlayerScreen(
         var renderedGestureFeedback by remember { mutableStateOf<GestureFeedbackState?>(null) }
         var lockedOverlayVisible by remember { mutableStateOf(false) }
         var gestureMessageJob by remember { mutableStateOf<Job?>(null) }
-        var accumulatedSeekResetJob by remember { mutableStateOf<Job?>(null) }
-        var accumulatedSeekState by remember { mutableStateOf<PlayerAccumulatedSeekState?>(null) }
         var initialLoadCompleted by remember(activeSourceUrl) { mutableStateOf(false) }
         var speedBoostRestoreSpeed by remember(activeSourceUrl) { mutableStateOf<Float?>(null) }
         var isHoldToSpeedGestureActive by remember(activeSourceUrl) { mutableStateOf(false) }
@@ -696,8 +686,8 @@ fun PlayerScreen(
         }
 
         fun adjustPlayerVolume(delta: Float) {
-            val current = playerController?.currentVolume()?.also { playerAudioLevel = it }
-                ?: playerAudioLevel
+            val current = playerAudioLevel
+                ?: playerController?.currentVolume()?.also { playerAudioLevel = it }
             val base = current?.fraction ?: 0.5f
             setPlayerVolume(base + delta)
         }
@@ -722,40 +712,6 @@ fun PlayerScreen(
             when {
                 offsetMs > 0L -> showSeekFeedback(PlayerSeekDirection.Forward, offsetMs)
                 offsetMs < 0L -> showSeekFeedback(PlayerSeekDirection.Backward, abs(offsetMs))
-            }
-        }
-
-        fun handleDoubleTapSeek(direction: PlayerSeekDirection) {
-            val currentPositionMs = playbackSnapshot.positionMs.coerceAtLeast(0L)
-            val nextState = if (accumulatedSeekState?.direction == direction) {
-                accumulatedSeekState!!.copy(amountMs = accumulatedSeekState!!.amountMs + PlayerDoubleTapSeekStepMs)
-            } else {
-                PlayerAccumulatedSeekState(
-                    direction = direction,
-                    baselinePositionMs = currentPositionMs,
-                    amountMs = PlayerDoubleTapSeekStepMs,
-                )
-            }
-            accumulatedSeekState = nextState
-
-            val maxDurationMs = playbackSnapshot.durationMs.takeIf { it > 0L }
-            val targetPositionMs = when (direction) {
-                PlayerSeekDirection.Backward -> {
-                    (nextState.baselinePositionMs - nextState.amountMs).coerceAtLeast(0L)
-                }
-
-                PlayerSeekDirection.Forward -> {
-                    val unclamped = nextState.baselinePositionMs + nextState.amountMs
-                    maxDurationMs?.let { unclamped.coerceAtMost(it) } ?: unclamped
-                }
-            }
-            playerController?.seekTo(targetPositionMs)
-            showSeekFeedback(direction, nextState.amountMs)
-
-            accumulatedSeekResetJob?.cancel()
-            accumulatedSeekResetJob = scope.launch {
-                delay(PlayerDoubleTapSeekResetDelayMs)
-                accumulatedSeekState = null
             }
         }
 
@@ -809,46 +765,6 @@ fun PlayerScreen(
             liveGestureFeedback = null
         }
 
-        val onSurfaceTap = rememberUpdatedState { offset: Offset ->
-            if (playerControlsLocked) {
-                revealLockedOverlay()
-                return@rememberUpdatedState
-            }
-            if (hoverDrivenChrome) {
-                setControlsVisibleFromHover.value(true)
-                return@rememberUpdatedState
-            }
-            val centerStart = layoutSize.width * PlayerLeftGestureBoundary
-            val centerEnd = layoutSize.width * PlayerRightGestureBoundary
-            if (controlsVisible && offset.x in centerStart..centerEnd) {
-                controlsVisible = false
-            } else {
-                controlsVisible = !controlsVisible
-            }
-        }
-        val onSurfaceDoubleTap = rememberUpdatedState { offset: Offset ->
-            if (playerControlsLocked) {
-                revealLockedOverlay()
-                return@rememberUpdatedState
-            }
-            if (fullscreenController.isFullscreenSupported) {
-                toggleFullscreen()
-                return@rememberUpdatedState
-            }
-            when {
-                offset.x < layoutSize.width * PlayerLeftGestureBoundary -> {
-                    handleDoubleTapSeek(PlayerSeekDirection.Backward)
-                }
-
-                offset.x > layoutSize.width * PlayerRightGestureBoundary -> {
-                    handleDoubleTapSeek(PlayerSeekDirection.Forward)
-                }
-
-                hoverDrivenChrome -> setControlsVisibleFromHover.value(true)
-
-                else -> controlsVisible = !controlsVisible
-            }
-        }
         val activateHoldToSpeedState = rememberUpdatedState(::activateHoldToSpeed)
         val deactivateHoldToSpeedState = rememberUpdatedState(::deactivateHoldToSpeed)
         val showHorizontalSeekPreviewState = rememberUpdatedState(::showHorizontalSeekPreview)
@@ -1188,9 +1104,6 @@ fun PlayerScreen(
             initialLoadCompleted = false
             lastProgressPersistEpochMs = 0L
             previousIsPlaying = false
-            accumulatedSeekResetJob?.cancel()
-            accumulatedSeekResetJob = null
-            accumulatedSeekState = null
             speedBoostRestoreSpeed = null
             preferredAudioSelectionApplied = false
             preferredSubtitleSelectionApplied = false
@@ -1321,6 +1234,35 @@ fun PlayerScreen(
                 showAudioModal ||
                 showSubtitleModal ||
                 showSubmitIntroModal
+
+        val onSurfaceTap = rememberUpdatedState {
+            if (playerControlsLocked) {
+                revealLockedOverlay()
+                return@rememberUpdatedState
+            }
+            if (!blockingPanelOpen) {
+                togglePlayback()
+            }
+            if (hoverDrivenChrome) {
+                setControlsVisibleFromHover.value(true)
+            } else {
+                controlsVisible = true
+            }
+        }
+        val onSurfaceDoubleTap = rememberUpdatedState {
+            if (playerControlsLocked) {
+                revealLockedOverlay()
+                return@rememberUpdatedState
+            }
+            if (!blockingPanelOpen) {
+                toggleFullscreen()
+            }
+            if (hoverDrivenChrome) {
+                setControlsVisibleFromHover.value(true)
+            } else {
+                controlsVisible = true
+            }
+        }
 
         val cursorHoldReasonVisible =
             lockedOverlayVisible ||
@@ -1689,8 +1631,8 @@ fun PlayerScreen(
                             tryAwaitRelease()
                             deactivateHoldToSpeedState.value()
                         },
-                        onTap = { offset -> onSurfaceTap.value(offset) },
-                        onDoubleTap = { offset -> onSurfaceDoubleTap.value(offset) },
+                        onTap = { onSurfaceTap.value() },
+                        onDoubleTap = { onSurfaceDoubleTap.value() },
                         onLongPress = {
                             if (playerControlsLockedState.value) {
                                 revealLockedOverlayState.value()

@@ -79,6 +79,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -94,6 +95,9 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 private val PlayerSeekHoverThumbSize = 10.dp
+private val PlayerSeekTimeTextWidth = 72.dp
+private val PlayerToolbarButtonSize = 44.dp
+private val PlayerToolbarIconSize = 23.dp
 
 @Composable
 internal fun PlayerControlsShell(
@@ -133,21 +137,6 @@ internal fun PlayerControlsShell(
     horizontalSafePadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
 ) {
-    var nowEpochMs by remember { mutableStateOf(PlayerWallClock.nowEpochMs()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            nowEpochMs = PlayerWallClock.nowEpochMs()
-            delay(1_000L)
-        }
-    }
-    val clockText = remember(nowEpochMs) { PlayerWallClock.formatTime(nowEpochMs) }
-    val endTimeText = remember(nowEpochMs, displayedPositionMs, playbackSnapshot.durationMs) {
-        val remainingMs = playbackSnapshot.durationMs - displayedPositionMs
-        remainingMs
-            .takeIf { playbackSnapshot.durationMs > 0L && it > 0L }
-            ?.let { remaining -> PlayerWallClock.formatTime(nowEpochMs + remaining) }
-    }
-
     Box(modifier = modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -186,8 +175,8 @@ internal fun PlayerControlsShell(
         ) {
             PlayerHeader(
                 metrics = metrics,
-                clockText = clockText,
-                endTimeText = endTimeText,
+                displayedPositionMs = displayedPositionMs,
+                durationMs = playbackSnapshot.durationMs,
                 onBack = onBack,
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -246,11 +235,26 @@ internal fun PlayerControlsShell(
 @Composable
 private fun PlayerHeader(
     metrics: PlayerLayoutMetrics,
-    clockText: String,
-    endTimeText: String?,
+    displayedPositionMs: Long,
+    durationMs: Long,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var nowEpochMs by remember { mutableStateOf(PlayerWallClock.nowEpochMs()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            nowEpochMs = PlayerWallClock.nowEpochMs()
+            delay(1_000L)
+        }
+    }
+    val clockText = remember(nowEpochMs) { PlayerWallClock.formatTime(nowEpochMs) }
+    val endTimeText = remember(nowEpochMs, displayedPositionMs, durationMs) {
+        val remainingMs = durationMs - displayedPositionMs
+        remainingMs
+            .takeIf { durationMs > 0L && it > 0L }
+            ?.let { remaining -> PlayerWallClock.formatTime(nowEpochMs + remaining) }
+    }
+
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -358,7 +362,7 @@ private fun ProgressControls(
             metrics = metrics,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
+                .padding(bottom = 10.dp),
         )
         Row(
             modifier = Modifier
@@ -370,6 +374,8 @@ private fun ProgressControls(
             PlayerTimeText(
                 text = formatPlaybackTime(displayedPositionMs),
                 fontSize = metrics.timeSize,
+                modifier = Modifier.width(PlayerSeekTimeTextWidth),
+                textAlign = TextAlign.Start,
             )
             PlayerSeekBar(
                 modifier = Modifier
@@ -384,6 +390,8 @@ private fun ProgressControls(
             PlayerTimeText(
                 text = formatPlaybackTime(durationMs),
                 fontSize = metrics.timeSize,
+                modifier = Modifier.width(PlayerSeekTimeTextWidth),
+                textAlign = TextAlign.End,
             )
         }
         Row(
@@ -581,8 +589,8 @@ private fun PlayerControlCluster(
         ),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
             content = content,
         )
@@ -607,14 +615,14 @@ private fun PlayerToolbarPlayPauseButton(
             stringResource(Res.string.detail_btn_play)
         },
         onClick = onClick,
-        buttonSize = 46.dp,
-        iconSize = 24.dp,
+        buttonSize = PlayerToolbarButtonSize,
+        iconSize = PlayerToolbarIconSize,
         customContent = if (isBuffering) {
             {
                 CircularProgressIndicator(
                     color = Color.White,
                     strokeWidth = 2.5.dp,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(PlayerToolbarIconSize),
                 )
             }
         } else {
@@ -633,7 +641,7 @@ private fun PlayerToolbarTextButton(
         text = label,
         contentDescription = contentDescription,
         onClick = onClick,
-        buttonSize = 46.dp,
+        buttonSize = PlayerToolbarButtonSize,
     )
 }
 
@@ -645,8 +653,8 @@ private fun PlayerVolumeControl(
     onVolumeChange: ((Float) -> Unit)?,
 ) {
     Row(
-        modifier = Modifier.padding(end = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.padding(end = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PlayerToolbarIconButton(
@@ -656,8 +664,8 @@ private fun PlayerVolumeControl(
         )
         Slider(
             modifier = Modifier
-                .width(96.dp)
-                .height(32.dp)
+                .width(108.dp)
+                .height(34.dp)
                 .graphicsLayer(scaleY = 0.72f),
             value = volumeLevel.coerceIn(0f, 1f),
             onValueChange = { value -> onVolumeChange?.invoke(value.coerceIn(0f, 1f)) },
@@ -676,8 +684,8 @@ private fun PlayerToolbarIconButton(
     icon: ImageVector? = null,
     painter: Painter? = null,
     text: String? = null,
-    buttonSize: androidx.compose.ui.unit.Dp = 40.dp,
-    iconSize: androidx.compose.ui.unit.Dp = 20.dp,
+    buttonSize: androidx.compose.ui.unit.Dp = PlayerToolbarButtonSize,
+    iconSize: androidx.compose.ui.unit.Dp = PlayerToolbarIconSize,
     isActive: Boolean = false,
     customContent: (@Composable () -> Unit)? = null,
 ) {
@@ -943,7 +951,12 @@ internal fun LockedPlayerOverlay(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                PlayerTimeText(text = formatPlaybackTime(displayedPositionMs), fontSize = metrics.timeSize)
+                PlayerTimeText(
+                    text = formatPlaybackTime(displayedPositionMs),
+                    fontSize = metrics.timeSize,
+                    modifier = Modifier.width(PlayerSeekTimeTextWidth),
+                    textAlign = TextAlign.Start,
+                )
                 Slider(
                     modifier = Modifier
                         .weight(1f)
@@ -956,7 +969,12 @@ internal fun LockedPlayerOverlay(
                     enabled = false,
                     colors = sliderColors,
                 )
-                PlayerTimeText(text = formatPlaybackTime(durationMs), fontSize = metrics.timeSize)
+                PlayerTimeText(
+                    text = formatPlaybackTime(durationMs),
+                    fontSize = metrics.timeSize,
+                    modifier = Modifier.width(PlayerSeekTimeTextWidth),
+                    textAlign = TextAlign.End,
+                )
             }
         }
     }
@@ -966,9 +984,12 @@ internal fun LockedPlayerOverlay(
 private fun PlayerTimeText(
     text: String,
     fontSize: androidx.compose.ui.unit.TextUnit,
+    modifier: Modifier = Modifier,
+    textAlign: TextAlign = TextAlign.Start,
 ) {
     Text(
         text = text,
+        modifier = modifier,
         style = MaterialTheme.nuvioTypeScale.labelSm.copy(
             fontSize = fontSize,
             lineHeight = fontSize * 1.25f,
@@ -976,5 +997,6 @@ private fun PlayerTimeText(
         ),
         color = Color.White.copy(alpha = 0.88f),
         maxLines = 1,
+        textAlign = textAlign,
     )
 }
