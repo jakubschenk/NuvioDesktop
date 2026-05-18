@@ -17,13 +17,13 @@ class HomeHeroSectionTest {
     }
 
     @Test
-    fun `tablet hero height remains width driven even with viewport height`() {
+    fun `desktop hero height follows viewport height when provided`() {
         val layout = homeHeroLayout(
             maxWidthDp = 840f,
             viewportHeightDp = 1200f,
         )
 
         assertEquals(true, layout.isTablet)
-        assertEquals(386.4f, layout.heroHeight.value, 0.001f)
+        assertEquals(456f, layout.heroHeight.value, 0.001f)
     }
 }

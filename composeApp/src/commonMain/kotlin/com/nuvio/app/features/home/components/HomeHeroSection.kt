@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.withTmdbImageSize
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.features.home.MetaPreview
 import kotlinx.coroutines.CoroutineScope
@@ -68,6 +69,7 @@ private const val HERO_SWIPE_VELOCITY_THRESHOLD = 300f
 private const val MOBILE_HERO_VIEWPORT_RATIO = 0.82f
 private const val MOBILE_HERO_MIN_HEIGHT_DP = 360f
 private const val MOBILE_HERO_MAX_HEIGHT_DP = 760f
+private const val DESKTOP_HERO_VIEWPORT_RATIO = 0.38f
 
 internal data class HomeHeroLayout(
     val isTablet: Boolean,
@@ -168,7 +170,7 @@ fun HomeHeroSection(
             ) {
                 visiblePages.forEach { layer ->
                     AsyncImage(
-                        model = items[layer.page].banner ?: items[layer.page].poster,
+                        model = items[layer.page].heroBackgroundImageUrl(),
                         contentDescription = items[layer.page].name,
                         modifier = Modifier
                             .fillMaxSize()
@@ -316,6 +318,12 @@ private fun heroPageVisibility(
     return (1f - abs(heroPageOffset(pagerState, page))).coerceIn(0f, 1f)
 }
 
+private fun MetaPreview.heroBackgroundImageUrl(): String? =
+    (banner ?: poster)?.withTmdbImageSize("original")
+
+private fun MetaPreview.heroLogoImageUrl(): String? =
+    logo?.withTmdbImageSize("original")
+
 @Composable
 fun HomeHeroReservedSpace(
     modifier: Modifier = Modifier,
@@ -351,9 +359,10 @@ private fun HeroContentBlock(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
     ) {
-        if (item.logo != null) {
+        val logoImageUrl = item.heroLogoImageUrl()
+        if (logoImageUrl != null) {
             AsyncImage(
-                model = item.logo,
+                model = logoImageUrl,
                 contentDescription = item.name,
                 modifier = Modifier
                     .fillMaxWidth(layout.logoWidthFraction)
@@ -428,7 +437,13 @@ internal fun homeHeroLayout(
     when {
         maxWidthDp >= 1200f -> HomeHeroLayout(
             isTablet = true,
-            heroHeight = (maxWidthDp * 0.42f).dp.coerceIn(360.dp, 440.dp),
+            heroHeight = desktopHeroHeight(
+                maxWidthDp = maxWidthDp,
+                viewportHeightDp = viewportHeightDp,
+                widthFallbackRatio = 0.42f,
+                minHeightDp = 380f,
+                maxHeightDp = 820f,
+            ),
             contentMaxWidth = 640.dp,
             contentWidthFraction = 0.56f,
             contentHorizontalPadding = 56.dp,
@@ -438,7 +453,13 @@ internal fun homeHeroLayout(
         )
         maxWidthDp >= 840f -> HomeHeroLayout(
             isTablet = true,
-            heroHeight = (maxWidthDp * 0.46f).dp.coerceIn(340.dp, 420.dp),
+            heroHeight = desktopHeroHeight(
+                maxWidthDp = maxWidthDp,
+                viewportHeightDp = viewportHeightDp,
+                widthFallbackRatio = 0.46f,
+                minHeightDp = 360f,
+                maxHeightDp = 720f,
+            ),
             contentMaxWidth = 560.dp,
             contentWidthFraction = 0.62f,
             contentHorizontalPadding = 40.dp,
@@ -448,7 +469,13 @@ internal fun homeHeroLayout(
         )
         maxWidthDp >= 600f -> HomeHeroLayout(
             isTablet = true,
-            heroHeight = (maxWidthDp * 0.58f).dp.coerceIn(320.dp, 380.dp),
+            heroHeight = desktopHeroHeight(
+                maxWidthDp = maxWidthDp,
+                viewportHeightDp = viewportHeightDp,
+                widthFallbackRatio = 0.58f,
+                minHeightDp = 340f,
+                maxHeightDp = 620f,
+            ),
             contentMaxWidth = 520.dp,
             contentWidthFraction = 0.72f,
             contentHorizontalPadding = 32.dp,
@@ -471,6 +498,19 @@ internal fun homeHeroLayout(
             logoWidthFraction = 0.62f,
         )
     }
+
+private fun desktopHeroHeight(
+    maxWidthDp: Float,
+    viewportHeightDp: Float?,
+    widthFallbackRatio: Float,
+    minHeightDp: Float,
+    maxHeightDp: Float,
+): Dp {
+    val targetHeightDp = viewportHeightDp
+        ?.let { it * DESKTOP_HERO_VIEWPORT_RATIO }
+        ?: (maxWidthDp * widthFallbackRatio)
+    return targetHeightDp.dp.coerceIn(minHeightDp.dp, maxHeightDp.dp)
+}
 
 private fun mobileHeroHeight(
     maxWidthDp: Float,

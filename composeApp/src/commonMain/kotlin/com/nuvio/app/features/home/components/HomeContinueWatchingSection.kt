@@ -33,17 +33,27 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.size.Precision
+import coil3.size.Scale
+import coil3.size.Size
 import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.PosterCardStyleUiState
 import com.nuvio.app.core.ui.desktopContextMenuPointer
 import com.nuvio.app.core.ui.localizedContinueWatchingSubtitle
+import com.nuvio.app.core.ui.nuvioImageDecodeSizeMultiplier
 import com.nuvio.app.core.ui.NuvioProgressBar
 import com.nuvio.app.core.ui.NuvioShelfSection
 import com.nuvio.app.core.ui.posterCardClickable
+import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
+import com.nuvio.app.core.ui.upgradeTmdbImageQuality
 import com.nuvio.app.features.watchprogress.ContinueWatchingItem
 import com.nuvio.app.features.watchprogress.ContinueWatchingSectionStyle
 import kotlin.math.roundToInt
@@ -103,6 +113,7 @@ internal fun HomeContinueWatchingSection(
         )
     } else {
         BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+            val posterCardStyle = rememberPosterCardStyleUiState()
             HomeContinueWatchingSectionContent(
                 items = items,
                 style = style,
@@ -110,7 +121,7 @@ internal fun HomeContinueWatchingSection(
                 blurNextUp = blurNextUp,
                 modifier = Modifier.fillMaxWidth(),
                 sectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value),
-                layout = rememberContinueWatchingLayout(maxWidth.value),
+                layout = rememberContinueWatchingLayout(maxWidth.value, posterCardStyle),
                 onItemClick = onItemClick,
                 onItemLongPress = onItemLongPress,
             )
@@ -344,6 +355,7 @@ private fun ContinueWatchingWideCard(
         ArtworkPanel(
             imageUrl = artworkUrl,
             width = layout.widePosterStripWidth,
+            height = layout.wideCardHeight,
             blurred = shouldBlurArtwork,
             modifier = Modifier.fillMaxHeight(),
         )
@@ -457,8 +469,13 @@ private fun ContinueWatchingPosterCard(
             val shouldBlurArtwork = blurNextUp && useEpisodeThumbnails && item.isNextUp
             val imageUrl = item.continueWatchingArtworkUrl(useEpisodeThumbnails)
             if (imageUrl != null) {
+                val imageRequest = rememberSizedContinueWatchingImageRequest(
+                    imageUrl = imageUrl,
+                    width = layout.posterCardWidth,
+                    height = layout.posterCardHeight,
+                )
                 AsyncImage(
-                    model = imageUrl,
+                    model = imageRequest,
                     contentDescription = item.title,
                     modifier = Modifier
                         .fillMaxSize()
@@ -542,6 +559,7 @@ private fun ContinueWatchingPosterCard(
 private fun ArtworkPanel(
     imageUrl: String?,
     width: Dp,
+    height: Dp,
     blurred: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -551,8 +569,13 @@ private fun ArtworkPanel(
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
         if (imageUrl != null) {
+            val imageRequest = rememberSizedContinueWatchingImageRequest(
+                imageUrl = imageUrl,
+                width = width,
+                height = height,
+            )
             AsyncImage(
-                model = imageUrl,
+                model = imageRequest,
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
@@ -560,6 +583,30 @@ private fun ArtworkPanel(
                 contentScale = ContentScale.Crop,
             )
         }
+    }
+}
+
+@Composable
+private fun rememberSizedContinueWatchingImageRequest(
+    imageUrl: String,
+    width: Dp,
+    height: Dp,
+): ImageRequest {
+    val platformContext = LocalPlatformContext.current
+    val density = LocalDensity.current
+    val decodeSizeMultiplier = nuvioImageDecodeSizeMultiplier.coerceAtLeast(1f)
+    val resolvedImageUrl = remember(imageUrl) { imageUrl.upgradeTmdbImageQuality() }
+    return remember(platformContext, density, resolvedImageUrl, width, height, decodeSizeMultiplier) {
+        val widthPx = with(density) { width.roundToPx() }.coerceAtLeast(1)
+        val heightPx = with(density) { height.roundToPx() }.coerceAtLeast(1)
+        val requestWidthPx = (widthPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(widthPx)
+        val requestHeightPx = (heightPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(heightPx)
+        ImageRequest.Builder(platformContext)
+            .data(resolvedImageUrl)
+            .size(Size(requestWidthPx, requestHeightPx))
+            .scale(Scale.FILL)
+            .precision(Precision.EXACT)
+            .build()
     }
 }
 
@@ -612,8 +659,11 @@ internal data class ContinueWatchingLayout(
     val posterBadgeTextSize: androidx.compose.ui.unit.TextUnit,
 )
 
-internal fun rememberContinueWatchingLayout(maxWidthDp: Float): ContinueWatchingLayout =
-    when {
+internal fun rememberContinueWatchingLayout(
+    maxWidthDp: Float,
+    posterCardStyle: PosterCardStyleUiState? = null,
+): ContinueWatchingLayout {
+    val layout = when {
         maxWidthDp >= 1440f -> ContinueWatchingLayout(
             itemGap = 20.dp,
             wideCardWidth = 400.dp,
@@ -691,3 +741,12 @@ internal fun rememberContinueWatchingLayout(maxWidthDp: Float): ContinueWatching
             posterBadgeTextSize = 10.sp,
         )
     }
+
+    return posterCardStyle?.let { style ->
+        layout.copy(
+            posterCardWidth = style.widthDp.dp,
+            posterCardHeight = style.heightDp.dp,
+            cardRadius = style.cornerRadiusDp.dp,
+        )
+    } ?: layout
+}

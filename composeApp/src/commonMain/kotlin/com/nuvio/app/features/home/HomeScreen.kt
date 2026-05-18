@@ -20,6 +20,7 @@ import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
+import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.nextReleasedEpisodeAfter
@@ -406,7 +407,8 @@ fun HomeScreen(
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val homeSectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value)
-        val continueWatchingLayout = rememberContinueWatchingLayout(maxWidth.value)
+        val posterCardStyle = rememberPosterCardStyleUiState()
+        val continueWatchingLayout = rememberContinueWatchingLayout(maxWidth.value, posterCardStyle)
         val nativeBottomNavigationOverlayHeight =
             if (LocalNuvioBottomNavigationOverlayPadding.current > 0.dp) {
                 nuvioSafeBottomPadding()
