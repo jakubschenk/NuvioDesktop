@@ -235,6 +235,7 @@ fun PlayerScreen(
         var playbackLoadGeneration by remember { mutableStateOf(0) }
         var playerController by remember { mutableStateOf<PlayerEngineController?>(null) }
         var playerControllerSourceUrl by remember { mutableStateOf<String?>(null) }
+        var playerAudioLevel by remember(activeSourceUrl) { mutableStateOf<PlayerAudioLevel?>(null) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
         val keepScreenAwake = errorMessage == null &&
             (playbackSnapshot.isPlaying || (shouldPlay && playbackSnapshot.isLoading))
@@ -673,6 +674,16 @@ fun PlayerScreen(
             )
         }
 
+        fun applyVolumeFeedback(level: PlayerAudioLevel) {
+            playerAudioLevel = level
+            showVolumeFeedback(level)
+        }
+
+        fun toggleMute() {
+            playerController?.toggleMute()?.let(::applyVolumeFeedback)
+            revealPlayerChrome()
+        }
+
         fun togglePlayback() {
             if (playbackSnapshot.isPlaying) {
                 shouldPlay = false
@@ -824,7 +835,7 @@ fun PlayerScreen(
         val deactivateHoldToSpeedState = rememberUpdatedState(::deactivateHoldToSpeed)
         val showHorizontalSeekPreviewState = rememberUpdatedState(::showHorizontalSeekPreview)
         val showBrightnessFeedbackState = rememberUpdatedState(::showBrightnessFeedback)
-        val showVolumeFeedbackState = rememberUpdatedState(::showVolumeFeedback)
+        val showVolumeFeedbackState = rememberUpdatedState(::applyVolumeFeedback)
         val clearLiveGestureFeedbackState = rememberUpdatedState(::clearLiveGestureFeedback)
         val revealLockedOverlayState = rememberUpdatedState(::revealLockedOverlay)
         val isHoldToSpeedGestureActiveState = rememberUpdatedState(isHoldToSpeedGestureActive)
@@ -1800,6 +1811,7 @@ fun PlayerScreen(
                 onControllerReady = { controller ->
                     playerController = controller
                     playerControllerSourceUrl = activeSourceUrl
+                    playerAudioLevel = controller.currentVolume()
                 },
                 onSnapshot = { snapshot ->
                     playbackSnapshot = snapshot
@@ -1900,6 +1912,9 @@ fun PlayerScreen(
                         refreshTracks()
                         showAudioModal = true
                     },
+                    onVolumeClick = ::toggleMute,
+                    isVolumeMuted = playerAudioLevel?.isMuted == true,
+                    onNextEpisodeClick = if (nextEpisodeInfo?.hasAired == true) { { playNextEpisode() } } else null,
                     onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
                     onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
                     onSubmitIntroClick = if (isSeries && playerSettingsUiState.introSubmitEnabled && playerSettingsUiState.introDbApiKey.isNotBlank()) { { showSubmitIntroModal = true } } else null,

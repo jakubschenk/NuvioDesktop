@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 import com.nuvio.app.desktop.DesktopPlayerRegistry
 import com.nuvio.app.desktop.DesktopRuntimeLog
 import com.nuvio.app.features.player.AudioTrack
+import com.nuvio.app.features.player.PlayerAudioLevel
 import com.nuvio.app.features.player.PlayerEngineController
 import com.nuvio.app.features.player.PlayerResizeMode
 import com.nuvio.app.features.player.SubtitleStyleState
@@ -47,6 +48,7 @@ import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.math.roundToInt
 
 private const val ExternalSubtitleCodepage = "+utf-8"
 private const val EmbeddedSubtitleCodepage = "auto"
@@ -272,6 +274,27 @@ internal class MpvDesktopPlayerBackend private constructor(
             player.features[PlaybackSpeed]?.set(speed.coerceIn(0.25f, 4.0f))
         }
 
+        override fun currentVolume(): PlayerAudioLevel? =
+            if (canReceiveCommands()) readAudioLevel() else null
+
+        override fun setVolume(level: Float): PlayerAudioLevel? {
+            if (!canReceiveCommands()) return null
+            val target = (level.coerceIn(0f, 1f) * 100f).roundToInt()
+            runCatching {
+                player.impl.setMpvProperty("volume", target)
+                if (target > 0) player.impl.setMpvProperty("mute", false)
+            }.onFailure { DesktopRuntimeLog.error("MPV setVolume failed target=$target", it) }
+            return readAudioLevel()
+        }
+
+        override fun toggleMute(): PlayerAudioLevel? {
+            if (!canReceiveCommands()) return null
+            val current = readAudioLevel() ?: return null
+            runCatching { player.impl.setMpvProperty("mute", !current.isMuted) }
+                .onFailure { DesktopRuntimeLog.error("MPV toggleMute failed", it) }
+            return readAudioLevel()
+        }
+
         override fun getAudioTracks(): List<AudioTrack> =
             if (canReceiveCommands()) runCatching { player.impl.audioTracks() }.getOrDefault(emptyList()) else emptyList()
 
@@ -456,6 +479,17 @@ internal class MpvDesktopPlayerBackend private constructor(
                     ),
                 )
             }
+        }
+
+        private fun readAudioLevel(): PlayerAudioLevel? {
+            val volume = player.impl.getMpvStringPropertyOrNull("volume")
+                ?.toFloatOrNull()
+                ?: return null
+            val muted = player.impl.getMpvBooleanProperty("mute")
+            return PlayerAudioLevel(
+                fraction = (volume / 100f).coerceIn(0f, 1f),
+                isMuted = muted || volume <= 0f,
+            )
         }
     }
 
