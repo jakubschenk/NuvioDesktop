@@ -69,7 +69,7 @@ private const val HERO_SWIPE_VELOCITY_THRESHOLD = 300f
 private const val MOBILE_HERO_VIEWPORT_RATIO = 0.82f
 private const val MOBILE_HERO_MIN_HEIGHT_DP = 360f
 private const val MOBILE_HERO_MAX_HEIGHT_DP = 760f
-private const val DESKTOP_HERO_VIEWPORT_RATIO = 0.40f
+private const val DESKTOP_HERO_VIEWPORT_RATIO = 0.50f
 
 internal data class HomeHeroLayout(
     val isTablet: Boolean,
