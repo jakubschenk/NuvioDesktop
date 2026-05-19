@@ -612,7 +612,7 @@ private fun rememberSizedContinueWatchingImageRequest(
             .size(Size(requestWidthPx, requestHeightPx))
             .scale(Scale.FILL)
             .precision(Precision.EXACT)
-            .nuvioPrescaleToDrawSize(widthPx, heightPx, Scale.FILL)
+            .nuvioPrescaleToDrawSize(widthPx, heightPx, Scale.FILL, Alignment.Center)
             .build()
     }
 }

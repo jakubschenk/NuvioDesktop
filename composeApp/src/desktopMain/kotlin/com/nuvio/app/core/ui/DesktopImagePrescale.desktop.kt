@@ -1,5 +1,6 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.ui.Alignment
 import coil3.request.ImageRequest
 import coil3.request.transformations
 import coil3.size.Scale
@@ -11,19 +12,36 @@ internal actual fun ImageRequest.Builder.nuvioPrescaleToDrawSize(
     widthPx: Int,
     heightPx: Int,
     scale: Scale,
+    alignment: Alignment,
 ): ImageRequest.Builder {
     if (widthPx <= 0 || heightPx <= 0) return this
     if (scale != Scale.FILL) return this
-    return transformations(NuvioDesktopPrescaleTransformation(widthPx, heightPx))
+    return transformations(NuvioDesktopPrescaleTransformation(widthPx, heightPx, alignment))
 }
 
 private class NuvioDesktopPrescaleTransformation(
     private val widthPx: Int,
     private val heightPx: Int,
+    private val alignment: Alignment,
 ) : Transformation() {
-    override val cacheKey: String = "nuvio_desktop_prescale_progressive_thumb_v5:$widthPx:$heightPx"
+    override val cacheKey: String =
+        "nuvio_desktop_prescale_lanczos_v6:$widthPx:$heightPx:${alignment.nuvioDesktopAlignmentCacheKey()}"
 
     override suspend fun transform(input: Bitmap, size: Size): Bitmap {
-        return input.nuvioScaleToFillBitmap(widthPx, heightPx) ?: input
+        return input.nuvioScaleToFillBitmap(widthPx, heightPx, alignment) ?: input
     }
 }
+
+private fun Alignment.nuvioDesktopAlignmentCacheKey(): String =
+    when (this) {
+        Alignment.TopStart -> "top_start"
+        Alignment.TopCenter -> "top_center"
+        Alignment.TopEnd -> "top_end"
+        Alignment.CenterStart -> "center_start"
+        Alignment.Center -> "center"
+        Alignment.CenterEnd -> "center_end"
+        Alignment.BottomStart -> "bottom_start"
+        Alignment.BottomCenter -> "bottom_center"
+        Alignment.BottomEnd -> "bottom_end"
+        else -> toString()
+    }

@@ -48,6 +48,7 @@ internal fun AsyncImage(
         model = model,
         drawnSize = drawnSize,
         contentScale = contentScale,
+        alignment = alignment,
     )
     val useFallbackPainter = resolvedModel == null
     val transform = remember(placeholder, error, fallback, filterQuality, useFallbackPainter) {
@@ -110,11 +111,12 @@ private fun rememberSizedAsyncImageModel(
     model: Any?,
     drawnSize: IntSize,
     contentScale: ContentScale,
+    alignment: Alignment,
 ): Any? {
     val platformContext = LocalPlatformContext.current
     val decodeSizeMultiplier = nuvioImageDecodeSizeMultiplier.coerceAtLeast(1f)
     val upgradedModel = remember(model) { model.upgradeTmdbImageModelQuality() }
-    return remember(upgradedModel, drawnSize, contentScale, platformContext, decodeSizeMultiplier) {
+    return remember(upgradedModel, drawnSize, contentScale, alignment, platformContext, decodeSizeMultiplier) {
         val url = upgradedModel as? String ?: return@remember upgradedModel
         if (url.isBlank()) return@remember null
         val widthPx = drawnSize.width.coerceAtLeast(1)
@@ -129,7 +131,7 @@ private fun rememberSizedAsyncImageModel(
             .size(Size(requestWidthPx, requestHeightPx))
             .scale(coilScale)
             .precision(Precision.EXACT)
-            .nuvioPrescaleToDrawSize(widthPx, heightPx, coilScale)
+            .nuvioPrescaleToDrawSize(widthPx, heightPx, coilScale, alignment)
             .build()
     }
 }
