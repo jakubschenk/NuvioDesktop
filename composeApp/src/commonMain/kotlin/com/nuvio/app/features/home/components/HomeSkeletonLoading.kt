@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -198,41 +199,49 @@ fun HomeSkeletonRow(
         posterCardStyle.heightDp.dp
     }
 
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        // Title placeholder
-        Box(
-            modifier = Modifier
-                .width(140.dp)
-                .height(18.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(brush),
-        )
-        if (showHeaderAccent) {
-            // Accent bar
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val skeletonCount = remember(maxWidth, skeletonWidth) {
+            (((maxWidth.value + 10f) / (skeletonWidth.value + 10f)).toInt() + 1)
+                .coerceAtLeast(4)
+                .coerceAtMost(16)
+        }
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // Title placeholder
             Box(
                 modifier = Modifier
-                    .width(60.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(999.dp))
+                    .width(140.dp)
+                    .height(18.dp)
+                    .clip(RoundedCornerShape(6.dp))
                     .background(brush),
             )
-            Spacer(modifier = Modifier.height(2.dp))
-        }
-        // Poster row
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            repeat(4) {
+            if (showHeaderAccent) {
+                // Accent bar
                 Box(
                     modifier = Modifier
-                        .width(skeletonWidth)
-                        .height(skeletonHeight)
-                        .clip(RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp))
+                        .width(60.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(999.dp))
                         .background(brush),
                 )
+                Spacer(modifier = Modifier.height(2.dp))
+            }
+            // Poster row
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                repeat(skeletonCount) {
+                    Box(
+                        modifier = Modifier
+                            .width(skeletonWidth)
+                            .height(skeletonHeight)
+                            .clip(RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp))
+                            .background(brush),
+                    )
+                }
             }
         }
     }

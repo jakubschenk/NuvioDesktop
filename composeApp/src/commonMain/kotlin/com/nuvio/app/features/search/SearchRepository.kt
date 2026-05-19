@@ -51,6 +51,12 @@ object SearchRepository {
         _query.value = query
     }
 
+    fun prepareSearch() {
+        activeJob?.cancel()
+        lastRequestKey = null
+        _uiState.value = SearchUiState(isLoading = true)
+    }
+
     fun search(query: String, addons: List<ManagedAddon>) {
         val normalizedQuery = query.trim()
         if (normalizedQuery.isBlank()) {
