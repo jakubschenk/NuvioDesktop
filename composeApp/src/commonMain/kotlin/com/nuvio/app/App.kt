@@ -64,6 +64,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -3070,6 +3071,7 @@ private fun TabletTopIconButton(
     Surface(
         modifier = modifier
             .size(44.dp)
+            .clip(RoundedCornerShape(999.dp))
             .clickable(onClick = onClick),
         color = if (selected) {
             MaterialTheme.colorScheme.primaryContainer

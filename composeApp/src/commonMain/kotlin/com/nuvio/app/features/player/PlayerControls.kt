@@ -5,6 +5,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +51,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +61,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -641,6 +646,13 @@ private fun PlayerVolumeSlider(
     onMuteClick: () -> Unit,
 ) {
     val percentage = (volumeLevel.fraction * 100f).toInt().coerceIn(0, 100)
+    val onVolumeChangeState = rememberUpdatedState(onVolumeChange)
+
+    fun volumeForX(x: Float, width: Float): Float {
+        if (width <= 0f) return volumeLevel.fraction.coerceIn(0f, 1f)
+        return (x / width).coerceIn(0f, 1f)
+    }
+
     Row(
         modifier = Modifier
             .padding(horizontal = 10.dp, vertical = 6.dp)
@@ -661,12 +673,35 @@ private fun PlayerVolumeSlider(
                 .clip(CircleShape)
                 .clickable(onClick = onMuteClick),
         )
-        Slider(
-            modifier = Modifier.weight(1f),
-            value = volumeLevel.fraction.coerceIn(0f, 1f),
-            onValueChange = onVolumeChange,
-            valueRange = 0f..1f,
-        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(34.dp)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(pass = PointerEventPass.Initial)
+                        val width = size.width.toFloat().takeIf { it > 0f } ?: return@awaitEachGesture
+                        onVolumeChangeState.value(volumeForX(down.position.x, width))
+                        down.consume()
+
+                        while (true) {
+                            val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) break
+                            onVolumeChangeState.value(volumeForX(change.position.x, width))
+                            change.consume()
+                        }
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Slider(
+                modifier = Modifier.fillMaxSize(),
+                value = volumeLevel.fraction.coerceIn(0f, 1f),
+                onValueChange = onVolumeChange,
+                valueRange = 0f..1f,
+            )
+        }
         Text(
             text = percentage.toString(),
             style = MaterialTheme.nuvioTypeScale.labelSm.copy(fontWeight = FontWeight.SemiBold),

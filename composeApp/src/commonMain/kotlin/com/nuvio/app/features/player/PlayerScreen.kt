@@ -102,6 +102,7 @@ private const val PlayerLockedOverlayDurationMs = 2_000L
 private const val PlayerLeftGestureBoundary = 0.4f
 private const val PlayerRightGestureBoundary = 0.6f
 private const val PlayerVerticalGestureSensitivity = 1f
+private const val PlayerChromeFrameIntervalMs = 8L
 /** Hard ceiling for next-episode stream search to prevent hanging forever. */
 private const val NEXT_EPISODE_HARD_TIMEOUT_MS = 120_000L
 private val PlayerSliderOverlayGap = 12.dp
@@ -136,6 +137,18 @@ private data class PlayerAccumulatedSeekState(
     val baselinePositionMs: Long,
     val amountMs: Long,
 )
+
+private fun PlayerPlaybackSnapshot.displayPositionAt(
+    snapshotEpochMs: Long,
+    nowEpochMs: Long,
+): Long {
+    if (!isPlaying || durationMs <= 0L) {
+        return positionMs.coerceAtLeast(0L)
+    }
+    val elapsedMs = (nowEpochMs - snapshotEpochMs).coerceAtLeast(0L)
+    val interpolated = positionMs + (elapsedMs * playbackSpeed).roundToLong()
+    return interpolated.coerceIn(0L, durationMs)
+}
 
 @Composable
 fun PlayerScreen(
@@ -257,6 +270,8 @@ fun PlayerScreen(
         }
         var layoutSize by remember { mutableStateOf(IntSize.Zero) }
         var playbackSnapshot by remember { mutableStateOf(PlayerPlaybackSnapshot()) }
+        var playbackSnapshotEpochMs by remember { mutableStateOf(WatchProgressClock.nowEpochMs()) }
+        var playerChromeFrameEpochMs by remember { mutableStateOf(WatchProgressClock.nowEpochMs()) }
         var playbackLoadGeneration by remember { mutableStateOf(0) }
         var playerController by remember { mutableStateOf<PlayerEngineController?>(null) }
         var playerControllerSourceUrl by remember { mutableStateOf<String?>(null) }
@@ -299,9 +314,26 @@ fun PlayerScreen(
         ) { mutableStateOf(false) }
 
         val backdropArtwork = background ?: poster
-        val displayedPositionMs = scrubbingPositionMs ?: playbackSnapshot.positionMs
+        val displayedPositionMs = scrubbingPositionMs ?: playbackSnapshot.displayPositionAt(
+            snapshotEpochMs = playbackSnapshotEpochMs,
+            nowEpochMs = if (playbackSnapshot.isPlaying && controlsVisible && !playerControlsLocked) {
+                playerChromeFrameEpochMs
+            } else {
+                playbackSnapshotEpochMs
+            },
+        )
         val isEpisode = activeSeasonNumber != null && activeEpisodeNumber != null
         val currentGestureFeedback = liveGestureFeedback ?: gestureFeedback
+
+        LaunchedEffect(playbackSnapshot.isPlaying, controlsVisible, playerControlsLocked, scrubbingPositionMs) {
+            if (!playbackSnapshot.isPlaying || !controlsVisible || playerControlsLocked || scrubbingPositionMs != null) {
+                return@LaunchedEffect
+            }
+            while (true) {
+                playerChromeFrameEpochMs = WatchProgressClock.nowEpochMs()
+                delay(PlayerChromeFrameIntervalMs)
+            }
+        }
 
         LaunchedEffect(currentGestureFeedback) {
             if (currentGestureFeedback != null) {
@@ -2130,6 +2162,7 @@ fun PlayerScreen(
                 },
                 onSnapshot = { snapshot ->
                     playbackSnapshot = snapshot
+                    playbackSnapshotEpochMs = WatchProgressClock.nowEpochMs()
                     val snapshotGeneration = playbackLoadGeneration
                     if (
                         !snapshot.isLoading &&
