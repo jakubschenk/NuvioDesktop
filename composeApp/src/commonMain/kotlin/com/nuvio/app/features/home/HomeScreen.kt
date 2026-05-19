@@ -20,6 +20,7 @@ import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
+import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.enabledAddons
 import com.nuvio.app.features.cloud.CloudLibraryContentType
@@ -560,6 +561,8 @@ fun HomeScreen(
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val homeSectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value)
+        val posterCardStyle = rememberPosterCardStyleUiState()
+        val showCatalogHeaderAccent = !homeSettingsUiState.hideCatalogUnderline
         val continueWatchingLayout = rememberContinueWatchingLayout(maxWidth.value)
         val nativeBottomNavigationOverlayHeight =
             if (LocalNuvioBottomNavigationOverlayPadding.current > 0.dp) {
@@ -660,10 +663,15 @@ fun HomeScreen(
                             )
                         }
                     }
-                    items(3) {
+                    items(
+                        count = 3,
+                        key = { index -> "home_skeleton_row_$index" },
+                        contentType = { "home_skeleton_row" },
+                    ) {
                         HomeSkeletonRow(
                             modifier = Modifier.padding(horizontal = 16.dp),
-                            showHeaderAccent = !homeSettingsUiState.hideCatalogUnderline,
+                            showHeaderAccent = showCatalogHeaderAccent,
+                            posterCardStyle = posterCardStyle,
                         )
                     }
                 }
@@ -718,6 +726,8 @@ fun HomeScreen(
                                         collection = collection,
                                         modifier = Modifier.padding(bottom = 12.dp),
                                         sectionPadding = homeSectionPadding,
+                                        posterCardStyle = posterCardStyle,
+                                        showHeaderAccent = showCatalogHeaderAccent,
                                         animateGifs = animateCollectionGifs,
                                         onFolderClick = onFolderClick,
                                     )
@@ -726,17 +736,28 @@ fun HomeScreen(
                         } else {
                             val section = sectionsMap[settingsItem.key]
                             if (section != null && section.items.isNotEmpty()) {
-                                item(key = settingsItem.key) {
+                                item(
+                                    key = settingsItem.key,
+                                    contentType = "catalog_row",
+                                ) {
+                                    val previewEntries = remember(section.items) {
+                                        section.items.take(HOME_CATALOG_PREVIEW_LIMIT)
+                                    }
+                                    val viewAllClick = if (section.canOpenCatalog(HOME_CATALOG_PREVIEW_LIMIT)) {
+                                        onCatalogClick?.let { callback ->
+                                            remember(section, callback) { { callback(section) } }
+                                        }
+                                    } else {
+                                        null
+                                    }
                                     HomeCatalogRowSection(
                                         section = section,
-                                        entries = section.items.take(HOME_CATALOG_PREVIEW_LIMIT),
+                                        entries = previewEntries,
                                         modifier = Modifier.padding(bottom = 12.dp),
                                         sectionPadding = homeSectionPadding,
-                                        onViewAllClick = if (section.canOpenCatalog(HOME_CATALOG_PREVIEW_LIMIT)) {
-                                            onCatalogClick?.let { { it(section) } }
-                                        } else {
-                                            null
-                                        },
+                                        posterCardStyle = posterCardStyle,
+                                        showHeaderAccent = showCatalogHeaderAccent,
+                                        onViewAllClick = viewAllClick,
                                         watchedKeys = watchedUiState.watchedKeys,
                                         onPosterClick = onPosterClick,
                                         onPosterLongClick = onPosterLongClick,

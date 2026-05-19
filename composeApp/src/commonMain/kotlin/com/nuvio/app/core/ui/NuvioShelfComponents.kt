@@ -165,12 +165,13 @@ fun NuvioPosterCard(
     bottomLeftLogoUrl: String? = null,
     bottomLeftText: String? = null,
     isWatched: Boolean = false,
+    posterCardStyle: PosterCardStyleUiState? = null,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
-    val posterCardStyle = rememberPosterCardStyleUiState()
-    val cardWidth = shape.cardWidth(basePosterWidthDp = posterCardStyle.widthDp)
-    val cardShape = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
+    val resolvedPosterCardStyle = posterCardStyle ?: rememberPosterCardStyleUiState()
+    val cardWidth = shape.cardWidth(basePosterWidthDp = resolvedPosterCardStyle.widthDp)
+    val cardShape = RoundedCornerShape(resolvedPosterCardStyle.cornerRadiusDp.dp)
     val platformContext = LocalPlatformContext.current
     val density = LocalDensity.current
     val resolvedImageUrl = remember(imageUrl) { imageUrl?.upgradeTmdbImageQuality() }
@@ -191,7 +192,7 @@ fun NuvioPosterCard(
         }
     }
     val catalogLogoOverlaySize = catalogLogoOverlaySize(
-        basePosterWidthDp = posterCardStyle.widthDp,
+        basePosterWidthDp = resolvedPosterCardStyle.widthDp,
         shape = shape,
     )
     val bottomLeftLogoRequest = rememberSizedImageRequest(
@@ -200,7 +201,7 @@ fun NuvioPosterCard(
         height = catalogLogoOverlaySize.height,
         memoryCacheKeyPrefix = "poster-logo",
     )
-    val shouldShowTitleBelow = showTitleBelow && !posterCardStyle.hideLabelsEnabled
+    val shouldShowTitleBelow = showTitleBelow && !resolvedPosterCardStyle.hideLabelsEnabled
 
     Column(
         modifier = modifier.width(cardWidth),
