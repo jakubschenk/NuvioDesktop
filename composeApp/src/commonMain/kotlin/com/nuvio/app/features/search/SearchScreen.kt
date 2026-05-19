@@ -8,10 +8,13 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -99,7 +102,8 @@ fun SearchScreen(
             lastRequestedQuery = null
             SearchRepository.clear()
         } else {
-            delay(350)
+            SearchRepository.prepareSearch()
+            delay(200)
             lastRequestedQuery = normalizedQuery
             SearchRepository.search(
                 query = normalizedQuery,
@@ -144,14 +148,29 @@ fun SearchScreen(
     }
 
     BoxWithConstraints(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
     ) {
         val homeSectionPadding = remember(maxWidth) {
             homeSectionHorizontalPaddingForWidth(maxWidth.value)
         }
+        val desktopRecentMatchCount = remember(recentSearches, query) {
+            val normalizedQuery = query.trim()
+            recentSearches.count { recentQuery ->
+                normalizedQuery.isBlank() || recentQuery.contains(normalizedQuery, ignoreCase = true)
+            }.coerceAtMost(3)
+        }
+        val desktopSearchTopPadding = if (showSearchChrome) {
+            null
+        } else {
+            val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+            statusBarPadding + 10.dp + 16.dp + 38.dp + 8.dp + 56.dp + (desktopRecentMatchCount * 44).dp + 22.dp
+        }
 
         NuvioScreen(
             horizontalPadding = 0.dp,
+            topPadding = desktopSearchTopPadding,
             listState = listState,
             modifier = Modifier.fillMaxSize(),
         ) {

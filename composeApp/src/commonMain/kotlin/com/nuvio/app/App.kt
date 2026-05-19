@@ -2112,7 +2112,7 @@ private fun TabletFloatingTopBar(
     }
 
     fun selectTab(tab: AppScreenTab) {
-        searchExpanded = tab == AppScreenTab.Search
+        searchExpanded = false
         onTabSelected(tab)
     }
 
@@ -2176,14 +2176,14 @@ private fun TabletFloatingTopBar(
                     )
                     TabletTopPillItem(
                         label = stringResource(Res.string.compose_nav_search),
-                        selected = selectedTab == AppScreenTab.Search,
-                        onClick = { selectTab(AppScreenTab.Search) },
+                        selected = searchExpanded || selectedTab == AppScreenTab.Search,
+                        onClick = { searchExpanded = true },
                         icon = {
                             Icon(
                                 painter = painterResource(Res.drawable.sidebar_search),
                                 contentDescription = stringResource(Res.string.compose_nav_search),
                                 modifier = Modifier.size(18.dp),
-                                tint = if (selectedTab == AppScreenTab.Search) {
+                                tint = if (searchExpanded || selectedTab == AppScreenTab.Search) {
                                     MaterialTheme.colorScheme.onPrimaryContainer
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
@@ -2215,7 +2215,7 @@ private fun TabletFloatingTopBar(
                         value = searchQuery,
                         onValueChange = { value ->
                             SearchRepository.updateQuery(value)
-                            if (selectedTab != AppScreenTab.Search) {
+                            if (value.isNotBlank() && selectedTab != AppScreenTab.Search) {
                                 onTabSelected(AppScreenTab.Search)
                             }
                         },
@@ -2245,6 +2245,7 @@ private fun TabletFloatingTopBar(
                                 SearchRepository.updateQuery(recentQuery)
                                 onTabSelected(AppScreenTab.Search)
                             },
+                            onRemove = { SearchHistoryRepository.removeSearch(recentQuery) },
                         )
                     }
                 }
@@ -2265,6 +2266,7 @@ private fun TabletFloatingTopBar(
 private fun TabletSearchRecentRow(
     query: String,
     onClick: () -> Unit,
+    onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -2293,6 +2295,17 @@ private fun TabletSearchRecentRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier.size(32.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = stringResource(Res.string.compose_search_remove_recent_search),
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
