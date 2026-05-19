@@ -241,14 +241,16 @@ fun SearchScreen(
             discoverInFocus -> stringResource(Res.string.compose_search_discover_title)
             else -> stringResource(Res.string.compose_nav_search)
         }
-        val desktopRecentMatchCount = remember(recentSearches, query) {
+        val desktopRecentMatchCount = remember(recentSearches, query, uiState.isLoading) {
             val normalizedQuery = query.trim()
             if (normalizedQuery.isBlank()) {
-                0
-            } else {
+                recentSearches.size.coerceAtMost(3)
+            } else if (uiState.isLoading) {
                 recentSearches.count { recentQuery ->
                     recentQuery.contains(normalizedQuery, ignoreCase = true)
                 }.coerceAtMost(3)
+            } else {
+                0
             }
         }
         val desktopSearchTopPadding = if (showSearchChrome) {
