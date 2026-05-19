@@ -24,6 +24,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private const val SourceRectEpsilon = 0.5f
+private const val MaxProgressiveResizeTargetPixels = 420_000
+private const val MaxProgressiveResizeTargetDimensionPx = 720
 
 private val NuvioDesktopCropSampling = CubicResampler(1f / 3f, 1f / 3f)
 private val NuvioDesktopDownsampleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR)
@@ -84,6 +86,8 @@ private fun Bitmap.nuvioScaleToFillBitmapWithJava2D(
     heightPx: Int,
     sourceRect: Rect,
 ): Bitmap? {
+    if (!shouldUseProgressiveResize(widthPx, heightPx)) return null
+
     val source = nuvioToBufferedImage() ?: return null
     val cropX = sourceRect.left.roundToInt().coerceIn(0, source.width - 1)
     val cropY = sourceRect.top.roundToInt().coerceIn(0, source.height - 1)
@@ -112,6 +116,14 @@ private fun Bitmap.nuvioToBufferedImage(): BufferedImage? {
         data.close()
     }
 }
+
+private fun shouldUseProgressiveResize(
+    widthPx: Int,
+    heightPx: Int,
+): Boolean =
+    widthPx <= MaxProgressiveResizeTargetDimensionPx &&
+        heightPx <= MaxProgressiveResizeTargetDimensionPx &&
+        widthPx.toLong() * heightPx.toLong() <= MaxProgressiveResizeTargetPixels
 
 private fun BufferedImage.nuvioProgressiveResize(
     widthPx: Int,

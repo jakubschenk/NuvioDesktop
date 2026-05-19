@@ -21,7 +21,7 @@ private class NuvioDesktopPrescaleTransformation(
     private val widthPx: Int,
     private val heightPx: Int,
 ) : Transformation() {
-    override val cacheKey: String = "nuvio_desktop_prescale_progressive_fill_v4:$widthPx:$heightPx"
+    override val cacheKey: String = "nuvio_desktop_prescale_progressive_thumb_v5:$widthPx:$heightPx"
 
     override suspend fun transform(input: Bitmap, size: Size): Bitmap {
         return input.nuvioScaleToFillBitmap(widthPx, heightPx) ?: input
