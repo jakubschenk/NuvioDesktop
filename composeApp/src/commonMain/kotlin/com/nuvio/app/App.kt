@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -62,6 +63,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -714,6 +720,9 @@ private fun MainAppContent(
     }
 
     LaunchedEffect(selectedTab) {
+        if (selectedTab != AppScreenTab.Search) {
+            SearchRepository.updateQuery("")
+        }
         NativeTabBridge.publishSelectedTab(selectedTab.toNativeNavigationTab())
         if (selectedTab != AppScreenTab.Search) {
             searchFocusRequestCount = 0
@@ -2722,6 +2731,10 @@ private fun TabletFloatingTopBar(
         onTabSelected(tab)
     }
 
+    fun closeSearchPanel() {
+        searchExpanded = false
+    }
+
     fun dismissInactiveSearch() {
         if (!canDismissInactiveSearch) return
         searchExpanded = false
@@ -2755,6 +2768,7 @@ private fun TabletFloatingTopBar(
         ) {
             Surface(
                 modifier = Modifier
+                    .animateContentSize(animationSpec = tween(180))
                     .widthIn(max = 640.dp),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
                 shape = RoundedCornerShape(if (searchPanelShapeExpanded) 24.dp else 999.dp),
@@ -2880,6 +2894,17 @@ private fun TabletFloatingTopBar(
                                 placeholder = stringResource(Res.string.compose_search_placeholder),
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .onPreviewKeyEvent { event ->
+                                        if (
+                                            event.type == KeyEventType.KeyDown &&
+                                            (event.key == Key.Enter || event.key == Key.NumPadEnter)
+                                        ) {
+                                            closeSearchPanel()
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
                                     .focusRequester(searchFocusRequester),
                                 trailingContent = if (searchQuery.isNotBlank()) {
                                     {
