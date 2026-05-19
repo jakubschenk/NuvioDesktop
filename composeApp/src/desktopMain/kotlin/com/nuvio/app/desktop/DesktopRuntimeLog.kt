@@ -33,7 +33,9 @@ internal object DesktopRuntimeLog {
 
     @Synchronized
     fun initialize(enabled: Boolean = false) {
-        debugEnabled = enabled
+        debugEnabled = enabled ||
+            System.getProperty("nuvio.debugLogs").isTruthy() ||
+            System.getenv("NUVIO_DEBUG_LOGS").isTruthy()
         initialized = true
         trimExistingLogIfNeeded()
         if (debugEnabled) {
@@ -164,4 +166,10 @@ internal object DesktopRuntimeLog {
         throwable.printStackTrace(PrintWriter(writer))
         return writer.toString()
     }
+
+    private fun String?.isTruthy(): Boolean =
+        equals("true", ignoreCase = true) ||
+            equals("1") ||
+            equals("yes", ignoreCase = true) ||
+            equals("on", ignoreCase = true)
 }

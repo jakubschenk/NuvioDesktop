@@ -159,6 +159,27 @@ internal object DesktopBorderlessFullscreenController {
             device?.fullScreenWindow === window
     }
 
+    fun diagnosticSummary(window: ComposeWindow): String {
+        val active = snapshot
+        val device = window.graphicsConfiguration?.device
+        val mode = when {
+            active?.window === window -> active.mode.name
+            window.placement == WindowPlacement.Fullscreen -> FullscreenMode.ComposePlacement.name
+            device?.fullScreenWindow === window -> FullscreenMode.AwtExclusive.name
+            else -> FullscreenMode.Windowed.name
+        }
+        val transform = window.graphicsConfiguration?.defaultTransform
+        val scaleX = transform?.scaleX?.formatScale() ?: "unknown"
+        val scaleY = transform?.scaleY?.formatScale() ?: "unknown"
+        val screenBounds = window.currentScreenBounds()
+        return "mode=$mode fullscreen=${isFullscreen(window)} placement=${window.placement} " +
+            "extendedState=${window.extendedState} bounds=${window.bounds.shortLog()} " +
+            "screen=${screenBounds.shortLog()} dpiScale=${scaleX}x$scaleY " +
+            "renderApi=${System.getProperty("skiko.renderApi") ?: "default"} " +
+            "frameBuffering=${System.getProperty("skiko.frameBuffering") ?: "default"} " +
+            "vsync=${System.getProperty("skiko.vsync.enabled") ?: "default"}"
+    }
+
     private fun enterComposeFullscreen(window: ComposeWindow) {
         snapshot = FullscreenSnapshot(
             window = window,
@@ -268,9 +289,15 @@ internal object DesktopBorderlessFullscreenController {
 
     private fun Long.hexStyle(): String = "0x${toULong().toString(16).uppercase()}"
 
+    private fun Double.formatScale(): String =
+        String.format(java.util.Locale.US, "%.2f", this)
+
     private enum class FullscreenMode {
+        Windowed,
         WindowsBorderless,
         ComposeFallback,
+        ComposePlacement,
+        AwtExclusive,
     }
 
     private data class FullscreenSnapshot(

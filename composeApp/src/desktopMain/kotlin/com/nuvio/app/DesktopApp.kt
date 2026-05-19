@@ -19,6 +19,7 @@ import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.core.network.SupabaseConfig
 import com.nuvio.app.desktop.DesktopBorderlessFullscreenController
+import com.nuvio.app.desktop.ManageDesktopFullscreenDiagnostics
 import com.nuvio.app.desktop.DesktopPlayerRegistry
 import com.nuvio.app.desktop.DesktopPreferences
 import com.nuvio.app.desktop.DesktopRuntimeLog
@@ -198,6 +199,7 @@ fun main(args: Array<String>) {
                 window.rootPane.background = DesktopWindowBackground
                 onDispose { desktopMainWindow = null }
             }
+            ManageDesktopFullscreenDiagnostics(window)
 
             val desktopUriHandler = remember { DesktopUriHandler() }
             CompositionLocalProvider(
