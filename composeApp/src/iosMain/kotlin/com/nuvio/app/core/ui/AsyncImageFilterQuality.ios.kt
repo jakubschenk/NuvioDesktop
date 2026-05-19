@@ -7,4 +7,8 @@ internal actual val nuvioImageFilterQuality: FilterQuality = DefaultFilterQualit
 
 internal actual val nuvioPreferredTmdbImageSize: String? = null
 
+internal actual val nuvioPreferredMetahubImageSize: String? = null
+
+internal actual val nuvioPreferredMetahubEpisodeImageSize: String? = null
+
 internal actual val nuvioImageDecodeSizeMultiplier: Float = 1f

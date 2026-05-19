@@ -31,6 +31,11 @@ private const val MaxJvmLanczosTargetDimensionPx = 4096
 
 private val NuvioDesktopCropSampling = CubicResampler(1f / 3f, 1f / 3f)
 private val NuvioDesktopDownsampleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR)
+private val NuvioImageDebugLogging: Boolean by lazy {
+    System.getProperty("nuvio.image.debug").equals("true", ignoreCase = true) ||
+        System.getenv("NUVIO_IMAGE_DEBUG").equals("1", ignoreCase = true) ||
+        System.getenv("NUVIO_IMAGE_DEBUG").equals("true", ignoreCase = true)
+}
 
 internal fun Bitmap.nuvioScaleToBitmap(
     widthPx: Int,
@@ -40,6 +45,7 @@ internal fun Bitmap.nuvioScaleToBitmap(
     if (width == widthPx && height == heightPx) return this
 
     nuvioScaleToBitmapWithJvmLanczos(widthPx, heightPx)?.let { return it }
+    nuvioImageDebug("Skia fallback fit ${width}x$height -> ${widthPx}x$heightPx")
     return nuvioScalePixelsToBitmap(widthPx, heightPx)
 }
 
@@ -58,6 +64,7 @@ internal fun Bitmap.nuvioScaleToFillBitmap(
         heightPx = heightPx,
         sourceRect = sourceRect,
     )?.let { return it }
+    nuvioImageDebug("Skia fallback fill ${width}x$height -> ${widthPx}x$heightPx")
 
     val cropped = if (sourceRect.isWholeBitmap(width, height)) {
         this
@@ -118,10 +125,19 @@ private fun Bitmap.nuvioScaleToFillBitmapWithJvmLanczos(
     val cropHeight = cropBottom - cropY
     if (cropWidth <= 0 || cropHeight <= 0) return null
 
-    val cropped = source.getSubimage(cropX, cropY, cropWidth, cropHeight)
-    return cropped
-        .nuvioLanczosResize(widthPx, heightPx)
-        .nuvioToSkiaBitmap()
+    return runCatching {
+        val cropped = source.getSubimage(cropX, cropY, cropWidth, cropHeight)
+        cropped
+            .nuvioLanczosResize(widthPx, heightPx)
+            .nuvioToSkiaBitmap()
+            ?.also {
+                nuvioImageDebug(
+                    "Lanczos fill ${width}x$height crop ${cropWidth}x$cropHeight@$cropX,$cropY -> ${widthPx}x$heightPx",
+                )
+            }
+    }.onFailure { error ->
+        nuvioImageDebug("Lanczos fill failed ${width}x$height -> ${widthPx}x$heightPx: ${error.message}")
+    }.getOrNull()
 }
 
 private fun Bitmap.nuvioScaleToBitmapWithJvmLanczos(
@@ -129,9 +145,16 @@ private fun Bitmap.nuvioScaleToBitmapWithJvmLanczos(
     heightPx: Int,
 ): Bitmap? {
     if (!shouldUseJvmLanczosResize(widthPx, heightPx)) return null
-    return nuvioToBufferedImage()
-        ?.nuvioLanczosResize(widthPx, heightPx)
-        ?.nuvioToSkiaBitmap()
+    return runCatching {
+        nuvioToBufferedImage()
+            ?.nuvioLanczosResize(widthPx, heightPx)
+            ?.nuvioToSkiaBitmap()
+            ?.also {
+                nuvioImageDebug("Lanczos fit ${width}x$height -> ${widthPx}x$heightPx")
+            }
+    }.onFailure { error ->
+        nuvioImageDebug("Lanczos fit failed ${width}x$height -> ${widthPx}x$heightPx: ${error.message}")
+    }.getOrNull()
 }
 
 private fun shouldUseJvmLanczosResize(
@@ -269,6 +292,12 @@ private fun Rect.isWholeBitmap(widthPx: Int, heightPx: Int): Boolean =
         abs(top) < SourceRectEpsilon &&
         abs(right - widthPx) < SourceRectEpsilon &&
         abs(bottom - heightPx) < SourceRectEpsilon
+
+private fun nuvioImageDebug(message: String) {
+    if (NuvioImageDebugLogging) {
+        println("NuvioImage: $message")
+    }
+}
 
 internal fun Bitmap.nuvioScaleToImageBitmap(size: IntSize): ImageBitmap {
     val scaled = nuvioScaleToBitmap(
