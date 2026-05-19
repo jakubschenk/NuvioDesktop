@@ -155,14 +155,16 @@ fun SearchScreen(
         val homeSectionPadding = remember(maxWidth) {
             homeSectionHorizontalPaddingForWidth(maxWidth.value)
         }
-        val desktopRecentMatchCount = remember(recentSearches, query) {
+        val desktopRecentMatchCount = remember(recentSearches, query, uiState.isLoading) {
             val normalizedQuery = query.trim()
             if (normalizedQuery.isBlank()) {
-                0
-            } else {
+                recentSearches.size.coerceAtMost(3)
+            } else if (uiState.isLoading) {
                 recentSearches.count { recentQuery ->
                     recentQuery.contains(normalizedQuery, ignoreCase = true)
                 }.coerceAtMost(3)
+            } else {
+                0
             }
         }
         val desktopSearchTopPadding = if (showSearchChrome) {

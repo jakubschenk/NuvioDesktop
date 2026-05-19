@@ -3,7 +3,6 @@ package com.nuvio.app
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -2083,19 +2082,22 @@ private fun TabletFloatingTopBar(
 ) {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val searchQuery by SearchRepository.query.collectAsStateWithLifecycle()
+    val searchUiState by SearchRepository.uiState.collectAsStateWithLifecycle()
     val recentSearches by SearchHistoryRepository.uiState.collectAsStateWithLifecycle()
     val searchFocusRequester = remember { FocusRequester() }
     var searchExpanded by rememberSaveable { mutableStateOf(selectedTab == AppScreenTab.Search) }
-    val filteredRecentSearches = remember(recentSearches, searchQuery) {
+    val visibleRecentSearches = remember(recentSearches, searchQuery, searchUiState.isLoading) {
         val normalizedQuery = searchQuery.trim()
         if (normalizedQuery.isBlank()) {
-            emptyList()
-        } else {
+            recentSearches.take(3)
+        } else if (searchUiState.isLoading) {
             recentSearches
                 .asSequence()
                 .filter { recentQuery -> recentQuery.contains(normalizedQuery, ignoreCase = true) }
                 .take(3)
                 .toList()
+        } else {
+            emptyList()
         }
     }
 
@@ -2126,8 +2128,7 @@ private fun TabletFloatingTopBar(
     ) {
         Surface(
             modifier = Modifier
-                .widthIn(max = 560.dp)
-                .animateContentSize(),
+                .widthIn(max = 560.dp),
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
             shape = RoundedCornerShape(if (searchExpanded) 24.dp else 999.dp),
             tonalElevation = 4.dp,
@@ -2240,7 +2241,7 @@ private fun TabletFloatingTopBar(
                         },
                     )
 
-                    filteredRecentSearches.forEach { recentQuery ->
+                    visibleRecentSearches.forEach { recentQuery ->
                         TabletSearchRecentRow(
                             query = recentQuery,
                             onClick = {
