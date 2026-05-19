@@ -40,6 +40,7 @@ internal fun AsyncImage(
     alpha: Float = 1.0f,
     colorFilter: ColorFilter? = null,
     filterQuality: FilterQuality = nuvioImageFilterQuality,
+    useDesktopImagePainterWorkaround: Boolean = true,
     clipToBounds: Boolean = true,
 ) {
     val shouldMeasureStringModel = model is String
@@ -51,14 +52,26 @@ internal fun AsyncImage(
         alignment = alignment,
     )
     val useFallbackPainter = resolvedModel == null
-    val transform = remember(placeholder, error, fallback, filterQuality, useFallbackPainter) {
+    val transform = remember(
+        placeholder,
+        error,
+        fallback,
+        filterQuality,
+        useFallbackPainter,
+        useDesktopImagePainterWorkaround,
+    ) {
         { state: AsyncImagePainter.State ->
-            state.withFallbackPainters(
+            val resolvedState = state.withFallbackPainters(
                 placeholder = placeholder,
                 error = error,
                 fallback = fallback,
                 useFallbackPainter = useFallbackPainter,
-            ).withNuvioImagePainterWorkaround(filterQuality)
+            )
+            if (useDesktopImagePainterWorkaround) {
+                resolvedState.withNuvioImagePainterWorkaround(filterQuality)
+            } else {
+                resolvedState
+            }
         }
     }
     val onState = remember(onLoading, onSuccess, onError, useFallbackPainter) {

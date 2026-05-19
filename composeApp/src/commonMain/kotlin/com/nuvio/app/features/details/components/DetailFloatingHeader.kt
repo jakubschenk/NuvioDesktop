@@ -120,6 +120,7 @@ fun DetailFloatingHeader(
                                 .width(logoWidth)
                                 .widthIn(max = 240.dp)
                                 .height(42.dp),
+                            useDesktopImagePainterWorkaround = false,
                             onError = { logoLoadError = true },
                         )
                     } else {

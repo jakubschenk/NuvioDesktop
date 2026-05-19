@@ -383,6 +383,7 @@ private fun HeroContentBlock(
                     },
                 alignment = if (layout.isTablet) Alignment.CenterStart else Alignment.Center,
                 contentScale = ContentScale.Fit,
+                useDesktopImagePainterWorkaround = false,
             )
         } else {
             Text(
