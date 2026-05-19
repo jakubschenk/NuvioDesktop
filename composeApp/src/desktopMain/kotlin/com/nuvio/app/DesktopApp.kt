@@ -25,6 +25,7 @@ import com.nuvio.app.core.network.SupabaseConfig
 import com.nuvio.app.desktop.DesktopBorderlessFullscreenController
 import com.nuvio.app.desktop.DesktopDevStreamMode
 import com.nuvio.app.desktop.DesktopExternalPlaybackWindowController
+import com.nuvio.app.desktop.ManageDesktopFullscreenDiagnostics
 import com.nuvio.app.desktop.DesktopPlayerRegistry
 import com.nuvio.app.desktop.DesktopPreferences
 import com.nuvio.app.desktop.DesktopRuntimeLog
@@ -261,6 +262,7 @@ fun main(args: Array<String>) {
                 devStreamMode?.startDiagnostics { desktopMainWindow }
                 onDispose { desktopMainWindow = null }
             }
+            ManageDesktopFullscreenDiagnostics(window)
 
             val desktopUriHandler = remember { DesktopUriHandler() }
             CompositionLocalProvider(
