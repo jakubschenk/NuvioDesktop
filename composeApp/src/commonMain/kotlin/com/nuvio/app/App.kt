@@ -69,6 +69,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.key.Key
@@ -2456,6 +2457,10 @@ private fun TabletFloatingTopBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                ProfileSelectorButton(
+                    onClick = onProfileClick,
+                    onEditProfilesClick = onEditProfilesClick,
+                )
                 if (fullscreenSupported) {
                     TabletTopIconButton(
                         icon = if (isFullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
@@ -2470,10 +2475,6 @@ private fun TabletFloatingTopBar(
                         onClick = onFullscreenClick,
                     )
                 }
-                ProfileSelectorButton(
-                    onClick = onProfileClick,
-                    onEditProfilesClick = onEditProfilesClick,
-                )
             }
         }
 
@@ -2578,6 +2579,7 @@ private fun TabletTopIconButton(
     Surface(
         modifier = modifier
             .size(44.dp)
+            .clip(RoundedCornerShape(999.dp))
             .clickable(onClick = onClick),
         color = if (selected) {
             MaterialTheme.colorScheme.primaryContainer

@@ -629,6 +629,7 @@ private fun PlayerToolbarTextButton(
     )
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun PlayerVolumeControl(
     volumeLevel: Float,
@@ -636,6 +637,14 @@ private fun PlayerVolumeControl(
     onMuteClick: (() -> Unit)?,
     onVolumeChange: ((Float) -> Unit)?,
 ) {
+    val onVolumeChangeState = rememberUpdatedState(onVolumeChange)
+    val volumeEnabled = onVolumeChange != null
+
+    fun volumeForX(x: Float, width: Float): Float {
+        if (width <= 0f) return volumeLevel.coerceIn(0f, 1f)
+        return (x / width).coerceIn(0f, 1f)
+    }
+
     Row(
         modifier = Modifier.padding(end = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -646,16 +655,40 @@ private fun PlayerVolumeControl(
             contentDescription = stringResource(Res.string.compose_player_audio),
             onClick = { onMuteClick?.invoke() },
         )
-        Slider(
+        Box(
             modifier = Modifier
                 .width(108.dp)
                 .height(34.dp)
-                .graphicsLayer(scaleY = 0.72f),
-            value = volumeLevel.coerceIn(0f, 1f),
-            onValueChange = { value -> onVolumeChange?.invoke(value.coerceIn(0f, 1f)) },
-            valueRange = 0f..1f,
-            enabled = onVolumeChange != null,
-        )
+                .then(if (volumeEnabled) Modifier.desktopClickablePointer() else Modifier)
+                .pointerInput(volumeEnabled) {
+                    if (!volumeEnabled) return@pointerInput
+                    awaitEachGesture {
+                        val down = awaitFirstDown(pass = PointerEventPass.Initial)
+                        val width = size.width.toFloat().takeIf { it > 0f } ?: return@awaitEachGesture
+                        onVolumeChangeState.value?.invoke(volumeForX(down.position.x, width))
+                        down.consume()
+
+                        while (true) {
+                            val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) break
+                            onVolumeChangeState.value?.invoke(volumeForX(change.position.x, width))
+                            change.consume()
+                        }
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Slider(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(scaleY = 0.72f),
+                value = volumeLevel.coerceIn(0f, 1f),
+                onValueChange = { value -> onVolumeChange?.invoke(value.coerceIn(0f, 1f)) },
+                valueRange = 0f..1f,
+                enabled = volumeEnabled,
+            )
+        }
     }
 }
 
