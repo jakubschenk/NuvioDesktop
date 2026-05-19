@@ -616,6 +616,7 @@ kotlin {
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(libs.quickjs.kt)
                 implementation(libs.ksoup)
+                implementation(libs.coil.svg)
                 implementation(libs.jna)
                 implementation("net.java.dev.jna:jna-platform:5.14.0")
                 implementation("com.squareup.okhttp3:okhttp:4.12.0")
