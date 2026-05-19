@@ -2222,7 +2222,8 @@ private fun TabletFloatingTopBar(
             Surface(
                 modifier = Modifier
                     .animateContentSize(animationSpec = tween(180))
-                    .widthIn(max = 640.dp),
+                    .widthIn(max = 640.dp)
+                    .fillMaxWidth(),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
                 shape = RoundedCornerShape(if (searchPanelShapeExpanded) 24.dp else 999.dp),
                 tonalElevation = 4.dp,
