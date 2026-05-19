@@ -570,12 +570,7 @@ private fun MainAppContent(
         }.collectAsStateWithLifecycle()
         val hapticFeedback = LocalHapticFeedback.current
         val coroutineScope = rememberCoroutineScope()
-        val initialSelectedTab = remember {
-            LayoutSettingsRepository.loadRememberedScreenName()
-                ?.let { name -> runCatching { AppScreenTab.valueOf(name) }.getOrNull() }
-                ?: AppScreenTab.Home
-        }
-        var selectedTab by rememberSaveable { mutableStateOf(initialSelectedTab) }
+        var selectedTab by rememberSaveable { mutableStateOf(AppScreenTab.Home) }
         var rememberedFullscreenRestoreChecked by rememberSaveable { mutableStateOf(false) }
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
         val isHomeRouteActive = selectedTab == AppScreenTab.Home &&
@@ -642,11 +637,10 @@ private fun MainAppContent(
         }
     }
 
-    LaunchedEffect(selectedTab, layoutSettingsUiState.rememberScreen) {
+    LaunchedEffect(selectedTab) {
         if (selectedTab != AppScreenTab.Search) {
             SearchRepository.updateQuery("")
         }
-        LayoutSettingsRepository.recordScreen(selectedTab.name)
         NativeTabBridge.publishSelectedTab(selectedTab.toNativeNavigationTab())
     }
 
