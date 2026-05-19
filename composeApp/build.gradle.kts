@@ -527,7 +527,6 @@ compose.desktop {
         fun File.safePath(): String = absolutePath.replace("\\", "/")
 
         jvmArgs(
-            "-Dskiko.renderApi=OPENGL",
             "-Djava.library.path=" + listOf(
                 mediampNativeBuildDir.safePath(),
                 mediampNativeBuildDir.resolve("Debug").safePath(),

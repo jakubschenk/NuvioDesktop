@@ -65,18 +65,14 @@ internal actual fun DesktopDecoderSettingsSection(isTablet: Boolean) {
         SettingsGroup(isTablet = isTablet) {
             Text(
                 text = "This player uses mpv's libmpv render API (vo=libmpv) which " +
-                    "renders video frames into an OpenGL framebuffer shared with the app's " +
-                    "Compose/Skiko canvas. The GPU rendering backend is fixed to OpenGL " +
-                    "because Skiko (Compose Desktop's graphics engine) uses OpenGL on Windows.\n\n" +
+                    "renders video frames into an OpenGL framebuffer when the app is using " +
+                    "the legacy OpenGL renderer. On Direct3D/ANGLE, the player uses mpv's " +
+                    "native Windows surface path instead, so Compose can keep the faster " +
+                    "desktop renderer while mpv owns the video HWND.\n\n" +
                     "Hardware decoding (hwdec) is separate from GPU rendering: you can use " +
-                    "D3D11VA or NVDEC for video decoding while OpenGL handles frame rendering. " +
-                    "This is the same approach used by mpv's --vo=libmpv mode (see " +
-                    "mpv.io/manual for details).\n\n" +
-                    "For full D3D11/Vulkan rendering support (vo=gpu-next), the player " +
-                    "would need to render into a native HWND window instead of the Compose " +
-                    "canvas. This is the approach used by stremio-community-v5 " +
-                    "(github.com/Zaarrg/stremio-community-v5) which uses mpv with " +
-                    "vo=gpu-next and native WebView2 window embedding.",
+                    "D3D11VA or NVDEC for video decoding while the selected renderer handles " +
+                    "presentation. If the native surface path has a driver issue, launch with " +
+                    "NUVIO_SKIKO_RENDER_API=OPENGL to force the legacy OpenGL path.",
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
