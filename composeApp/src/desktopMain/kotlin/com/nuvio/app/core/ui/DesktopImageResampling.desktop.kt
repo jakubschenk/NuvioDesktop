@@ -209,9 +209,15 @@ private fun BufferedImage.nuvioToSkiaBitmap(): Bitmap? {
         bytes[targetIndex++] = ((argb ushr 24) and 0xFF).toByte()
     }
 
-    val bitmap = Bitmap()
     val imageInfo = ImageInfo(source.width, source.height, ColorType.RGBA_8888, ColorAlphaType.UNPREMUL)
-    return if (bitmap.installPixels(imageInfo, bytes, source.width * 4)) bitmap else null
+    val image = Image.makeRaster(imageInfo, bytes, source.width * 4)
+    val bitmap = Bitmap()
+    return try {
+        if (!bitmap.allocN32Pixels(source.width, source.height)) return null
+        if (image.readPixels(bitmap)) bitmap else null
+    } finally {
+        image.close()
+    }
 }
 
 private fun BufferedImage.nuvioToArgbImage(): BufferedImage {
