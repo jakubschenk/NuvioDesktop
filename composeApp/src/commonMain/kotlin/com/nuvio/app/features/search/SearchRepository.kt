@@ -33,6 +33,8 @@ import org.jetbrains.compose.resources.getString
 object SearchRepository {
     private val log = Logger.withTag("SearchRepository")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val _query = MutableStateFlow("")
+    val query: StateFlow<String> = _query.asStateFlow()
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
     private val _discoverUiState = MutableStateFlow(DiscoverUiState())
@@ -43,6 +45,11 @@ object SearchRepository {
     private var lastRequestKey: String? = null
     private var discoverSources: List<DiscoverCatalogOption> = emptyList()
     private var lastDiscoverHideUnreleasedContent: Boolean? = null
+
+    fun updateQuery(query: String) {
+        if (_query.value == query) return
+        _query.value = query
+    }
 
     fun search(query: String, addons: List<ManagedAddon>) {
         val normalizedQuery = query.trim()
@@ -169,6 +176,7 @@ object SearchRepository {
         lastRequestKey = null
         discoverSources = emptyList()
         lastDiscoverHideUnreleasedContent = null
+        _query.value = ""
         _uiState.value = SearchUiState()
         _discoverUiState.value = DiscoverUiState()
     }

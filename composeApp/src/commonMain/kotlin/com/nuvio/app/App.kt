@@ -3,6 +3,7 @@ package com.nuvio.app
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -25,11 +26,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -57,7 +61,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -100,6 +107,7 @@ import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.NuvioFloatingPrompt
 import com.nuvio.app.core.ui.TraktListPickerDialog
 import com.nuvio.app.core.ui.NuvioTheme
+import com.nuvio.app.core.ui.NuvioInputField
 import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.NativeNavigationTab
 import com.nuvio.app.core.ui.NativeTabBridge
@@ -160,6 +168,8 @@ import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.profiles.ProfileSelectionScreen
 import com.nuvio.app.features.profiles.ProfileSwitcherTab
 import com.nuvio.app.features.profiles.profileAvatarImageUrl
+import com.nuvio.app.features.search.SearchHistoryRepository
+import com.nuvio.app.features.search.SearchRepository
 import com.nuvio.app.features.search.SearchScreen
 import com.nuvio.app.features.settings.SettingsScreen
 import com.nuvio.app.features.settings.HomescreenSettingsScreen
@@ -1304,6 +1314,7 @@ private fun MainAppContent(
                                         libraryScrollToTopRequests = libraryScrollToTopRequests,
                                         settingsRootActionRequests = settingsRootActionRequests,
                                         animateHomeCollectionGifs = tabsRouteActive,
+                                        showSearchChrome = !(isTabletLayout && !useNativeBottomTabs),
                                         onCatalogClick = onCatalogClick,
                                         onPosterClick = { meta ->
                                             navController.navigate(DetailRoute(type = meta.type, id = meta.id))
@@ -2532,6 +2543,7 @@ private fun AppTabHost(
     libraryScrollToTopRequests: Flow<Unit>,
     settingsRootActionRequests: Flow<Unit>,
     animateHomeCollectionGifs: Boolean = true,
+    showSearchChrome: Boolean = true,
     onCatalogClick: ((HomeCatalogSection) -> Unit)? = null,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
@@ -2584,6 +2596,7 @@ private fun AppTabHost(
                 AppScreenTab.Search -> {
                     SearchScreen(
                         modifier = Modifier.fillMaxSize(),
+                        showSearchChrome = showSearchChrome,
                         onPosterClick = onPosterClick,
                         onPosterLongClick = onPosterLongClick,
                         searchFocusRequestCount = searchFocusRequestCount,
@@ -2640,6 +2653,43 @@ private fun TabletFloatingTopBar(
     modifier: Modifier = Modifier,
 ) {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val searchQuery by SearchRepository.query.collectAsStateWithLifecycle()
+    val recentSearches by SearchHistoryRepository.uiState.collectAsStateWithLifecycle()
+    val searchFocusRequester = remember { FocusRequester() }
+    var searchExpanded by rememberSaveable { mutableStateOf(selectedTab == AppScreenTab.Search) }
+    var searchFocusRequests by remember { mutableStateOf(0) }
+    val filteredRecentSearches = remember(recentSearches, searchQuery) {
+        val normalizedQuery = searchQuery.trim()
+        recentSearches
+            .asSequence()
+            .filter { recentQuery ->
+                normalizedQuery.isBlank() || recentQuery.contains(normalizedQuery, ignoreCase = true)
+            }
+            .take(3)
+            .toList()
+    }
+
+    LaunchedEffect(Unit) {
+        SearchHistoryRepository.ensureLoaded()
+    }
+
+    LaunchedEffect(selectedTab) {
+        searchExpanded = selectedTab == AppScreenTab.Search
+    }
+
+    LaunchedEffect(searchExpanded, searchFocusRequests) {
+        if (searchExpanded) {
+            runCatching { searchFocusRequester.requestFocus() }
+        }
+    }
+
+    fun selectTab(tab: AppScreenTab) {
+        searchExpanded = tab == AppScreenTab.Search
+        if (tab == AppScreenTab.Search) {
+            searchFocusRequests++
+        }
+        onTabSelected(tab)
+    }
 
     Box(
         modifier = modifier
@@ -2648,100 +2698,182 @@ private fun TabletFloatingTopBar(
         contentAlignment = Alignment.TopCenter,
     ) {
         Surface(
+            modifier = Modifier
+                .widthIn(max = 640.dp)
+                .animateContentSize(),
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-            shape = RoundedCornerShape(999.dp),
+            shape = RoundedCornerShape(if (searchExpanded) 24.dp else 999.dp),
             tonalElevation = 4.dp,
             shadowElevation = 10.dp,
         ) {
-            Row(
+            Column(
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_nav_home),
-                    selected = selectedTab == AppScreenTab.Home,
-                    onClick = { onTabSelected(AppScreenTab.Home) },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Filled.Home,
-                            contentDescription = stringResource(Res.string.compose_nav_home),
-                            modifier = Modifier.size(18.dp),
-                            tint = if (selectedTab == AppScreenTab.Home) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    },
-                )
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_nav_search),
-                    selected = selectedTab == AppScreenTab.Search,
-                    onClick = { onTabSelected(AppScreenTab.Search) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(Res.drawable.sidebar_search),
-                            contentDescription = stringResource(Res.string.compose_nav_search),
-                            modifier = Modifier.size(18.dp),
-                            tint = if (selectedTab == AppScreenTab.Search) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    },
-                )
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_nav_library),
-                    selected = selectedTab == AppScreenTab.Library,
-                    onClick = { onTabSelected(AppScreenTab.Library) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(Res.drawable.sidebar_library),
-                            contentDescription = stringResource(Res.string.compose_nav_library),
-                            modifier = Modifier.size(18.dp),
-                            tint = if (selectedTab == AppScreenTab.Library) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    },
-                )
-                Surface(
-                    color = if (selectedTab == AppScreenTab.Settings) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surface
-                    },
-                    shape = RoundedCornerShape(999.dp),
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_nav_home),
+                        selected = selectedTab == AppScreenTab.Home,
+                        onClick = { selectTab(AppScreenTab.Home) },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Filled.Home,
+                                contentDescription = stringResource(Res.string.compose_nav_home),
+                                modifier = Modifier.size(18.dp),
+                                tint = if (selectedTab == AppScreenTab.Home) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        },
+                    )
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_nav_search),
+                        selected = selectedTab == AppScreenTab.Search,
+                        onClick = { selectTab(AppScreenTab.Search) },
+                        icon = {
+                            Icon(
+                                painter = painterResource(Res.drawable.sidebar_search),
+                                contentDescription = stringResource(Res.string.compose_nav_search),
+                                modifier = Modifier.size(18.dp),
+                                tint = if (selectedTab == AppScreenTab.Search) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        },
+                    )
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_nav_library),
+                        selected = selectedTab == AppScreenTab.Library,
+                        onClick = { selectTab(AppScreenTab.Library) },
+                        icon = {
+                            Icon(
+                                painter = painterResource(Res.drawable.sidebar_library),
+                                contentDescription = stringResource(Res.string.compose_nav_library),
+                                modifier = Modifier.size(18.dp),
+                                tint = if (selectedTab == AppScreenTab.Library) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        },
+                    )
+                    Surface(
+                        color = if (selectedTab == AppScreenTab.Settings) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        },
+                        shape = RoundedCornerShape(999.dp),
                     ) {
-                        ProfileSwitcherTab(
-                            selected = selectedTab == AppScreenTab.Settings,
-                            onClick = { onTabSelected(AppScreenTab.Settings) },
-                            onProfileSelected = onProfileSelected,
-                            onAddProfileRequested = onAddProfileRequested,
-                        )
-                        Text(
-                            text = stringResource(Res.string.compose_nav_profile),
-                            modifier = Modifier.clickable { onTabSelected(AppScreenTab.Settings) },
-                            style = MaterialTheme.typography.labelLarge,
-                            color = if (selectedTab == AppScreenTab.Settings) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            ProfileSwitcherTab(
+                                selected = selectedTab == AppScreenTab.Settings,
+                                onClick = { selectTab(AppScreenTab.Settings) },
+                                onProfileSelected = onProfileSelected,
+                                onAddProfileRequested = onAddProfileRequested,
+                            )
+                            Text(
+                                text = stringResource(Res.string.compose_nav_profile),
+                                modifier = Modifier.clickable { selectTab(AppScreenTab.Settings) },
+                                style = MaterialTheme.typography.labelLarge,
+                                color = if (selectedTab == AppScreenTab.Settings) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                    }
+                }
+
+                if (searchExpanded) {
+                    NuvioInputField(
+                        value = searchQuery,
+                        onValueChange = { value ->
+                            SearchRepository.updateQuery(value)
+                            if (selectedTab != AppScreenTab.Search) {
+                                onTabSelected(AppScreenTab.Search)
+                            }
+                        },
+                        placeholder = stringResource(Res.string.compose_search_placeholder),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(searchFocusRequester),
+                        trailingContent = if (searchQuery.isNotBlank()) {
+                            {
+                                IconButton(onClick = { SearchRepository.updateQuery("") }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(Res.string.compose_search_clear),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        } else {
+                            null
+                        },
+                    )
+
+                    filteredRecentSearches.forEach { recentQuery ->
+                        TabletSearchRecentRow(
+                            query = recentQuery,
+                            onClick = {
+                                SearchRepository.updateQuery(recentQuery)
+                                onTabSelected(AppScreenTab.Search)
                             },
                         )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TabletSearchRecentRow(
+    query: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .background(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
+                shape = RoundedCornerShape(14.dp),
+            )
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.History,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = query,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
