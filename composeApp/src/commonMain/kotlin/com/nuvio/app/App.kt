@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -66,6 +67,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -614,6 +620,9 @@ private fun MainAppContent(
     }
 
     LaunchedEffect(selectedTab) {
+        if (selectedTab != AppScreenTab.Search) {
+            SearchRepository.updateQuery("")
+        }
         NativeTabBridge.publishSelectedTab(selectedTab.toNativeNavigationTab())
     }
 
@@ -2141,7 +2150,7 @@ private fun TabletFloatingTopBar(
         }
     }
     val showRecentSearchOverlay = searchExpanded && recentSearchOverlayVisible && visibleRecentSearches.isNotEmpty()
-    val canDismissSearchChrome = searchExpanded && (searchQuery.isBlank() || recentSearchOverlayVisible)
+    val canDismissSearchChrome = searchExpanded && searchQuery.isBlank()
     val outsideDismissInteractionSource = remember { MutableInteractionSource() }
 
     LaunchedEffect(Unit) {
@@ -2172,10 +2181,14 @@ private fun TabletFloatingTopBar(
         onTabSelected(tab)
     }
 
+    fun closeSearchPanel() {
+        recentSearchOverlayVisible = false
+        searchExpanded = false
+    }
+
     fun dismissSearchChrome() {
         if (!canDismissSearchChrome) return
         recentSearchOverlayVisible = false
-        if (searchQuery.isNotBlank()) return
 
         searchExpanded = false
         if (selectedTab == AppScreenTab.Search) {
@@ -2208,7 +2221,8 @@ private fun TabletFloatingTopBar(
         ) {
             Surface(
                 modifier = Modifier
-                    .widthIn(max = 560.dp),
+                    .animateContentSize(animationSpec = tween(180))
+                    .widthIn(max = 640.dp),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
                 shape = RoundedCornerShape(if (searchPanelShapeExpanded) 24.dp else 999.dp),
                 tonalElevation = 4.dp,
@@ -2294,6 +2308,23 @@ private fun TabletFloatingTopBar(
                                 )
                             },
                         )
+                        TabletTopPillItem(
+                            label = stringResource(Res.string.compose_settings_page_root),
+                            selected = selectedTab == AppScreenTab.Settings,
+                            onClick = { selectTab(AppScreenTab.Settings) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(Res.drawable.sidebar_settings),
+                                    contentDescription = stringResource(Res.string.compose_settings_page_root),
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (selectedTab == AppScreenTab.Settings) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            },
+                        )
                     }
 
                     AnimatedVisibility(
@@ -2325,6 +2356,17 @@ private fun TabletFloatingTopBar(
                                             recentSearchOverlayVisible = true
                                         }
                                     }
+                                    .onPreviewKeyEvent { event ->
+                                        if (
+                                            event.type == KeyEventType.KeyDown &&
+                                            (event.key == Key.Enter || event.key == Key.NumPadEnter)
+                                        ) {
+                                            closeSearchPanel()
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
                                     .focusRequester(searchFocusRequester),
                                 trailingContent = if (searchQuery.isNotBlank()) {
                                     {
@@ -2345,36 +2387,13 @@ private fun TabletFloatingTopBar(
                 }
             }
 
-            Row(
+            ProfileSelectorButton(
+                onClick = onProfileClick,
+                onEditProfilesClick = onEditProfilesClick,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(end = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_settings_page_root),
-                    selected = selectedTab == AppScreenTab.Settings,
-                    onClick = { selectTab(AppScreenTab.Settings) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(Res.drawable.sidebar_settings),
-                            contentDescription = stringResource(Res.string.compose_settings_page_root),
-                            modifier = Modifier.size(18.dp),
-                            tint = if (selectedTab == AppScreenTab.Settings) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    },
-                )
-
-                ProfileSelectorButton(
-                    onClick = onProfileClick,
-                    onEditProfilesClick = onEditProfilesClick,
-                )
-            }
+            )
         }
 
         AnimatedVisibility(
