@@ -2090,6 +2090,7 @@ private fun TabletFloatingTopBar(
     val recentSearches by SearchHistoryRepository.uiState.collectAsStateWithLifecycle()
     val searchFocusRequester = remember { FocusRequester() }
     var searchExpanded by rememberSaveable { mutableStateOf(selectedTab == AppScreenTab.Search) }
+    var searchPanelShapeExpanded by rememberSaveable { mutableStateOf(searchExpanded) }
     var previousNonSearchTabName by rememberSaveable {
         mutableStateOf(if (selectedTab == AppScreenTab.Search) AppScreenTab.Home.name else selectedTab.name)
     }
@@ -2128,7 +2129,11 @@ private fun TabletFloatingTopBar(
 
     LaunchedEffect(searchExpanded) {
         if (searchExpanded) {
+            searchPanelShapeExpanded = true
             runCatching { searchFocusRequester.requestFocus() }
+        } else {
+            kotlinx.coroutines.delay(160)
+            searchPanelShapeExpanded = false
         }
     }
 
@@ -2165,14 +2170,14 @@ private fun TabletFloatingTopBar(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .padding(top = statusBarPadding + 10.dp, bottom = 8.dp),
+                .padding(top = statusBarPadding + 10.dp, bottom = 10.dp),
             contentAlignment = Alignment.TopCenter,
         ) {
             Surface(
                 modifier = Modifier
                     .widthIn(max = 560.dp),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                shape = RoundedCornerShape(if (searchExpanded) 24.dp else 999.dp),
+                shape = RoundedCornerShape(if (searchPanelShapeExpanded) 24.dp else 999.dp),
                 tonalElevation = 4.dp,
                 shadowElevation = 10.dp,
             ) {
