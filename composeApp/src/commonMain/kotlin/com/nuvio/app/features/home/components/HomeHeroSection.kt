@@ -28,8 +28,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -175,7 +178,7 @@ fun HomeHeroSection(
                                 scaleX = HERO_BACKGROUND_SCALE * heroScrollScale
                                 scaleY = HERO_BACKGROUND_SCALE * heroScrollScale
                             },
-                        alignment = if (layout.isTablet) Alignment.TopCenter else Alignment.Center,
+                        alignment = Alignment.TopCenter,
                         contentScale = ContentScale.Crop,
                     )
                 }
@@ -301,7 +304,9 @@ private fun MetaPreview.heroBackgroundImageUrl(): String? =
     (banner ?: poster)?.withTmdbImageSize("original")
 
 private fun MetaPreview.heroLogoImageUrl(): String? =
-    logo?.withTmdbImageSize("original")
+    logo
+        ?.takeIf(String::isNotBlank)
+        ?.withTmdbImageSize("original")
 
 private fun heroScrimBrush(backgroundColor: Color): Brush =
     Brush.verticalGradient(
@@ -368,7 +373,10 @@ private fun HeroContentBlock(
         horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
     ) {
         val logoImageUrl = item.heroLogoImageUrl()
-        if (logoImageUrl != null) {
+        var logoLoadError by remember(item.id, logoImageUrl) {
+            mutableStateOf(false)
+        }
+        if (logoImageUrl != null && !logoLoadError) {
             AsyncImage(
                 model = logoImageUrl,
                 contentDescription = item.name,
@@ -381,6 +389,7 @@ private fun HeroContentBlock(
                     },
                 alignment = if (layout.isTablet) Alignment.CenterStart else Alignment.Center,
                 contentScale = ContentScale.Fit,
+                onError = { logoLoadError = true },
             )
         } else {
             Text(

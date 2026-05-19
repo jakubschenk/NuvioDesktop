@@ -60,7 +60,7 @@ internal fun AsyncImage(
             ).withNuvioImagePainterWorkaround(filterQuality)
         }
     }
-    val onState = remember(onLoading, onSuccess, onError) {
+    val onState = remember(onLoading, onSuccess, onError, useFallbackPainter) {
         { state: AsyncImagePainter.State ->
             when (state) {
                 is AsyncImagePainter.State.Loading -> {
@@ -72,7 +72,9 @@ internal fun AsyncImage(
                     Unit
                 }
                 is AsyncImagePainter.State.Error -> {
-                    onError?.invoke(state)
+                    if (!useFallbackPainter) {
+                        onError?.invoke(state)
+                    }
                     Unit
                 }
                 AsyncImagePainter.State.Empty -> Unit
