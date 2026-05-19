@@ -6,14 +6,16 @@ import kotlinx.coroutines.flow.asStateFlow
 
 internal enum class NativeNavigationTab {
     Home,
+    Discover,
     Search,
-    Library,
     Settings,
     ;
 
     companion object {
-        fun fromName(name: String): NativeNavigationTab =
-            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: Home
+        fun fromName(name: String): NativeNavigationTab {
+            if (name.equals("Library", ignoreCase = true)) return Discover
+            return entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: Home
+        }
     }
 }
 

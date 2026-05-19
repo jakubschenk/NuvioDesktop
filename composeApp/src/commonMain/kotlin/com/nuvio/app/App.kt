@@ -105,7 +105,6 @@ import com.nuvio.app.features.auth.AuthScreen
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.catalog.CatalogRepository
 import com.nuvio.app.features.catalog.CatalogScreen
-import com.nuvio.app.features.catalog.INTERNAL_LIBRARY_MANIFEST_URL
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.downloads.DownloadsScreen
 import com.nuvio.app.features.details.MetaDetailsScreen
@@ -118,9 +117,7 @@ import com.nuvio.app.features.home.HomeScreen
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.library.LibraryItem
 import com.nuvio.app.features.library.LibraryRepository
-import com.nuvio.app.features.library.LibrarySection
 import com.nuvio.app.features.library.LibrarySourceMode
-import com.nuvio.app.features.library.LibraryScreen
 import com.nuvio.app.features.library.toLibraryItem
 import com.nuvio.app.features.notifications.EpisodeReleaseNotificationsRepository
 import com.nuvio.app.features.player.PlayerLaunch
@@ -136,8 +133,9 @@ import com.nuvio.app.features.profiles.NuvioProfile
 import com.nuvio.app.features.profiles.ProfileEditScreen
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.profiles.ProfileSelectionScreen
-import com.nuvio.app.features.profiles.ProfileSwitcherTab
+import com.nuvio.app.features.profiles.ActiveProfileMiniAvatar
 import com.nuvio.app.features.profiles.profileAvatarImageUrl
+import com.nuvio.app.features.search.DiscoverScreen
 import com.nuvio.app.features.search.SearchScreen
 import com.nuvio.app.features.settings.SettingsScreen
 import com.nuvio.app.features.settings.HomescreenSettingsScreen
@@ -179,15 +177,14 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import nuvio.composeapp.generated.resources.*
 import nuvio.composeapp.generated.resources.app_logo_wordmark
-import nuvio.composeapp.generated.resources.compose_catalog_subtitle_library
-import nuvio.composeapp.generated.resources.compose_catalog_subtitle_trakt_library
 import nuvio.composeapp.generated.resources.compose_nav_home
-import nuvio.composeapp.generated.resources.compose_nav_library
 import nuvio.composeapp.generated.resources.compose_nav_profile
 import nuvio.composeapp.generated.resources.compose_nav_search
-import nuvio.composeapp.generated.resources.sidebar_library
+import nuvio.composeapp.generated.resources.compose_search_discover_title
+import nuvio.composeapp.generated.resources.compose_settings_page_root
+import nuvio.composeapp.generated.resources.sidebar_discover
 import nuvio.composeapp.generated.resources.sidebar_search
-import org.jetbrains.compose.resources.DrawableResource
+import nuvio.composeapp.generated.resources.sidebar_settings
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
@@ -266,22 +263,22 @@ data class CatalogRoute(
 
 enum class AppScreenTab {
     Home,
+    Discover,
     Search,
-    Library,
     Settings,
 }
 
 private fun AppScreenTab.toNativeNavigationTab(): NativeNavigationTab = when (this) {
     AppScreenTab.Home -> NativeNavigationTab.Home
+    AppScreenTab.Discover -> NativeNavigationTab.Discover
     AppScreenTab.Search -> NativeNavigationTab.Search
-    AppScreenTab.Library -> NativeNavigationTab.Library
     AppScreenTab.Settings -> NativeNavigationTab.Settings
 }
 
 private fun NativeNavigationTab.toAppScreenTab(): AppScreenTab = when (this) {
     NativeNavigationTab.Home -> AppScreenTab.Home
+    NativeNavigationTab.Discover -> AppScreenTab.Discover
     NativeNavigationTab.Search -> AppScreenTab.Search
-    NativeNavigationTab.Library -> AppScreenTab.Library
     NativeNavigationTab.Settings -> AppScreenTab.Settings
 }
 
@@ -707,7 +704,6 @@ private fun MainAppContent(
             SyncManager.requestForegroundPull(activeProfileId)
         }
     }
-    var profileSwitchLoading by remember { mutableStateOf(false) }
     var resumePromptItem by remember { mutableStateOf<ContinueWatchingItem?>(null) }
     val continueWatchingPreferencesUiState by remember {
         ContinueWatchingPreferencesRepository.ensureLoaded()
@@ -716,11 +712,10 @@ private fun MainAppContent(
 
     LaunchedEffect(
         initialHomeReady,
-        profileSwitchLoading,
         profileState.activeProfile?.profileIndex,
         continueWatchingPreferencesUiState.showResumePromptOnLaunch,
     ) {
-        if (!initialHomeReady || profileSwitchLoading) return@LaunchedEffect
+        if (!initialHomeReady) return@LaunchedEffect
         if (resumePromptItem != null) return@LaunchedEffect
         if (continueWatchingPreferencesUiState.showResumePromptOnLaunch) {
             resumePromptItem = ResumePromptRepository.consumeResumePrompt()
@@ -924,25 +919,6 @@ private fun MainAppContent(
             )
         }
 
-        val librarySectionSubtitle = if (libraryUiState.sourceMode == LibrarySourceMode.TRAKT) {
-            stringResource(Res.string.compose_catalog_subtitle_trakt_library)
-        } else {
-            stringResource(Res.string.compose_catalog_subtitle_library)
-        }
-
-        val onLibrarySectionViewAllClick: (LibrarySection) -> Unit = { section ->
-            navController.navigate(
-                CatalogRoute(
-                    title = section.displayTitle,
-                    subtitle = librarySectionSubtitle,
-                    manifestUrl = INTERNAL_LIBRARY_MANIFEST_URL,
-                    type = section.items.firstOrNull()?.type ?: "movie",
-                    catalogId = section.type,
-                    supportsPagination = false,
-                ),
-            )
-        }
-
         val openContinueWatching: (ContinueWatchingItem, Boolean, Boolean) -> Unit = { item, manualSelection, startFromBeginning ->
             launchPlaybackWithDownloadPreference(
                 type = item.parentMetaType,
@@ -1009,13 +985,6 @@ private fun MainAppContent(
                         val isTabletLayout = maxWidth >= 768.dp
                         val useNativeBottomTabs =
                             liquidGlassNativeTabBarSupported && liquidGlassNativeTabBarEnabled && initialHomeReady
-                        val onProfileSelected: (NuvioProfile) -> Unit = { profile ->
-                            profileSwitchLoading = true
-                            selectedTab = AppScreenTab.Home
-                            ProfileRepository.selectProfile(profile.profileIndex)
-                            com.nuvio.app.core.sync.SyncManager.pullAllForProfile(profile.profileIndex)
-                        }
-
                         Scaffold(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -1033,28 +1002,23 @@ private fun MainAppContent(
                                                 contentDescription = stringResource(Res.string.compose_nav_home),
                                             )
                                             NavItem(
+                                                selected = selectedTab == AppScreenTab.Discover,
+                                                onClick = { selectedTab = AppScreenTab.Discover },
+                                                icon = Res.drawable.sidebar_discover,
+                                                contentDescription = stringResource(Res.string.compose_search_discover_title),
+                                            )
+                                            NavItem(
                                                 selected = selectedTab == AppScreenTab.Search,
                                                 onClick = { selectedTab = AppScreenTab.Search },
                                                 icon = Res.drawable.sidebar_search,
                                                 contentDescription = stringResource(Res.string.compose_nav_search),
                                             )
                                             NavItem(
-                                                selected = selectedTab == AppScreenTab.Library,
-                                                onClick = { selectedTab = AppScreenTab.Library },
-                                                icon = Res.drawable.sidebar_library,
-                                                contentDescription = stringResource(Res.string.compose_nav_library),
-                                            )
-                                            NavItem(
                                                 selected = selectedTab == AppScreenTab.Settings,
                                                 onClick = { selectedTab = AppScreenTab.Settings },
-                                            ) {
-                                                ProfileSwitcherTab(
-                                                    selected = selectedTab == AppScreenTab.Settings,
-                                                    onClick = { selectedTab = AppScreenTab.Settings },
-                                                    onProfileSelected = onProfileSelected,
-                                                    onAddProfileRequested = onSwitchProfile,
-                                                )
-                                            }
+                                                icon = Res.drawable.sidebar_settings,
+                                                contentDescription = stringResource(Res.string.compose_settings_page_root),
+                                            )
                                         }
                                     }
                                 }
@@ -1077,10 +1041,6 @@ private fun MainAppContent(
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                             selectedPosterForActions = meta
                                         },
-                                        onLibraryPosterClick = { item ->
-                                            navController.navigate(DetailRoute(type = item.type, id = item.id))
-                                        },
-                                        onLibrarySectionViewAllClick = onLibrarySectionViewAllClick,
                                         onContinueWatchingClick = onContinueWatchingClick,
                                         onContinueWatchingLongPress = onContinueWatchingLongPress,
                                         onSwitchProfile = onSwitchProfile,
@@ -1127,8 +1087,7 @@ private fun MainAppContent(
                                         TabletFloatingTopBar(
                                             selectedTab = selectedTab,
                                             onTabSelected = { selectedTab = it },
-                                            onProfileSelected = onProfileSelected,
-                                            onAddProfileRequested = onSwitchProfile,
+                                            onProfileClick = onSwitchProfile,
                                         )
                                     }
                                 }
@@ -1940,20 +1899,11 @@ private fun MainAppContent(
             )
 
             androidx.compose.animation.AnimatedVisibility(
-                visible = !initialHomeReady || profileSwitchLoading,
+                visible = !initialHomeReady,
                 enter = fadeIn(),
                 exit = fadeOut(androidx.compose.animation.core.tween(400)),
             ) {
                 AppLaunchOverlay(modifier = Modifier.fillMaxSize())
-            }
-
-            // Auto-dismiss profile switch overlay
-            if (profileSwitchLoading) {
-                LaunchedEffect(Unit) {
-                    // Brief loading screen while home refreshes for the new profile
-                    kotlinx.coroutines.delay(1200)
-                    profileSwitchLoading = false
-                }
             }
 
             NuvioFloatingPrompt(
@@ -2016,8 +1966,6 @@ private fun AppTabHost(
     onCatalogClick: ((HomeCatalogSection) -> Unit)? = null,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
-    onLibraryPosterClick: ((LibraryItem) -> Unit)? = null,
-    onLibrarySectionViewAllClick: ((LibrarySection) -> Unit)? = null,
     onContinueWatchingClick: ((ContinueWatchingItem) -> Unit)? = null,
     onContinueWatchingLongPress: ((ContinueWatchingItem) -> Unit)? = null,
     onSwitchProfile: (() -> Unit)? = null,
@@ -2054,19 +2002,19 @@ private fun AppTabHost(
                     )
                 }
 
-                AppScreenTab.Search -> {
-                    SearchScreen(
+                AppScreenTab.Discover -> {
+                    DiscoverScreen(
                         modifier = Modifier.fillMaxSize(),
                         onPosterClick = onPosterClick,
                         onPosterLongClick = onPosterLongClick,
                     )
                 }
 
-                AppScreenTab.Library -> {
-                    LibraryScreen(
+                AppScreenTab.Search -> {
+                    SearchScreen(
                         modifier = Modifier.fillMaxSize(),
-                        onPosterClick = onLibraryPosterClick,
-                        onSectionViewAllClick = onLibrarySectionViewAllClick,
+                        onPosterClick = onPosterClick,
+                        onPosterLongClick = onPosterLongClick,
                     )
                 }
 
@@ -2097,8 +2045,7 @@ private fun AppTabHost(
 private fun TabletFloatingTopBar(
     selectedTab: AppScreenTab,
     onTabSelected: (AppScreenTab) -> Unit,
-    onProfileSelected: (NuvioProfile) -> Unit,
-    onAddProfileRequested: () -> Unit,
+    onProfileClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -2138,6 +2085,23 @@ private fun TabletFloatingTopBar(
                     },
                 )
                 TabletTopPillItem(
+                    label = stringResource(Res.string.compose_search_discover_title),
+                    selected = selectedTab == AppScreenTab.Discover,
+                    onClick = { onTabSelected(AppScreenTab.Discover) },
+                    icon = {
+                        Icon(
+                            painter = painterResource(Res.drawable.sidebar_discover),
+                            contentDescription = stringResource(Res.string.compose_search_discover_title),
+                            modifier = Modifier.size(18.dp),
+                            tint = if (selectedTab == AppScreenTab.Discover) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    },
+                )
+                TabletTopPillItem(
                     label = stringResource(Res.string.compose_nav_search),
                     selected = selectedTab == AppScreenTab.Search,
                     onClick = { onTabSelected(AppScreenTab.Search) },
@@ -2155,15 +2119,15 @@ private fun TabletFloatingTopBar(
                     },
                 )
                 TabletTopPillItem(
-                    label = stringResource(Res.string.compose_nav_library),
-                    selected = selectedTab == AppScreenTab.Library,
-                    onClick = { onTabSelected(AppScreenTab.Library) },
+                    label = stringResource(Res.string.compose_settings_page_root),
+                    selected = selectedTab == AppScreenTab.Settings,
+                    onClick = { onTabSelected(AppScreenTab.Settings) },
                     icon = {
                         Icon(
-                            painter = painterResource(Res.drawable.sidebar_library),
-                            contentDescription = stringResource(Res.string.compose_nav_library),
+                            painter = painterResource(Res.drawable.sidebar_settings),
+                            contentDescription = stringResource(Res.string.compose_settings_page_root),
                             modifier = Modifier.size(18.dp),
-                            tint = if (selectedTab == AppScreenTab.Library) {
+                            tint = if (selectedTab == AppScreenTab.Settings) {
                                 MaterialTheme.colorScheme.onPrimaryContainer
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -2171,38 +2135,49 @@ private fun TabletFloatingTopBar(
                         )
                     },
                 )
-                Surface(
-                    color = if (selectedTab == AppScreenTab.Settings) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surface
-                    },
-                    shape = RoundedCornerShape(999.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        ProfileSwitcherTab(
-                            selected = selectedTab == AppScreenTab.Settings,
-                            onClick = { onTabSelected(AppScreenTab.Settings) },
-                            onProfileSelected = onProfileSelected,
-                            onAddProfileRequested = onAddProfileRequested,
-                        )
-                        Text(
-                            text = stringResource(Res.string.compose_nav_profile),
-                            modifier = Modifier.clickable { onTabSelected(AppScreenTab.Settings) },
-                            style = MaterialTheme.typography.labelLarge,
-                            color = if (selectedTab == AppScreenTab.Settings) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
-                }
             }
+        }
+
+        ProfileSelectorButton(
+            onClick = onProfileClick,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(end = 20.dp),
+        )
+    }
+}
+
+@Composable
+private fun ProfileSelectorButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
+    val avatars by AvatarRepository.avatars.collectAsStateWithLifecycle()
+
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        shape = RoundedCornerShape(999.dp),
+        tonalElevation = 4.dp,
+        shadowElevation = 10.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ActiveProfileMiniAvatar(
+                profile = profileState.activeProfile,
+                avatars = avatars,
+                selected = false,
+                size = 28,
+            )
+            Text(
+                text = stringResource(Res.string.compose_nav_profile),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
