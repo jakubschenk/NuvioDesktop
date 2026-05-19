@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -172,31 +171,36 @@ internal actual fun KeybindsSettingsContent(isTablet: Boolean) {
     }
 
     SettingsSection(
-        title = stringResource(Res.string.settings_keybinds_title),
+        title = stringResource(Res.string.settings_keybinds_title).uppercase(),
         isTablet = isTablet,
-        actions = {
-            TextButton(
-                onClick = {
-                    KeybindsStorage.save(KeybindsConfig())
-                    config = KeybindsStorage.load()
-                    recordingAction = null
-                },
-            ) {
-                Text(stringResource(Res.string.settings_keybind_reset_defaults))
-            }
-        },
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(if (isTablet) 16.dp else 14.dp),
         ) {
-            Text(
-                text = stringResource(Res.string.settings_keybinds_description),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.widthIn(max = 720.dp),
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 720.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(Res.string.settings_keybinds_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = {
+                        KeybindsStorage.save(KeybindsConfig())
+                        config = KeybindsStorage.load()
+                        recordingAction = null
+                    },
+                ) {
+                    Text(stringResource(Res.string.settings_keybind_reset_defaults))
+                }
+            }
             SettingsGroup(isTablet = isTablet) {
                 KeybindActionDescriptors.forEachIndexed { index, descriptor ->
                     val entry = config.binds.firstOrNull { it.action == descriptor.action }
