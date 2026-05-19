@@ -27,7 +27,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -70,6 +69,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun SearchScreen(
     modifier: Modifier = Modifier,
+    showSearchChrome: Boolean = true,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
 ) {
@@ -85,8 +85,8 @@ fun SearchScreen(
     val recentSearches by SearchHistoryRepository.uiState.collectAsStateWithLifecycle()
     val watchedUiState by WatchedRepository.uiState.collectAsStateWithLifecycle()
     val networkStatusUiState by NetworkStatusRepository.uiState.collectAsStateWithLifecycle()
-    var query by rememberSaveable { mutableStateOf("") }
-    var lastRequestedQuery by rememberSaveable { mutableStateOf<String?>(null) }
+    val query by SearchRepository.query.collectAsStateWithLifecycle()
+    var lastRequestedQuery by remember { mutableStateOf<String?>(null) }
     var observedOfflineState by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val addonRefreshKey = remember(addonsUiState.addons) {
@@ -155,47 +155,49 @@ fun SearchScreen(
             listState = listState,
             modifier = Modifier.fillMaxSize(),
         ) {
-            stickyHeader {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.background),
-                ) {
-                    NuvioScreenHeader(
-                        title = stringResource(Res.string.compose_nav_search),
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        NuvioInputField(
-                            value = query,
-                            onValueChange = { query = it },
-                            placeholder = stringResource(Res.string.compose_search_placeholder),
-                            trailingContent = if (query.isNotBlank()) {
-                                {
-                                    IconButton(onClick = { query = "" }) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Close,
-                                            contentDescription = stringResource(Res.string.compose_search_clear),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-                            } else {
-                                null
-                            },
+            if (showSearchChrome) {
+                stickyHeader {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.background),
+                    ) {
+                        NuvioScreenHeader(
+                            title = stringResource(Res.string.compose_nav_search),
+                            modifier = Modifier.padding(horizontal = 16.dp),
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            NuvioInputField(
+                                value = query,
+                                onValueChange = SearchRepository::updateQuery,
+                                placeholder = stringResource(Res.string.compose_search_placeholder),
+                                trailingContent = if (query.isNotBlank()) {
+                                    {
+                                        IconButton(onClick = { SearchRepository.updateQuery("") }) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Close,
+                                                contentDescription = stringResource(Res.string.compose_search_clear),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    null
+                                },
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
                     }
-                    Spacer(modifier = Modifier.height(14.dp))
                 }
             }
 
             if (query.isBlank()) {
-                if (recentSearches.isNotEmpty()) {
+                if (showSearchChrome && recentSearches.isNotEmpty()) {
                     item(key = "recent_searches") {
                         SearchRecentSection(
                             recentSearches = recentSearches,
-                            onSearchPress = { recentQuery -> query = recentQuery },
+                            onSearchPress = SearchRepository::updateQuery,
                             onRemoveSearch = SearchHistoryRepository::removeSearch,
                         )
                     }

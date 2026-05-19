@@ -3,6 +3,7 @@ package com.nuvio.app
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -30,11 +31,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -61,6 +65,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -104,6 +110,7 @@ import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.NuvioFloatingPrompt
 import com.nuvio.app.core.ui.TraktListPickerDialog
 import com.nuvio.app.core.ui.NuvioTheme
+import com.nuvio.app.core.ui.NuvioInputField
 import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.NativeNavigationTab
 import com.nuvio.app.core.ui.NativeTabBridge
@@ -145,6 +152,8 @@ import com.nuvio.app.features.profiles.ProfileSelectionScreen
 import com.nuvio.app.features.profiles.ActiveProfileMiniAvatar
 import com.nuvio.app.features.profiles.profileAvatarImageUrl
 import com.nuvio.app.features.search.DiscoverScreen
+import com.nuvio.app.features.search.SearchHistoryRepository
+import com.nuvio.app.features.search.SearchRepository
 import com.nuvio.app.features.search.SearchScreen
 import com.nuvio.app.features.settings.SettingsScreen
 import com.nuvio.app.features.settings.HomescreenSettingsScreen
@@ -1052,6 +1061,7 @@ private fun MainAppContent(
                                             .fillMaxSize()
                                             .padding(innerPadding),
                                         selectedTab = selectedTab,
+                                        showSearchChrome = !(isTabletLayout && !useNativeBottomTabs),
                                         onCatalogClick = onCatalogClick,
                                         onPosterClick = { meta ->
                                             navController.navigate(DetailRoute(type = meta.type, id = meta.id))
@@ -1983,6 +1993,7 @@ private fun rememberGuardedPopBackStack(
 private fun AppTabHost(
     selectedTab: AppScreenTab,
     modifier: Modifier = Modifier,
+    showSearchChrome: Boolean = true,
     onCatalogClick: ((HomeCatalogSection) -> Unit)? = null,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
@@ -2033,6 +2044,7 @@ private fun AppTabHost(
                 AppScreenTab.Search -> {
                     SearchScreen(
                         modifier = Modifier.fillMaxSize(),
+                        showSearchChrome = showSearchChrome,
                         onPosterClick = onPosterClick,
                         onPosterLongClick = onPosterLongClick,
                     )
@@ -2070,6 +2082,39 @@ private fun TabletFloatingTopBar(
     modifier: Modifier = Modifier,
 ) {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val searchQuery by SearchRepository.query.collectAsStateWithLifecycle()
+    val recentSearches by SearchHistoryRepository.uiState.collectAsStateWithLifecycle()
+    val searchFocusRequester = remember { FocusRequester() }
+    var searchExpanded by rememberSaveable { mutableStateOf(selectedTab == AppScreenTab.Search) }
+    val filteredRecentSearches = remember(recentSearches, searchQuery) {
+        val normalizedQuery = searchQuery.trim()
+        recentSearches
+            .asSequence()
+            .filter { recentQuery ->
+                normalizedQuery.isBlank() || recentQuery.contains(normalizedQuery, ignoreCase = true)
+            }
+            .take(3)
+            .toList()
+    }
+
+    LaunchedEffect(Unit) {
+        SearchHistoryRepository.ensureLoaded()
+    }
+
+    LaunchedEffect(selectedTab) {
+        searchExpanded = selectedTab == AppScreenTab.Search
+    }
+
+    LaunchedEffect(searchExpanded) {
+        if (searchExpanded) {
+            runCatching { searchFocusRequester.requestFocus() }
+        }
+    }
+
+    fun selectTab(tab: AppScreenTab) {
+        searchExpanded = tab == AppScreenTab.Search
+        onTabSelected(tab)
+    }
 
     Box(
         modifier = modifier
@@ -2078,84 +2123,131 @@ private fun TabletFloatingTopBar(
         contentAlignment = Alignment.TopCenter,
     ) {
         Surface(
+            modifier = Modifier
+                .widthIn(max = 560.dp)
+                .animateContentSize(),
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-            shape = RoundedCornerShape(999.dp),
+            shape = RoundedCornerShape(if (searchExpanded) 24.dp else 999.dp),
             tonalElevation = 4.dp,
             shadowElevation = 10.dp,
         ) {
-            Row(
+            Column(
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_nav_home),
-                    selected = selectedTab == AppScreenTab.Home,
-                    onClick = { onTabSelected(AppScreenTab.Home) },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Filled.Home,
-                            contentDescription = stringResource(Res.string.compose_nav_home),
-                            modifier = Modifier.size(18.dp),
-                            tint = if (selectedTab == AppScreenTab.Home) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_nav_home),
+                        selected = selectedTab == AppScreenTab.Home,
+                        onClick = { selectTab(AppScreenTab.Home) },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Filled.Home,
+                                contentDescription = stringResource(Res.string.compose_nav_home),
+                                modifier = Modifier.size(18.dp),
+                                tint = if (selectedTab == AppScreenTab.Home) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        },
+                    )
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_search_discover_title),
+                        selected = selectedTab == AppScreenTab.Discover,
+                        onClick = { selectTab(AppScreenTab.Discover) },
+                        icon = {
+                            Icon(
+                                painter = painterResource(Res.drawable.sidebar_discover),
+                                contentDescription = stringResource(Res.string.compose_search_discover_title),
+                                modifier = Modifier.size(18.dp),
+                                tint = if (selectedTab == AppScreenTab.Discover) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        },
+                    )
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_nav_search),
+                        selected = selectedTab == AppScreenTab.Search,
+                        onClick = { selectTab(AppScreenTab.Search) },
+                        icon = {
+                            Icon(
+                                painter = painterResource(Res.drawable.sidebar_search),
+                                contentDescription = stringResource(Res.string.compose_nav_search),
+                                modifier = Modifier.size(18.dp),
+                                tint = if (selectedTab == AppScreenTab.Search) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        },
+                    )
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_settings_page_root),
+                        selected = selectedTab == AppScreenTab.Settings,
+                        onClick = { selectTab(AppScreenTab.Settings) },
+                        icon = {
+                            Icon(
+                                painter = painterResource(Res.drawable.sidebar_settings),
+                                contentDescription = stringResource(Res.string.compose_settings_page_root),
+                                modifier = Modifier.size(18.dp),
+                                tint = if (selectedTab == AppScreenTab.Settings) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        },
+                    )
+                }
+
+                if (searchExpanded) {
+                    NuvioInputField(
+                        value = searchQuery,
+                        onValueChange = { value ->
+                            SearchRepository.updateQuery(value)
+                            if (selectedTab != AppScreenTab.Search) {
+                                onTabSelected(AppScreenTab.Search)
+                            }
+                        },
+                        placeholder = stringResource(Res.string.compose_search_placeholder),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(searchFocusRequester),
+                        trailingContent = if (searchQuery.isNotBlank()) {
+                            {
+                                IconButton(onClick = { SearchRepository.updateQuery("") }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(Res.string.compose_search_clear),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        } else {
+                            null
+                        },
+                    )
+
+                    filteredRecentSearches.forEach { recentQuery ->
+                        TabletSearchRecentRow(
+                            query = recentQuery,
+                            onClick = {
+                                SearchRepository.updateQuery(recentQuery)
+                                onTabSelected(AppScreenTab.Search)
                             },
                         )
-                    },
-                )
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_search_discover_title),
-                    selected = selectedTab == AppScreenTab.Discover,
-                    onClick = { onTabSelected(AppScreenTab.Discover) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(Res.drawable.sidebar_discover),
-                            contentDescription = stringResource(Res.string.compose_search_discover_title),
-                            modifier = Modifier.size(18.dp),
-                            tint = if (selectedTab == AppScreenTab.Discover) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    },
-                )
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_nav_search),
-                    selected = selectedTab == AppScreenTab.Search,
-                    onClick = { onTabSelected(AppScreenTab.Search) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(Res.drawable.sidebar_search),
-                            contentDescription = stringResource(Res.string.compose_nav_search),
-                            modifier = Modifier.size(18.dp),
-                            tint = if (selectedTab == AppScreenTab.Search) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    },
-                )
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_settings_page_root),
-                    selected = selectedTab == AppScreenTab.Settings,
-                    onClick = { onTabSelected(AppScreenTab.Settings) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(Res.drawable.sidebar_settings),
-                            contentDescription = stringResource(Res.string.compose_settings_page_root),
-                            modifier = Modifier.size(18.dp),
-                            tint = if (selectedTab == AppScreenTab.Settings) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    },
-                )
+                    }
+                }
             }
         }
 
@@ -2165,6 +2257,41 @@ private fun TabletFloatingTopBar(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(end = 20.dp),
+        )
+    }
+}
+
+@Composable
+private fun TabletSearchRecentRow(
+    query: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .background(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
+                shape = RoundedCornerShape(14.dp),
+            )
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.History,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = query,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
