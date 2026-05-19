@@ -30,6 +30,7 @@ import com.nuvio.app.desktop.DesktopPlayerRegistry
 import com.nuvio.app.desktop.DesktopPreferences
 import com.nuvio.app.desktop.DesktopRuntimeLog
 import com.nuvio.app.desktop.DesktopSingleInstanceManager
+import com.nuvio.app.desktop.DesktopSkikoRuntimeFlags
 import com.nuvio.app.desktop.DesktopUriHandler
 import com.nuvio.app.desktop.DesktopWindowStateStore
 import com.nuvio.app.desktop.WindowsNativeBootstrap
@@ -85,6 +86,7 @@ private fun clampDpSizeToDisplay(size: DpSize): DpSize {
 }
 
 fun main(args: Array<String>) {
+    val skikoRuntimeFlags = DesktopSkikoRuntimeFlags.configure()
     DesktopRuntimeLog.initialize(
         enabled = DesktopPreferences.getBoolean("nuvio_debug", "debug_logs_enabled") ?: false,
     )
@@ -120,6 +122,7 @@ fun main(args: Array<String>) {
     DesktopRuntimeLog.info("os=${System.getProperty("os.name")} ${System.getProperty("os.version")}")
     DesktopRuntimeLog.info("java=${System.getProperty("java.version")}")
     DesktopRuntimeLog.info("user.dir=${DesktopRuntimeLog.safePath(System.getProperty("user.dir"))}")
+    DesktopRuntimeLog.info("skiko.runtime.flags=$skikoRuntimeFlags")
     DesktopRuntimeLog.info(
         "compose.resources.dir=${DesktopRuntimeLog.safePath(System.getProperty("compose.application.resources.dir"))}",
     )
