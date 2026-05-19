@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -95,6 +96,22 @@ fun HomeHeroSection(
 
     val pagerState = rememberPagerState(pageCount = { items.size })
     val coroutineScope = rememberCoroutineScope()
+    val logoDumpItems = remember(items) {
+        items.mapIndexedNotNull { index, item ->
+            val originalLogoUrl = item.logo?.trim()?.takeIf(String::isNotBlank) ?: return@mapIndexedNotNull null
+            HomeHeroLogoDumpItem(
+                index = index,
+                id = item.id,
+                type = item.type,
+                name = item.name,
+                originalLogoUrl = originalLogoUrl,
+                heroLogoUrl = item.heroLogoImageUrl() ?: originalLogoUrl,
+            )
+        }
+    }
+    LaunchedEffect(logoDumpItems) {
+        dumpHomeHeroLogos(logoDumpItems)
+    }
 
     BoxWithConstraints(
         modifier = modifier
