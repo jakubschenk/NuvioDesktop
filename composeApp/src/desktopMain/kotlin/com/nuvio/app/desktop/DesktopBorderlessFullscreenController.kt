@@ -176,7 +176,7 @@ internal object DesktopBorderlessFullscreenController {
             "extendedState=${window.extendedState} bounds=${window.bounds.shortLog()} " +
             "screen=${screenBounds.shortLog()} dpiScale=${scaleX}x$scaleY " +
             "renderApi=${System.getProperty("skiko.renderApi") ?: "default"} " +
-            "frameBuffering=${System.getProperty("skiko.frameBuffering") ?: "default"} " +
+            "buffering=${System.getProperty("skiko.buffering") ?: "default"} " +
             "vsync=${System.getProperty("skiko.vsync.enabled") ?: "default"}"
     }
 
