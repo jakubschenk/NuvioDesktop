@@ -7,11 +7,19 @@ import androidx.compose.ui.unit.IntSize
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Canvas
 import org.jetbrains.skia.CubicResampler
+import org.jetbrains.skia.FilterMipmap
+import org.jetbrains.skia.FilterMode
 import org.jetbrains.skia.Image
+import org.jetbrains.skia.MipmapMode
 import org.jetbrains.skia.Paint
 import org.jetbrains.skia.Rect
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
-private val NuvioDesktopImageSampling = CubicResampler(1f / 3f, 1f / 3f)
+private const val SourceRectEpsilon = 0.5f
+
+private val NuvioDesktopCropSampling = CubicResampler(1f / 3f, 1f / 3f)
+private val NuvioDesktopDownsampleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR)
 
 internal fun Bitmap.nuvioScaleToBitmap(
     widthPx: Int,
@@ -20,11 +28,7 @@ internal fun Bitmap.nuvioScaleToBitmap(
     if (widthPx <= 0 || heightPx <= 0) return null
     if (width == widthPx && height == heightPx) return this
 
-    return nuvioDrawToBitmap(
-        widthPx = widthPx,
-        heightPx = heightPx,
-        sourceRect = Rect.makeWH(width.toFloat(), height.toFloat()),
-    )
+    return nuvioScalePixelsToBitmap(widthPx, heightPx)
 }
 
 internal fun Bitmap.nuvioScaleToFillBitmap(
@@ -46,11 +50,20 @@ internal fun Bitmap.nuvioScaleToFillBitmap(
         Rect.makeLTRB(0f, top, width.toFloat(), top + cropHeight)
     }
 
-    return nuvioDrawToBitmap(
-        widthPx = widthPx,
-        heightPx = heightPx,
-        sourceRect = sourceRect,
-    )
+    val cropped = if (sourceRect.isWholeBitmap(width, height)) {
+        this
+    } else {
+        nuvioDrawToBitmap(
+            widthPx = sourceRect.width.roundToInt().coerceAtLeast(1),
+            heightPx = sourceRect.height.roundToInt().coerceAtLeast(1),
+            sourceRect = sourceRect,
+        ) ?: return null
+    }
+    val scaled = cropped.nuvioScalePixelsToBitmap(widthPx, heightPx)
+    if (cropped !== this && scaled !== cropped) {
+        cropped.close()
+    }
+    return scaled
 }
 
 private fun Bitmap.nuvioDrawToBitmap(
@@ -74,7 +87,7 @@ private fun Bitmap.nuvioDrawToBitmap(
             image = image,
             src = sourceRect,
             dst = Rect.makeWH(widthPx.toFloat(), heightPx.toFloat()),
-            samplingMode = NuvioDesktopImageSampling,
+            samplingMode = NuvioDesktopCropSampling,
             paint = paint,
             strict = true,
         )
@@ -85,6 +98,35 @@ private fun Bitmap.nuvioDrawToBitmap(
         canvas.close()
     }
 }
+
+private fun Bitmap.nuvioScalePixelsToBitmap(
+    widthPx: Int,
+    heightPx: Int,
+): Bitmap? {
+    if (widthPx <= 0 || heightPx <= 0) return null
+    if (width == widthPx && height == heightPx) return this
+
+    val output = Bitmap()
+    output.allocN32Pixels(widthPx, heightPx)
+    val pixels = output.peekPixels() ?: return null
+    val image = Image.makeFromBitmap(this)
+    return try {
+        val scaled = image.scalePixels(
+            dst = pixels,
+            samplingMode = NuvioDesktopDownsampleSampling,
+            cache = false,
+        )
+        if (scaled) output else null
+    } finally {
+        image.close()
+    }
+}
+
+private fun Rect.isWholeBitmap(widthPx: Int, heightPx: Int): Boolean =
+    abs(left) < SourceRectEpsilon &&
+        abs(top) < SourceRectEpsilon &&
+        abs(right - widthPx) < SourceRectEpsilon &&
+        abs(bottom - heightPx) < SourceRectEpsilon
 
 internal fun Bitmap.nuvioScaleToImageBitmap(size: IntSize): ImageBitmap {
     val scaled = nuvioScaleToBitmap(
