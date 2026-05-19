@@ -142,12 +142,20 @@ private sealed interface DesktopGifState {
 @Composable
 internal actual fun CollectionCardRemoteImage(
     imageUrl: String,
+    animatedImageUrl: String?,
     contentDescription: String,
     modifier: Modifier,
     contentScale: ContentScale,
     animateIfPossible: Boolean,
+    animateNow: Boolean,
 ) {
-    if (!animateIfPossible) {
+    val displayImageUrl = if (animateIfPossible && animateNow && !animatedImageUrl.isNullOrBlank()) {
+        animatedImageUrl
+    } else {
+        imageUrl
+    }
+
+    if (!animateIfPossible || !animateNow || animatedImageUrl.isNullOrBlank()) {
         AsyncImage(
             model = imageUrl,
             contentDescription = contentDescription,
@@ -176,9 +184,9 @@ internal actual fun CollectionCardRemoteImage(
                 heightPx = requestHeightPx.roundUpToDecodeBucket().coerceIn(1, MaxDecodedDimensionPx),
             )
         }
-        val cacheKey = remember(imageUrl, decodeTarget) {
+        val cacheKey = remember(displayImageUrl, decodeTarget) {
             DesktopGifCacheKey(
-                url = imageUrl,
+                url = displayImageUrl,
                 widthPx = decodeTarget.widthPx,
                 heightPx = decodeTarget.heightPx,
             )
@@ -200,7 +208,7 @@ internal actual fun CollectionCardRemoteImage(
 
             state = DesktopGifState.Loading
             val decoded = DesktopGifInFlight.getOrDecode(cacheKey) {
-                downloadAndDecodeGif(imageUrl, decodeTarget)
+                downloadAndDecodeGif(displayImageUrl, decodeTarget)
             }
 
             state = if (decoded != null) {

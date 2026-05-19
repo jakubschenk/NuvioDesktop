@@ -2,6 +2,7 @@ package com.nuvio.app.features.streams
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.build.AppFeaturePolicy
+import com.nuvio.app.core.logging.redactedUrlForLog
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.buildAddonResourceUrl
 import com.nuvio.app.features.addons.httpGetText
@@ -36,6 +37,15 @@ object StreamsRepository {
     private var activeJob: Job? = null
     private var activeRequestKey: String? = null
 
+    fun requestToken(
+        type: String,
+        videoId: String,
+        season: Int? = null,
+        episode: Int? = null,
+        manualSelection: Boolean = false,
+    ): String =
+        "$type::$videoId::$season::$episode::$manualSelection"
+
     fun load(type: String, videoId: String, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false) {
         load(
             type = type,
@@ -65,7 +75,14 @@ object StreamsRepository {
         } else {
             PluginsUiState(pluginsEnabled = false)
         }
-        val requestKey = "$type::$videoId::$season::$episode::$manualSelection::pluginsGrouped=${pluginUiState.groupStreamsByRepository}"
+        val requestToken = requestToken(
+            type = type,
+            videoId = videoId,
+            season = season,
+            episode = episode,
+            manualSelection = manualSelection,
+        )
+        val requestKey = "$requestToken::pluginsGrouped=${pluginUiState.groupStreamsByRepository}"
         val currentState = _uiState.value
         if (
             !forceRefresh &&
@@ -78,7 +95,7 @@ object StreamsRepository {
 
         activeRequestKey = requestKey
         activeJob?.cancel()
-        _uiState.value = StreamsUiState()
+        _uiState.value = StreamsUiState(requestToken = requestToken)
 
         PlayerSettingsRepository.ensureLoaded()
         val playerSettings = PlayerSettingsRepository.uiState.value
@@ -90,6 +107,7 @@ object StreamsRepository {
 
         if (isDirectAutoPlayFlow) {
             _uiState.value = StreamsUiState(
+                requestToken = requestToken,
                 isDirectAutoPlayFlow = true,
                 showDirectAutoPlayOverlay = true,
             )
@@ -105,6 +123,7 @@ object StreamsRepository {
                 isLoading = false,
             )
             _uiState.value = StreamsUiState(
+                requestToken = requestToken,
                 groups = listOf(group),
                 activeAddonIds = setOf("embedded"),
                 isAnyLoading = false,
@@ -125,6 +144,7 @@ object StreamsRepository {
 
         if (installedAddons.isEmpty() && pluginProviderGroups.isEmpty()) {
             _uiState.value = StreamsUiState(
+                requestToken = requestToken,
                 isAnyLoading = false,
                 emptyStateReason = StreamsEmptyStateReason.NoAddonsInstalled,
             )
@@ -151,8 +171,9 @@ object StreamsRepository {
 
         log.d { "Found ${streamAddons.size} addons for stream type=$type id=$videoId" }
 
-            if (streamAddons.isEmpty() && pluginProviderGroups.isEmpty()) {
+        if (streamAddons.isEmpty() && pluginProviderGroups.isEmpty()) {
             _uiState.value = StreamsUiState(
+                requestToken = requestToken,
                 isAnyLoading = false,
                 emptyStateReason = StreamsEmptyStateReason.NoCompatibleAddons,
             )
@@ -176,6 +197,7 @@ object StreamsRepository {
             )
         }
         _uiState.value = StreamsUiState(
+            requestToken = requestToken,
             groups = initialGroups,
             activeAddonIds = initialGroups.map { it.addonId }.toSet(),
             isAnyLoading = true,
@@ -247,7 +269,7 @@ object StreamsRepository {
                         type = type,
                         id = videoId,
                     )
-                    log.d { "Fetching streams from: $url" }
+                    log.d { "Fetching streams from: ${url.redactedUrlForLog()}" }
 
                     val displayName = addon.addonName
                     val group = runCatching {

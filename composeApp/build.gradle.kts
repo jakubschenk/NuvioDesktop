@@ -1,5 +1,6 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.gradle.api.DefaultTask
+import org.gradle.api.attributes.Attribute
 import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
@@ -404,9 +405,10 @@ kotlin {
                 implementation(libs.ksoup)
                 implementation(libs.jna)
                 implementation("com.mortennobel:java-image-scaling:0.8.6")
+                implementation("net.java.dev.jna:jna-platform:5.14.0")
                 implementation("com.squareup.okhttp3:okhttp:4.12.0")
                 implementation("org.openani.mediamp:mediamp-api:0.1.0-dev-1")
-                implementation("org.openani.mediamp:mediamp-mpv:0.1.0-dev-1")
+                implementation("org.openani.mediamp:mediamp-mpv:0.1.0-dev-1") { attributes { attribute(Attribute.of("org.jetbrains.kotlin.platform.type", String::class.java), "jvm") } }
             }
         }
         androidMain.dependencies {
@@ -437,6 +439,7 @@ kotlin {
         commonMain.dependencies {
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor3)
+            implementation(libs.coil.svg)
             implementation("dev.chrisbanes.haze:haze:1.7.2")
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)

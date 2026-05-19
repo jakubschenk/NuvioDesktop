@@ -16,6 +16,22 @@ interface PlayerFullscreenController {
     fun toggleFullscreen()
 }
 
+data class PlayerKeyboardShortcutHandlers(
+    val toggleFullscreen: () -> Unit,
+    val togglePlayback: () -> Unit,
+    val seekForward: () -> Unit,
+    val seekBackward: () -> Unit,
+    val volumeUp: () -> Unit,
+    val volumeDown: () -> Unit,
+    val toggleMute: () -> Unit,
+    val cycleResizeMode: () -> Unit,
+    val playNextEpisode: () -> Unit,
+    val openAudioTracks: () -> Unit,
+    val openSubtitleTracks: () -> Unit,
+    val openSources: () -> Unit,
+    val openEpisodes: () -> Unit,
+)
+
 data class PlayerAudioLevel(
     val fraction: Float,
     val isMuted: Boolean,
@@ -45,6 +61,14 @@ expect fun rememberPlayerFullscreenController(): PlayerFullscreenController
 @Composable
 expect fun ManageFullscreenKeyboardShortcuts(isHomeRouteActive: Boolean)
 
+@Composable
+expect fun BindPlayerKeyboardShortcuts(
+    enabled: Boolean,
+    handlers: PlayerKeyboardShortcutHandlers,
+)
+
 expect val usesNativePlayerChrome: Boolean
 
 expect val usesAnimatedPlayerChrome: Boolean
+
+expect val usesPlatformPlayerKeyboardShortcuts: Boolean

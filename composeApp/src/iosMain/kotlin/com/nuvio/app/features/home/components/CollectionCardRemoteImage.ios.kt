@@ -2,6 +2,7 @@ package com.nuvio.app.features.home.components
 
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,15 +52,28 @@ private data class ExpandedGifFrames(
     val tickCentiseconds: Int,
 )
 
+private class GifImageViewHolder {
+    var imageView: UIImageView? = null
+
+    fun clear() {
+        imageView?.stopAnimating()
+        imageView?.image = null
+        imageView = null
+    }
+}
+
 @OptIn(ExperimentalForeignApi::class)
 @Composable
 internal actual fun CollectionCardRemoteImage(
     imageUrl: String,
+    animatedImageUrl: String?,
     contentDescription: String,
     modifier: Modifier,
     contentScale: ContentScale,
     animateIfPossible: Boolean,
+    animateNow: Boolean,
 ) {
+    val gifUrl = animatedImageUrl?.takeIf { it.isNotBlank() } ?: imageUrl
     if (!animateIfPossible) {
         AsyncImage(
             model = imageUrl,
@@ -70,10 +84,17 @@ internal actual fun CollectionCardRemoteImage(
         return
     }
 
-    var gifImage by remember(imageUrl) { mutableStateOf(cachedGifImage(imageUrl)) }
+    var gifImage by remember(gifUrl) { mutableStateOf(cachedGifImage(gifUrl)) }
 
-    LaunchedEffect(imageUrl) {
-        gifImage = loadGifImage(imageUrl)
+    LaunchedEffect(gifUrl) {
+        gifImage = loadGifImage(gifUrl)
+    }
+
+    val imageViewHolder = remember(imageUrl) { GifImageViewHolder() }
+    DisposableEffect(imageUrl) {
+        onDispose {
+            imageViewHolder.clear()
+        }
     }
 
     UIKitView(
@@ -83,17 +104,29 @@ internal actual fun CollectionCardRemoteImage(
                 contentMode = UIViewContentMode.UIViewContentModeScaleAspectFill
                 clipsToBounds = true
                 userInteractionEnabled = false
-                image = gifImage
-                tag = imageUrl.hashCode().toLong()
+                tag = gifUrl.hashCode().toLong()
+                imageViewHolder.imageView = this
+                updateGifImage(gifImage)
             }
         },
         update = { imageView ->
-            if (imageView.tag != imageUrl.hashCode().toLong()) {
-                imageView.tag = imageUrl.hashCode().toLong()
+            imageViewHolder.imageView = imageView
+            if (imageView.tag != gifUrl.hashCode().toLong()) {
+                imageView.tag = gifUrl.hashCode().toLong()
             }
-            imageView.image = gifImage
+            imageView.updateGifImage(gifImage)
         },
     )
+}
+
+private fun UIImageView.updateGifImage(image: UIImage?) {
+    if (this.image != image) {
+        stopAnimating()
+        this.image = image
+    }
+    if (image != null) {
+        startAnimating()
+    }
 }
 
 private fun cachedGifImage(imageUrl: String): UIImage? {

@@ -1,4 +1,4 @@
-package com.nuvio.app.features.player
+﻿package com.nuvio.app.features.player
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -11,11 +11,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.window.WindowPlacement
+import com.nuvio.app.desktop.DesktopBorderlessFullscreenController
 import com.nuvio.app.LocalDesktopWindow
 import com.nuvio.app.core.storage.ProfileScopedKey
 import com.nuvio.app.core.sync.decodeSyncBoolean
@@ -29,12 +30,12 @@ import com.nuvio.app.core.sync.encodeSyncInt
 import com.nuvio.app.core.sync.encodeSyncString
 import com.nuvio.app.core.sync.encodeSyncStringSet
 import com.nuvio.app.desktop.DesktopPreferences
+import com.nuvio.app.desktop.DesktopRuntimeLog
 import com.nuvio.app.features.player.desktop.DesktopPlayerSurfaceHost
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.streams.AddonStreamGroup
 import com.nuvio.app.features.streams.StreamItem
 import java.awt.Cursor
-import java.awt.Frame
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import java.awt.Point
@@ -66,6 +67,7 @@ actual fun PlatformPlayerSurface(
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
     onError: (String?) -> Unit,
 ) {
+    ManageDesktopPlayerFrameTrace()
     if (isMacOS) {
         MacOSPlayerSurface(
             sourceUrl = sourceUrl,
@@ -509,6 +511,8 @@ internal actual object PlayerSettingsStorage {
     private const val resizeModeKey = "resize_mode"
     private const val holdToSpeedEnabledKey = "hold_to_speed_enabled"
     private const val holdToSpeedValueKey = "hold_to_speed_value"
+    private const val externalPlayerEnabledKey = "external_player_enabled"
+    private const val externalPlayerIdKey = "external_player_id"
     private const val preferredAudioLanguageKey = "preferred_audio_language"
     private const val secondaryPreferredAudioLanguageKey = "secondary_preferred_audio_language"
     private const val preferredSubtitleLanguageKey = "preferred_subtitle_language"
@@ -545,6 +549,8 @@ internal actual object PlayerSettingsStorage {
         resizeModeKey,
         holdToSpeedEnabledKey,
         holdToSpeedValueKey,
+        externalPlayerEnabledKey,
+        externalPlayerIdKey,
         preferredAudioLanguageKey,
         secondaryPreferredAudioLanguageKey,
         preferredSubtitleLanguageKey,
@@ -596,6 +602,18 @@ internal actual object PlayerSettingsStorage {
 
     actual fun saveHoldToSpeedValue(speed: Float) {
         saveFloat(holdToSpeedValueKey, speed)
+    }
+
+    actual fun loadExternalPlayerEnabled(): Boolean? = loadBoolean(externalPlayerEnabledKey)
+
+    actual fun saveExternalPlayerEnabled(enabled: Boolean) {
+        saveBoolean(externalPlayerEnabledKey, enabled)
+    }
+
+    actual fun loadExternalPlayerId(): String? = loadString(externalPlayerIdKey)
+
+    actual fun saveExternalPlayerId(playerId: String?) {
+        saveNullableString(externalPlayerIdKey, playerId)
     }
 
     actual fun loadPreferredAudioLanguage(): String? = loadString(preferredAudioLanguageKey)
@@ -789,6 +807,8 @@ internal actual object PlayerSettingsStorage {
         loadResizeMode()?.let { put(resizeModeKey, encodeSyncString(it)) }
         loadHoldToSpeedEnabled()?.let { put(holdToSpeedEnabledKey, encodeSyncBoolean(it)) }
         loadHoldToSpeedValue()?.let { put(holdToSpeedValueKey, encodeSyncFloat(it)) }
+        loadExternalPlayerEnabled()?.let { put(externalPlayerEnabledKey, encodeSyncBoolean(it)) }
+        loadExternalPlayerId()?.let { put(externalPlayerIdKey, encodeSyncString(it)) }
         loadPreferredAudioLanguage()?.let { put(preferredAudioLanguageKey, encodeSyncString(it)) }
         loadSecondaryPreferredAudioLanguage()?.let { put(secondaryPreferredAudioLanguageKey, encodeSyncString(it)) }
         loadPreferredSubtitleLanguage()?.let { put(preferredSubtitleLanguageKey, encodeSyncString(it)) }
@@ -825,6 +845,8 @@ internal actual object PlayerSettingsStorage {
         payload.decodeSyncString(resizeModeKey)?.let(::saveResizeMode)
         payload.decodeSyncBoolean(holdToSpeedEnabledKey)?.let(::saveHoldToSpeedEnabled)
         payload.decodeSyncFloat(holdToSpeedValueKey)?.let(::saveHoldToSpeedValue)
+        payload.decodeSyncBoolean(externalPlayerEnabledKey)?.let(::saveExternalPlayerEnabled)
+        payload.decodeSyncString(externalPlayerIdKey)?.let(::saveExternalPlayerId)
         payload.decodeSyncString(preferredAudioLanguageKey)?.let(::savePreferredAudioLanguage)
         payload.decodeSyncString(secondaryPreferredAudioLanguageKey)?.let(::saveSecondaryPreferredAudioLanguage)
         payload.decodeSyncString(preferredSubtitleLanguageKey)?.let(::savePreferredSubtitleLanguage)
@@ -915,19 +937,64 @@ actual fun ManagePlayerPictureInPicture(
 @Composable
 actual fun ManagePlayerCursorVisibility(visible: Boolean) {
     val window = LocalDesktopWindow.current
+    val composeWindow = window as? ComposeWindow
     val hiddenCursor = remember { createHiddenPlayerCursor() }
 
-    DisposableEffect(window) {
-        val previousCursor = window?.cursor
+    DisposableEffect(window, composeWindow) {
+        val previousWindowCursor = window?.cursor
+        val previousContentPaneCursor = composeWindow?.contentPane?.cursor
         onDispose {
-            if (window != null && previousCursor != null) {
-                window.cursor = previousCursor
-            }
+            window?.cursor = previousWindowCursor ?: Cursor.getDefaultCursor()
+            composeWindow?.contentPane?.cursor = previousContentPaneCursor ?: Cursor.getDefaultCursor()
         }
     }
 
     SideEffect {
-        window?.cursor = if (visible) Cursor.getDefaultCursor() else hiddenCursor
+        val cursor = if (visible) Cursor.getDefaultCursor() else hiddenCursor
+        window?.cursor = cursor
+        composeWindow?.contentPane?.cursor = cursor
+    }
+}
+
+@Composable
+private fun ManageDesktopPlayerFrameTrace() {
+    LaunchedEffect(Unit) {
+        var lastFrameNanos = 0L
+        var lastLogNanos = 0L
+        var frameCount = 0
+        var totalMs = 0.0
+        var maxMs = 0.0
+        while (true) {
+            if (!DesktopRuntimeLog.debugEnabled) {
+                lastFrameNanos = 0L
+                lastLogNanos = 0L
+                frameCount = 0
+                totalMs = 0.0
+                maxMs = 0.0
+                delay(1_000)
+                continue
+            }
+            val frameNanos = withFrameNanos { it }
+            if (lastFrameNanos != 0L) {
+                val deltaMs = (frameNanos - lastFrameNanos) / 1_000_000.0
+                frameCount += 1
+                totalMs += deltaMs
+                if (deltaMs > maxMs) maxMs = deltaMs
+            }
+            if (lastLogNanos == 0L) {
+                lastLogNanos = frameNanos
+            } else if (frameNanos - lastLogNanos >= 2_000_000_000L && frameCount > 0) {
+                DesktopRuntimeLog.info(
+                    "PlayerFramePacing composeFrames=$frameCount " +
+                        "avgMs=${(totalMs / frameCount).formatOneDecimal()} maxMs=${maxMs.formatOneDecimal()}",
+                )
+                lastLogNanos = frameNanos
+                frameCount = 0
+                totalMs = 0.0
+                maxMs = 0.0
+            }
+            lastFrameNanos = frameNanos
+        }
     }
 }
 
@@ -937,11 +1004,12 @@ actual fun rememberPlayerGestureController(): PlayerGestureController? = null
 @Composable
 actual fun rememberPlayerFullscreenController(): PlayerFullscreenController {
     val window = LocalDesktopWindow.current as? ComposeWindow
+    val fullscreenRevision = DesktopBorderlessFullscreenController.revision
     var isFullscreen by remember(window) {
-        mutableStateOf(window?.placement == WindowPlacement.Fullscreen)
+        mutableStateOf(window?.isPlayerFullscreen() == true)
     }
 
-    LaunchedEffect(window) {
+    LaunchedEffect(window, fullscreenRevision) {
         while (true) {
             isFullscreen = window?.isPlayerFullscreen() == true
             delay(250)
@@ -966,31 +1034,44 @@ actual fun rememberPlayerFullscreenController(): PlayerFullscreenController {
 @Composable
 actual fun ManageFullscreenKeyboardShortcuts(isHomeRouteActive: Boolean) {
     val window = LocalDesktopWindow.current as? ComposeWindow
-    val currentIsHomeRouteActive by rememberUpdatedState(isHomeRouteActive)
 
     DisposableEffect(window) {
         val composeWindow = window ?: return@DisposableEffect onDispose {}
         val keyboardFocusManager = KeyboardFocusManager.getCurrentKeyboardFocusManager()
+
         val dispatcher = KeyEventDispatcher { event ->
             if (event.id != KeyEvent.KEY_RELEASED) {
                 return@KeyEventDispatcher false
             }
-
-            when (event.keyCode) {
-                KeyEvent.VK_F11 -> {
+            when (KeybindsStorage.actionForKeyCode(event.keyCode, event.modifiersEx)) {
+                "toggle_app_fullscreen" -> {
+                    DesktopRuntimeLog.info(
+                        "fullscreenShortcut: route=app action=toggle_app_fullscreen key=${event.keyCode} " +
+                            "modifiers=${event.modifiersEx} fullscreenBefore=${composeWindow.isPlayerFullscreen()}",
+                    )
                     composeWindow.toggleDesktopFullscreen()
+                    DesktopRuntimeLog.info(
+                        "fullscreenShortcut: route=app action=toggle_app_fullscreen " +
+                            "fullscreenAfter=${composeWindow.isPlayerFullscreen()}",
+                    )
                     true
                 }
-
-                KeyEvent.VK_ESCAPE -> {
-                    if (currentIsHomeRouteActive && composeWindow.isPlayerFullscreen()) {
+                "exit_fullscreen" -> {
+                    DesktopRuntimeLog.info(
+                        "fullscreenShortcut: route=app action=exit_fullscreen key=${event.keyCode} " +
+                            "modifiers=${event.modifiersEx} fullscreenBefore=${composeWindow.isPlayerFullscreen()}",
+                    )
+                    if (composeWindow.isPlayerFullscreen()) {
                         composeWindow.exitDesktopFullscreen()
+                        DesktopRuntimeLog.info(
+                            "fullscreenShortcut: route=app action=exit_fullscreen " +
+                                "fullscreenAfter=${composeWindow.isPlayerFullscreen()}",
+                        )
                         true
                     } else {
                         false
                     }
                 }
-
                 else -> false
             }
         }
@@ -1002,50 +1083,87 @@ actual fun ManageFullscreenKeyboardShortcuts(isHomeRouteActive: Boolean) {
     }
 }
 
-private object DesktopFullscreenState {
-    var previousPlacement: WindowPlacement = WindowPlacement.Floating
-}
+@Composable
+actual fun BindPlayerKeyboardShortcuts(
+    enabled: Boolean,
+    handlers: PlayerKeyboardShortcutHandlers,
+) {
+    val latestHandlers by rememberUpdatedState(handlers)
 
-private fun ComposeWindow.toggleDesktopFullscreen() {
-    if (isPlayerFullscreen()) {
-        exitDesktopFullscreen()
-    } else {
-        enterDesktopFullscreen()
+    DisposableEffect(enabled) {
+        if (!enabled) return@DisposableEffect onDispose {}
+        val keyboardFocusManager = KeyboardFocusManager.getCurrentKeyboardFocusManager()
+        val dispatcher = KeyEventDispatcher { event ->
+            val action = KeybindsStorage.actionForKeyCode(event.keyCode, event.modifiersEx)
+                ?: return@KeyEventDispatcher false
+            val triggerOnPress = action in PressRepeatKeybindActions
+            val expectedEventId = if (triggerOnPress) KeyEvent.KEY_PRESSED else KeyEvent.KEY_RELEASED
+            if (event.id != expectedEventId) {
+                return@KeyEventDispatcher false
+            }
+            when (action) {
+                "toggle_fullscreen" -> {
+                    DesktopRuntimeLog.info(
+                        "fullscreenShortcut: route=player action=toggle_fullscreen key=${event.keyCode} " +
+                            "modifiers=${event.modifiersEx}",
+                    )
+                    latestHandlers.toggleFullscreen()
+                }
+                "play_pause",
+                "play_pause_alt",
+                -> latestHandlers.togglePlayback()
+                "seek_forward_10s",
+                "seek_forward_10s_alt",
+                -> latestHandlers.seekForward()
+                "seek_backward_10s",
+                "seek_backward_10s_alt",
+                -> latestHandlers.seekBackward()
+                "volume_up" -> latestHandlers.volumeUp()
+                "volume_down" -> latestHandlers.volumeDown()
+                "mute" -> latestHandlers.toggleMute()
+                "cycle_resize_mode" -> latestHandlers.cycleResizeMode()
+                "next_episode" -> latestHandlers.playNextEpisode()
+                "open_audio" -> latestHandlers.openAudioTracks()
+                "open_subtitles" -> latestHandlers.openSubtitleTracks()
+                "open_sources" -> latestHandlers.openSources()
+                "open_episodes" -> latestHandlers.openEpisodes()
+                else -> return@KeyEventDispatcher false
+            }
+            true
+        }
+
+        keyboardFocusManager.addKeyEventDispatcher(dispatcher)
+        onDispose {
+            keyboardFocusManager.removeKeyEventDispatcher(dispatcher)
+        }
     }
 }
 
-private fun ComposeWindow.enterDesktopFullscreen() {
-    DesktopFullscreenState.previousPlacement = placement.takeIf { it != WindowPlacement.Fullscreen }
-        ?: WindowPlacement.Floating
-    placement = WindowPlacement.Fullscreen
+private val PressRepeatKeybindActions = setOf(
+    "seek_forward_10s",
+    "seek_forward_10s_alt",
+    "seek_backward_10s",
+    "seek_backward_10s_alt",
+    "volume_up",
+    "volume_down",
+)
+
+private fun ComposeWindow.toggleDesktopFullscreen() {
+    DesktopBorderlessFullscreenController.toggle(this)
 }
 
 private fun ComposeWindow.exitDesktopFullscreen() {
-    exitPlayerFullscreen(DesktopFullscreenState.previousPlacement)
+    DesktopBorderlessFullscreenController.exit(this)
 }
 
 private fun ComposeWindow.isPlayerFullscreen(): Boolean {
-    val fullScreenWindow = graphicsConfiguration?.device?.fullScreenWindow
-    return placement == WindowPlacement.Fullscreen || fullScreenWindow === this
+    return DesktopBorderlessFullscreenController.isFullscreen(this)
 }
 
-private fun ComposeWindow.exitPlayerFullscreen(previousPlacement: WindowPlacement) {
-    val device = graphicsConfiguration?.device
-    if (device?.fullScreenWindow === this) {
-        device.fullScreenWindow = null
-    }
-
-    val targetPlacement = previousPlacement.takeIf { it != WindowPlacement.Fullscreen }
-        ?: WindowPlacement.Floating
-    placement = targetPlacement
-
-    if (targetPlacement == WindowPlacement.Floating) {
-        extendedState = extendedState and Frame.MAXIMIZED_BOTH.inv()
-    }
-}
+private fun Double.formatOneDecimal(): String = String.format(Locale.US, "%.1f", this)
 
 private fun createHiddenPlayerCursor(): Cursor {
-    val image = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
+    val image = BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB)
     return Toolkit.getDefaultToolkit().createCustomCursor(image, Point(0, 0), "nuvio-player-hidden-cursor")
 }
 
@@ -1053,3 +1171,5 @@ actual val usesNativePlayerChrome: Boolean
     get() = isMacOS
 
 actual val usesAnimatedPlayerChrome: Boolean = false
+
+actual val usesPlatformPlayerKeyboardShortcuts: Boolean = true

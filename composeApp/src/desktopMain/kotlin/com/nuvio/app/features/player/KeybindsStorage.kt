@@ -1,0 +1,95 @@
+package com.nuvio.app.features.player
+
+import com.nuvio.app.desktop.DesktopPreferences
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+@Serializable
+data class KeybindEntry(
+    val action: String,
+    val keyCode: Int,
+    val modifiers: Int = 0,
+)
+
+@Serializable
+data class KeybindsConfig(
+    val binds: List<KeybindEntry> = defaultKeybinds(),
+) {
+    companion object {
+        fun defaultKeybinds(): List<KeybindEntry> = listOf(
+            KeybindEntry("toggle_fullscreen", java.awt.event.KeyEvent.VK_F),
+            KeybindEntry("toggle_app_fullscreen", java.awt.event.KeyEvent.VK_F11),
+            KeybindEntry("exit_fullscreen", java.awt.event.KeyEvent.VK_ESCAPE),
+            KeybindEntry("play_pause", java.awt.event.KeyEvent.VK_SPACE),
+            KeybindEntry("play_pause_alt", java.awt.event.KeyEvent.VK_K),
+            KeybindEntry("seek_forward_10s", java.awt.event.KeyEvent.VK_RIGHT),
+            KeybindEntry("seek_forward_10s_alt", java.awt.event.KeyEvent.VK_L),
+            KeybindEntry("seek_backward_10s", java.awt.event.KeyEvent.VK_LEFT),
+            KeybindEntry("seek_backward_10s_alt", java.awt.event.KeyEvent.VK_J),
+            KeybindEntry("volume_up", java.awt.event.KeyEvent.VK_UP),
+            KeybindEntry("volume_down", java.awt.event.KeyEvent.VK_DOWN),
+            KeybindEntry("mute", java.awt.event.KeyEvent.VK_M),
+            KeybindEntry("cycle_resize_mode", java.awt.event.KeyEvent.VK_R),
+            KeybindEntry("next_episode", java.awt.event.KeyEvent.VK_N),
+            KeybindEntry("open_audio", java.awt.event.KeyEvent.VK_A),
+            KeybindEntry("open_subtitles", java.awt.event.KeyEvent.VK_S),
+            KeybindEntry("open_sources", java.awt.event.KeyEvent.VK_O),
+            KeybindEntry("open_episodes", java.awt.event.KeyEvent.VK_E),
+        )
+    }
+}
+
+object KeybindsStorage {
+    private const val namespace = "nuvio_keybinds"
+    private const val configKey = "keybinds_v1"
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
+
+    fun load(): KeybindsConfig {
+        val raw = DesktopPreferences.getString(namespace, configKey) ?: return KeybindsConfig()
+        return runCatching { json.decodeFromString<KeybindsConfig>(raw) }
+            .getOrDefault(KeybindsConfig())
+            .withDefaultActions()
+    }
+
+    fun save(config: KeybindsConfig) {
+        val raw = json.encodeToString(config)
+        DesktopPreferences.putString(namespace, configKey, raw)
+    }
+
+    fun getKeyCode(action: String): Int? = load().binds
+        .firstOrNull { it.action == action }?.keyCode
+
+    fun actionForKeyCode(keyCode: Int, modifiers: Int = 0): String? {
+        val disallowedModifiers = java.awt.event.KeyEvent.CTRL_DOWN_MASK or
+            java.awt.event.KeyEvent.ALT_DOWN_MASK or
+            java.awt.event.KeyEvent.META_DOWN_MASK or
+            java.awt.event.KeyEvent.ALT_GRAPH_DOWN_MASK
+        return load().binds.firstOrNull { bind ->
+            bind.keyCode == keyCode &&
+                if (bind.modifiers == 0) {
+                    modifiers and disallowedModifiers == 0
+                } else {
+                    bind.modifiers == modifiers
+                }
+        }?.action
+    }
+
+    private fun KeybindsConfig.withDefaultActions(): KeybindsConfig {
+        val savedByAction = binds.associateBy { it.action }
+        val normalized = KeybindsConfig.defaultKeybinds().map { defaultEntry ->
+            val saved = savedByAction[defaultEntry.action]
+                ?: when (defaultEntry.action) {
+                    "cycle_resize_mode" -> savedByAction["cycle_speed"]?.copy(action = "cycle_resize_mode")
+                    else -> null
+                }
+                ?: return@map defaultEntry
+            when {
+                defaultEntry.action == "cycle_resize_mode" &&
+                    saved.keyCode == java.awt.event.KeyEvent.VK_CLOSE_BRACKET -> defaultEntry
+                else -> saved
+            }
+        }
+        return copy(binds = normalized)
+    }
+}

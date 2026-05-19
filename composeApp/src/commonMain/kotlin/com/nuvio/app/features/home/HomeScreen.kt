@@ -247,11 +247,13 @@ fun HomeScreen(
         visibleContinueWatchingEntries,
         cachedInProgressItems,
         effectivNextUpItems,
+        continueWatchingPreferences.upNextFromFurthestEpisode,
     ) {
         buildHomeContinueWatchingItems(
             visibleEntries = visibleContinueWatchingEntries,
             cachedInProgressByVideoId = cachedInProgressItems,
             nextUpItemsBySeries = effectivNextUpItems,
+            upNextFromFurthestEpisode = continueWatchingPreferences.upNextFromFurthestEpisode,
         )
     }
     val availableManifests = remember(addonsUiState.addons) {
@@ -654,6 +656,7 @@ internal fun buildHomeContinueWatchingItems(
     visibleEntries: List<WatchProgressEntry>,
     cachedInProgressByVideoId: Map<String, ContinueWatchingItem> = emptyMap(),
     nextUpItemsBySeries: Map<String, Pair<Long, ContinueWatchingItem>>,
+    upNextFromFurthestEpisode: Boolean = true,
 ): List<ContinueWatchingItem> {
     val inProgressSeriesIds = visibleEntries
         .asSequence()
@@ -661,10 +664,18 @@ internal fun buildHomeContinueWatchingItems(
         .map { entry -> entry.parentMetaId }
         .filter(String::isNotBlank)
         .toSet()
+    val nextUpSeriesIds = nextUpItemsBySeries.values
+        .asSequence()
+        .map { (_, item) -> item.parentMetaId }
+        .filter(String::isNotBlank)
+        .toSet()
 
     return buildList {
         addAll(
-            visibleEntries.map { entry ->
+            visibleEntries.mapNotNull { entry ->
+                if (upNextFromFurthestEpisode && entry.parentMetaId in nextUpSeriesIds) {
+                    return@mapNotNull null
+                }
                 val liveItem = entry.toContinueWatchingItem()
                 HomeContinueWatchingCandidate(
                     lastUpdatedEpochMs = entry.lastUpdatedEpochMs,
@@ -675,7 +686,9 @@ internal fun buildHomeContinueWatchingItems(
         )
         addAll(
             nextUpItemsBySeries.values.mapNotNull { (lastUpdatedEpochMs, item) ->
-                if (item.parentMetaId in inProgressSeriesIds) return@mapNotNull null
+                if (!upNextFromFurthestEpisode && item.parentMetaId in inProgressSeriesIds) {
+                    return@mapNotNull null
+                }
                 HomeContinueWatchingCandidate(
                     lastUpdatedEpochMs = lastUpdatedEpochMs,
                     item = item,

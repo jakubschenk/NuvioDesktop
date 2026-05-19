@@ -430,9 +430,15 @@ fun PlayerScreen(
                 .coerceIn(0f, 100f)
         }
 
-        fun currentTraktScrobbleItem() = TraktScrobbleRepository.buildItem(
+        suspend fun currentTraktScrobbleItem() = TraktScrobbleRepository.buildItem(
             contentType = contentType ?: parentMetaType,
             parentMetaId = parentMetaId,
+            videoId = activeVideoId?.takeIf { it.isNotBlank() } ?: buildPlaybackVideoId(
+                parentMetaId = parentMetaId,
+                seasonNumber = activeSeasonNumber,
+                episodeNumber = activeEpisodeNumber,
+                fallbackVideoId = activeVideoId,
+            ),
             title = title,
             seasonNumber = activeSeasonNumber,
             episodeNumber = activeEpisodeNumber,
@@ -440,25 +446,30 @@ fun PlayerScreen(
         )
 
         fun emitTraktScrobbleStart() {
-            val item = currentTraktScrobbleItem() ?: return
             if (hasRequestedScrobbleStartForCurrentItem) return
             hasRequestedScrobbleStartForCurrentItem = true
+            val progressPercent = currentPlaybackProgressPercent()
 
             scope.launch {
+                val item = currentTraktScrobbleItem()
+                if (item == null) {
+                    hasRequestedScrobbleStartForCurrentItem = false
+                    return@launch
+                }
                 TraktScrobbleRepository.scrobbleStart(
                     item = item,
-                    progressPercent = currentPlaybackProgressPercent(),
+                    progressPercent = progressPercent,
                 )
             }
         }
 
         fun emitTraktScrobbleStop(progressPercent: Float? = null) {
-            val item = currentTraktScrobbleItem() ?: return
             val provided = progressPercent
             if (!hasRequestedScrobbleStartForCurrentItem && (provided ?: 0f) < 80f) return
 
             val percent = provided ?: currentPlaybackProgressPercent()
             scope.launch {
+                val item = currentTraktScrobbleItem() ?: return@launch
                 TraktScrobbleRepository.scrobbleStop(
                     item = item,
                     progressPercent = percent,
@@ -1663,6 +1674,72 @@ fun PlayerScreen(
             playerFocusRequester.requestFocus()
         }
 
+        fun closePlayerOverlayForEscape(includeFullscreen: Boolean): Boolean =
+            when {
+                showSubmitIntroModal -> {
+                    showSubmitIntroModal = false
+                    true
+                }
+
+                showSubtitleModal -> {
+                    showSubtitleModal = false
+                    true
+                }
+
+                showAudioModal -> {
+                    showAudioModal = false
+                    true
+                }
+
+                showSourcesPanel -> {
+                    showSourcesPanel = false
+                    true
+                }
+
+                showEpisodesPanel -> {
+                    showEpisodesPanel = false
+                    true
+                }
+
+                includeFullscreen && fullscreenController.isFullscreen -> {
+                    toggleFullscreen()
+                    true
+                }
+
+                else -> false
+            }
+
+        BindPlayerKeyboardShortcuts(
+            enabled = usesPlatformPlayerKeyboardShortcuts && !blockingPanelOpen && !playerControlsLocked,
+            handlers = PlayerKeyboardShortcutHandlers(
+                toggleFullscreen = ::toggleFullscreen,
+                togglePlayback = ::togglePlayback,
+                seekForward = { seekBy(PlayerSeekStepMs) },
+                seekBackward = { seekBy(-PlayerSeekStepMs) },
+                volumeUp = { adjustPlayerVolume(PlayerKeyboardVolumeStep) },
+                volumeDown = { adjustPlayerVolume(-PlayerKeyboardVolumeStep) },
+                toggleMute = ::toggleMute,
+                cycleResizeMode = ::cycleResizeMode,
+                playNextEpisode = {
+                    if (isSeries) openNextEpisodeOrEpisodes()
+                },
+                openAudioTracks = {
+                    refreshTracks()
+                    showAudioModal = true
+                },
+                openSubtitleTracks = {
+                    refreshTracks()
+                    showSubtitleModal = true
+                },
+                openSources = {
+                    if (activeVideoId != null) openSourcesPanel()
+                },
+                openEpisodes = {
+                    if (isSeries) openEpisodesPanel()
+                },
+            ),
+        )
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1674,6 +1751,12 @@ fun PlayerScreen(
                     }
                 }
                 .onPreviewKeyEvent { event ->
+                    if (usesPlatformPlayerKeyboardShortcuts) {
+                        return@onPreviewKeyEvent event.type == KeyEventType.KeyUp &&
+                            event.key == Key.Escape &&
+                            closePlayerOverlayForEscape(includeFullscreen = false)
+                    }
+
                     when {
                         event.type == KeyEventType.KeyDown &&
                             !blockingPanelOpen &&
@@ -1807,39 +1890,7 @@ fun PlayerScreen(
                         }
 
                         event.key == Key.Escape -> {
-                            when {
-                                showSubmitIntroModal -> {
-                                    showSubmitIntroModal = false
-                                    true
-                                }
-
-                                showSubtitleModal -> {
-                                    showSubtitleModal = false
-                                    true
-                                }
-
-                                showAudioModal -> {
-                                    showAudioModal = false
-                                    true
-                                }
-
-                                showSourcesPanel -> {
-                                    showSourcesPanel = false
-                                    true
-                                }
-
-                                showEpisodesPanel -> {
-                                    showEpisodesPanel = false
-                                    true
-                                }
-
-                                fullscreenController.isFullscreen -> {
-                                    toggleFullscreen()
-                                    true
-                                }
-
-                                else -> false
-                            }
+                            closePlayerOverlayForEscape(includeFullscreen = true)
                         }
 
                         else -> false
