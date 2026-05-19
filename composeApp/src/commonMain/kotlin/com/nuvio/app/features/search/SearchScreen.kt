@@ -163,7 +163,7 @@ fun SearchScreen(
             lastRequestedQuery = null
             SearchRepository.clear()
         } else {
-            delay(450)
+            delay(350)
             lastRequestedQuery = normalizedQuery
             SearchRepository.search(
                 query = normalizedQuery,
@@ -260,6 +260,13 @@ fun SearchScreen(
             val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             statusBarPadding + 10.dp + 16.dp + 38.dp + 8.dp + 56.dp + (desktopRecentMatchCount * 44).dp + 22.dp
         }
+        val normalizedSearchQuery = query.trim()
+        val searchIsPendingForCurrentQuery = uiState.isLoading ||
+            uiState.query != normalizedSearchQuery ||
+            lastRequestedQuery != normalizedSearchQuery
+        val showSearchSkeleton = normalizedSearchQuery.isNotBlank() &&
+            uiState.sections.isEmpty() &&
+            searchIsPendingForCurrentQuery
 
         NuvioScreen(
             horizontalPadding = 0.dp,
@@ -306,7 +313,7 @@ fun SearchScreen(
                 }
             }
 
-            if (query.isBlank()) {
+            if (normalizedSearchQuery.isBlank()) {
                 if (showSearchChrome && recentSearches.isNotEmpty()) {
                     item(key = "recent_searches") {
                         SearchRecentSection(
@@ -332,19 +339,9 @@ fun SearchScreen(
                     onPosterLongClick = onPosterLongClick,
                 )
             } else {
-                val normalizedQuery = query.trim()
-                val isWaitingForSearch = normalizedQuery.isNotBlank() && lastRequestedQuery != normalizedQuery
+                val normalizedQuery = normalizedSearchQuery
                 when {
-                    isWaitingForSearch -> {
-                        items(2) {
-                            HomeSkeletonRow(
-                                modifier = Modifier.padding(horizontal = homeSectionPadding),
-                                showHeaderAccent = !homeCatalogSettingsUiState.hideCatalogUnderline,
-                            )
-                        }
-                    }
-
-                    uiState.isLoading && uiState.sections.isEmpty() -> {
+                    showSearchSkeleton -> {
                         items(2) {
                             HomeSkeletonRow(
                                 modifier = Modifier.padding(horizontal = homeSectionPadding),
