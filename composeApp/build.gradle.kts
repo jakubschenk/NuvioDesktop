@@ -224,9 +224,14 @@ abstract class PackageWindowsNativeRuntimeTask : DefaultTask() {
 
 abstract class GenerateRuntimeConfigsTask : DefaultTask() {
     private val defaultSupabaseUrl = "https://dpyhjjcoabcglfmgecug.supabase.co"
+    private val defaultIntroDbUrl = "https://api.introdb.app"
 
     @get:OutputDirectory
     abstract val outputDir: DirectoryProperty
+
+    @get:Optional
+    @get:InputFile
+    abstract val dotEnvFile: RegularFileProperty
 
     @get:Optional
     @get:InputFile
@@ -250,13 +255,46 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
                 ?.use(::load)
         }
 
+    private fun loadDotEnv(file: File?): Properties =
+        Properties().apply {
+            file
+                ?.takeIf(File::exists)
+                ?.readLines()
+                ?.forEach { rawLine ->
+                    val line = rawLine.trim()
+                    if (line.isEmpty() || line.startsWith("#")) return@forEach
+                    val normalized = line.removePrefix("export ").trim()
+                    val separatorIndex = normalized.indexOf('=')
+                    if (separatorIndex <= 0) return@forEach
+                    val key = normalized.substring(0, separatorIndex).trim()
+                    val value = normalized.substring(separatorIndex + 1).trim().let(::stripDotEnvQuotes)
+                    if (key.isNotBlank()) setProperty(key, value)
+                }
+        }
+
+    private fun stripDotEnvQuotes(value: String): String =
+        if (value.length >= 2 && (
+                (value.first() == '"' && value.last() == '"') ||
+                    (value.first() == '\'' && value.last() == '\'')
+                )
+        ) {
+            value.substring(1, value.length - 1)
+        } else {
+            value
+        }
+
     private fun resolveRuntimeValue(
         key: String,
-        releaseProperties: Properties,
+        dotEnvProperties: Properties,
         localProperties: Properties,
+        releaseProperties: Properties,
         defaultValue: String = "",
     ): String {
         System.getenv(key)
+            ?.takeIf(String::isNotBlank)
+            ?.let { return it }
+
+        dotEnvProperties.getProperty(key)
             ?.takeIf(String::isNotBlank)
             ?.let { return it }
 
@@ -289,25 +327,27 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
     fun generate() {
         val releaseProperties = loadProperties(releasePropertiesFile.asFile.orNull)
         val localProperties = loadProperties(localPropertiesFile.asFile.orNull)
-        val supabaseUrl = resolveRuntimeValue("SUPABASE_URL", releaseProperties, localProperties, defaultSupabaseUrl)
-        val supabaseAnonKey = resolveRuntimeValue("SUPABASE_ANON_KEY", releaseProperties, localProperties)
-        val traktClientId = resolveRuntimeValue("TRAKT_CLIENT_ID", releaseProperties, localProperties)
-        val traktClientSecret = resolveRuntimeValue("TRAKT_CLIENT_SECRET", releaseProperties, localProperties)
+        val dotEnvProperties = loadDotEnv(dotEnvFile.asFile.orNull)
+        val supabaseUrl = resolveRuntimeValue("SUPABASE_URL", dotEnvProperties, localProperties, releaseProperties, defaultSupabaseUrl)
+        val supabaseAnonKey = resolveRuntimeValue("SUPABASE_ANON_KEY", dotEnvProperties, localProperties, releaseProperties)
+        val traktClientId = resolveRuntimeValue("TRAKT_CLIENT_ID", dotEnvProperties, localProperties, releaseProperties)
+        val traktClientSecret = resolveRuntimeValue("TRAKT_CLIENT_SECRET", dotEnvProperties, localProperties, releaseProperties)
         val traktRedirectUri = resolveRuntimeValue(
             "TRAKT_REDIRECT_URI",
-            releaseProperties,
+            dotEnvProperties,
             localProperties,
+            releaseProperties,
             "nuvio://auth/trakt",
         )
-        val introDbUrl = resolveRuntimeValue("INTRODB_API_URL", releaseProperties, localProperties)
-        val contributionsUrl = resolveRuntimeValue("CONTRIBUTIONS_URL", releaseProperties, localProperties)
-        val donationsBaseUrl = resolveRuntimeValue("DONATIONS_BASE_URL", releaseProperties, localProperties)
-        val donationsDonateUrl = resolveRuntimeValue("DONATIONS_DONATE_URL", releaseProperties, localProperties)
-        val contributionsExtra = resolveRuntimeValue("CONTRIBUTIONS_EXTRA", releaseProperties, localProperties)
-        val imdbRatingsApiBaseUrl = resolveRuntimeValue("IMDB_RATINGS_API_BASE_URL", releaseProperties, localProperties)
-        val imdbTapframeApiBaseUrl = resolveRuntimeValue("IMDB_TAPFRAME_API_BASE_URL", releaseProperties, localProperties)
-        val directDebridApiBaseUrl = resolveRuntimeValue("DIRECT_DEBRID_API_BASE_URL", releaseProperties, localProperties)
-        val premiumizeClientId = resolveRuntimeValue("PREMIUMIZE_CLIENT_ID", releaseProperties, localProperties)
+        val introDbUrl = resolveRuntimeValue("INTRODB_API_URL", dotEnvProperties, localProperties, releaseProperties, defaultIntroDbUrl)
+        val contributionsUrl = resolveRuntimeValue("CONTRIBUTIONS_URL", dotEnvProperties, localProperties, releaseProperties)
+        val donationsBaseUrl = resolveRuntimeValue("DONATIONS_BASE_URL", dotEnvProperties, localProperties, releaseProperties)
+        val donationsDonateUrl = resolveRuntimeValue("DONATIONS_DONATE_URL", dotEnvProperties, localProperties, releaseProperties)
+        val contributionsExtra = resolveRuntimeValue("CONTRIBUTIONS_EXTRA", dotEnvProperties, localProperties, releaseProperties)
+        val imdbRatingsApiBaseUrl = resolveRuntimeValue("IMDB_RATINGS_API_BASE_URL", dotEnvProperties, localProperties, releaseProperties)
+        val imdbTapframeApiBaseUrl = resolveRuntimeValue("IMDB_TAPFRAME_API_BASE_URL", dotEnvProperties, localProperties, releaseProperties)
+        val directDebridApiBaseUrl = resolveRuntimeValue("DIRECT_DEBRID_API_BASE_URL", dotEnvProperties, localProperties, releaseProperties)
+        val premiumizeClientId = resolveRuntimeValue("PREMIUMIZE_CLIENT_ID", dotEnvProperties, localProperties, releaseProperties)
 
         val outDir = outputDir.get().asFile
         outDir.deleteRecursively()
@@ -547,6 +587,7 @@ val generatedRuntimeConfigDir = layout.buildDirectory.dir("generated/runtime-con
 
 val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generateRuntimeConfigs") {
     outputDir.set(generatedRuntimeConfigDir)
+    dotEnvFile.set(rootProject.layout.projectDirectory.file(".env"))
     localPropertiesFile.set(rootProject.layout.projectDirectory.file("local.properties"))
     val releaseProperties = layout.projectDirectory.file("runtime-config/release.properties")
     if (releaseProperties.asFile.exists()) {
