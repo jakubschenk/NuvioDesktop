@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,6 +38,8 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.CircularProgressIndicator
@@ -59,6 +62,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -73,14 +77,17 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -169,6 +176,7 @@ import com.nuvio.app.features.search.SearchRepository
 import com.nuvio.app.features.search.SearchScreen
 import com.nuvio.app.features.settings.SettingsScreen
 import com.nuvio.app.features.settings.HomescreenSettingsScreen
+import com.nuvio.app.features.settings.LayoutSettingsRepository
 import com.nuvio.app.features.settings.MetaScreenSettingsScreen
 import com.nuvio.app.features.settings.ContinueWatchingSettingsScreen
 import com.nuvio.app.features.settings.AddonsSettingsScreen
@@ -191,6 +199,7 @@ import com.nuvio.app.features.streams.StreamsRepository
 import com.nuvio.app.features.streams.StreamsScreen
 import com.nuvio.app.features.tmdb.TmdbService
 import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.features.player.rememberPlayerFullscreenController
 import com.nuvio.app.features.trakt.TraktListTab
 import com.nuvio.app.features.updater.AppUpdaterHost
 import com.nuvio.app.features.updater.rememberAppUpdaterController
@@ -551,9 +560,22 @@ private fun MainAppContent(
         remember {
             ProfileSettingsSync.startObserving()
         }
+        remember {
+            LayoutSettingsRepository.ensureLoaded()
+        }
+        val appFullscreenController = rememberPlayerFullscreenController()
+        val layoutSettingsUiState by remember {
+            LayoutSettingsRepository.uiState
+        }.collectAsStateWithLifecycle()
         val hapticFeedback = LocalHapticFeedback.current
         val coroutineScope = rememberCoroutineScope()
-        var selectedTab by rememberSaveable { mutableStateOf(AppScreenTab.Home) }
+        val initialSelectedTab = remember {
+            LayoutSettingsRepository.loadRememberedScreenName()
+                ?.let { name -> runCatching { AppScreenTab.valueOf(name) }.getOrNull() }
+                ?: AppScreenTab.Home
+        }
+        var selectedTab by rememberSaveable { mutableStateOf(initialSelectedTab) }
+        var rememberedFullscreenRestoreChecked by rememberSaveable { mutableStateOf(false) }
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
         val isHomeRouteActive = selectedTab == AppScreenTab.Home &&
             currentBackStackEntry?.destination?.hasRoute<TabsRoute>() == true
@@ -619,11 +641,33 @@ private fun MainAppContent(
         }
     }
 
-    LaunchedEffect(selectedTab) {
+    LaunchedEffect(selectedTab, layoutSettingsUiState.rememberScreen) {
         if (selectedTab != AppScreenTab.Search) {
             SearchRepository.updateQuery("")
         }
+        LayoutSettingsRepository.recordScreen(selectedTab.name)
         NativeTabBridge.publishSelectedTab(selectedTab.toNativeNavigationTab())
+    }
+
+    LaunchedEffect(appFullscreenController.isFullscreenSupported, layoutSettingsUiState.rememberFullscreen) {
+        if (rememberedFullscreenRestoreChecked || !appFullscreenController.isFullscreenSupported) {
+            return@LaunchedEffect
+        }
+        val shouldRestoreFullscreen = LayoutSettingsRepository.loadRememberedFullscreen()
+        rememberedFullscreenRestoreChecked = true
+        if (shouldRestoreFullscreen && !appFullscreenController.isFullscreen) {
+            appFullscreenController.toggleFullscreen()
+        }
+    }
+
+    LaunchedEffect(
+        rememberedFullscreenRestoreChecked,
+        appFullscreenController.isFullscreen,
+        layoutSettingsUiState.rememberFullscreen,
+    ) {
+        if (rememberedFullscreenRestoreChecked) {
+            LayoutSettingsRepository.recordFullscreen(appFullscreenController.isFullscreen)
+        }
     }
 
     DisposableEffect(
@@ -1141,6 +1185,9 @@ private fun MainAppContent(
                                             onTabSelected = { selectedTab = it },
                                             onProfileClick = onSwitchProfile,
                                             onEditProfilesClick = onEditProfiles,
+                                            fullscreenSupported = appFullscreenController.isFullscreenSupported,
+                                            isFullscreen = appFullscreenController.isFullscreen,
+                                            onFullscreenClick = appFullscreenController::toggleFullscreen,
                                         )
                                     }
                                 }
@@ -2117,13 +2164,18 @@ private fun TabletFloatingTopBar(
     onTabSelected: (AppScreenTab) -> Unit,
     onProfileClick: () -> Unit,
     onEditProfilesClick: () -> Unit,
+    fullscreenSupported: Boolean,
+    isFullscreen: Boolean,
+    onFullscreenClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val density = LocalDensity.current
     val searchQuery by SearchRepository.query.collectAsStateWithLifecycle()
     val searchUiState by SearchRepository.uiState.collectAsStateWithLifecycle()
     val recentSearches by SearchHistoryRepository.uiState.collectAsStateWithLifecycle()
     val searchFocusRequester = remember { FocusRequester() }
+    var topRowWidthPx by remember { mutableIntStateOf(0) }
     var searchExpanded by rememberSaveable { mutableStateOf(selectedTab == AppScreenTab.Search) }
     var searchPanelShapeExpanded by rememberSaveable { mutableStateOf(searchExpanded) }
     var recentSearchOverlayVisible by rememberSaveable { mutableStateOf(false) }
@@ -2152,6 +2204,12 @@ private fun TabletFloatingTopBar(
     val showRecentSearchOverlay = searchExpanded && recentSearchOverlayVisible && visibleRecentSearches.isNotEmpty()
     val canDismissSearchChrome = searchExpanded && searchQuery.isBlank()
     val outsideDismissInteractionSource = remember { MutableInteractionSource() }
+    val topRowWidth = with(density) { topRowWidthPx.toDp() }
+    val searchFieldWidthModifier = if (topRowWidthPx > 0) {
+        Modifier.width(topRowWidth)
+    } else {
+        Modifier
+    }
 
     LaunchedEffect(Unit) {
         SearchHistoryRepository.ensureLoaded()
@@ -2222,8 +2280,7 @@ private fun TabletFloatingTopBar(
             Surface(
                 modifier = Modifier
                     .animateContentSize(animationSpec = tween(180))
-                    .widthIn(max = 640.dp)
-                    .fillMaxWidth(),
+                    .widthIn(max = 640.dp),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
                 shape = RoundedCornerShape(if (searchPanelShapeExpanded) 24.dp else 999.dp),
                 tonalElevation = 4.dp,
@@ -2235,6 +2292,11 @@ private fun TabletFloatingTopBar(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Row(
+                        modifier = Modifier.onSizeChanged { size ->
+                            if (size.width > 0) {
+                                topRowWidthPx = size.width
+                            }
+                        },
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -2350,8 +2412,7 @@ private fun TabletFloatingTopBar(
                                     }
                                 },
                                 placeholder = stringResource(Res.string.compose_search_placeholder),
-                                modifier = Modifier
-                                    .fillMaxWidth()
+                                modifier = searchFieldWidthModifier
                                     .onFocusChanged { focusState ->
                                         if (focusState.isFocused) {
                                             recentSearchOverlayVisible = true
@@ -2388,13 +2449,32 @@ private fun TabletFloatingTopBar(
                 }
             }
 
-            ProfileSelectorButton(
-                onClick = onProfileClick,
-                onEditProfilesClick = onEditProfilesClick,
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(end = 20.dp),
-            )
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (fullscreenSupported) {
+                    TabletTopIconButton(
+                        icon = if (isFullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
+                        contentDescription = stringResource(
+                            if (isFullscreen) {
+                                Res.string.compose_player_exit_fullscreen
+                            } else {
+                                Res.string.compose_player_enter_fullscreen
+                            },
+                        ),
+                        selected = isFullscreen,
+                        onClick = onFullscreenClick,
+                    )
+                }
+                ProfileSelectorButton(
+                    onClick = onProfileClick,
+                    onEditProfilesClick = onEditProfilesClick,
+                )
+            }
         }
 
         AnimatedVisibility(
@@ -2482,6 +2562,45 @@ private fun TabletSearchRecentRow(
                 contentDescription = stringResource(Res.string.compose_search_remove_recent_search),
                 modifier = Modifier.size(18.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TabletTopIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .size(44.dp)
+            .clickable(onClick = onClick),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+        },
+        shape = RoundedCornerShape(999.dp),
+        tonalElevation = if (selected) 2.dp else 4.dp,
+        shadowElevation = 10.dp,
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(22.dp),
+                tint = if (selected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
             )
         }
     }

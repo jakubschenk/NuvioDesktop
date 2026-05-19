@@ -37,6 +37,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.isDesktop
 import com.nuvio.app.core.ui.AppTheme
 import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
 import com.nuvio.app.core.ui.NuvioBottomSheetDivider
@@ -60,6 +62,11 @@ import nuvio.composeapp.generated.resources.settings_appearance_poster_customiza
 import nuvio.composeapp.generated.resources.settings_appearance_section_display
 import nuvio.composeapp.generated.resources.settings_appearance_section_home
 import nuvio.composeapp.generated.resources.settings_appearance_section_theme
+import nuvio.composeapp.generated.resources.settings_layout_remember_fullscreen
+import nuvio.composeapp.generated.resources.settings_layout_remember_fullscreen_description
+import nuvio.composeapp.generated.resources.settings_layout_remember_screen
+import nuvio.composeapp.generated.resources.settings_layout_remember_screen_description
+import nuvio.composeapp.generated.resources.settings_layout_section_window
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -153,6 +160,38 @@ internal fun LazyListScope.appearanceSettingsContent(
                 },
                 onDismiss = { showLanguageSheet = false },
             )
+        }
+    }
+
+    if (isDesktop) {
+        item {
+            val layoutSettingsState by remember {
+                LayoutSettingsRepository.ensureLoaded()
+                LayoutSettingsRepository.uiState
+            }.collectAsStateWithLifecycle()
+
+            SettingsSection(
+                title = stringResource(Res.string.settings_layout_section_window),
+                isTablet = isTablet,
+            ) {
+                SettingsGroup(isTablet = isTablet) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_layout_remember_screen),
+                        description = stringResource(Res.string.settings_layout_remember_screen_description),
+                        checked = layoutSettingsState.rememberScreen,
+                        isTablet = isTablet,
+                        onCheckedChange = LayoutSettingsRepository::setRememberScreen,
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_layout_remember_fullscreen),
+                        description = stringResource(Res.string.settings_layout_remember_fullscreen_description),
+                        checked = layoutSettingsState.rememberFullscreen,
+                        isTablet = isTablet,
+                        onCheckedChange = LayoutSettingsRepository::setRememberFullscreen,
+                    )
+                }
+            }
         }
     }
 

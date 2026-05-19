@@ -12,9 +12,15 @@ import nuvio.composeapp.generated.resources.compose_settings_root_about_section
 import nuvio.composeapp.generated.resources.compose_settings_root_general_section
 import nuvio.composeapp.generated.resources.compose_settings_page_playback
 import nuvio.composeapp.generated.resources.compose_settings_page_poster_customization
+import nuvio.composeapp.generated.resources.compose_settings_page_appearance
 import nuvio.composeapp.generated.resources.compose_settings_page_root
 import nuvio.composeapp.generated.resources.compose_settings_root_nightly_updates_description
 import nuvio.composeapp.generated.resources.compose_settings_root_nightly_updates_title
+import nuvio.composeapp.generated.resources.settings_layout_remember_fullscreen
+import nuvio.composeapp.generated.resources.settings_layout_remember_fullscreen_description
+import nuvio.composeapp.generated.resources.settings_layout_remember_screen
+import nuvio.composeapp.generated.resources.settings_layout_remember_screen_description
+import nuvio.composeapp.generated.resources.settings_layout_section_window
 import nuvio.composeapp.generated.resources.settings_keybinds_description
 import nuvio.composeapp.generated.resources.settings_keybinds_title
 import nuvio.composeapp.generated.resources.settings_playback_section_decoder
@@ -40,12 +46,18 @@ internal actual fun platformSettingsSearchEntries(): List<SettingsSearchEntry> {
     val playbackPage = stringResource(Res.string.compose_settings_page_playback)
     val playbackDecoderSection = stringResource(Res.string.settings_playback_section_decoder)
     val posterPage = stringResource(Res.string.compose_settings_page_poster_customization)
+    val layoutPage = stringResource(Res.string.compose_settings_page_appearance)
+    val windowSection = stringResource(Res.string.settings_layout_section_window)
 
     val keybindsTitle = stringResource(Res.string.settings_keybinds_title)
     val keybindsDescription = stringResource(Res.string.settings_keybinds_description)
     val alwaysAnimateGifTitle = stringResource(Res.string.settings_poster_always_animate_gif)
     val nightlyTitle = stringResource(Res.string.compose_settings_root_nightly_updates_title)
     val nightlyDescription = stringResource(Res.string.compose_settings_root_nightly_updates_description)
+    val rememberScreenTitle = stringResource(Res.string.settings_layout_remember_screen)
+    val rememberScreenDescription = stringResource(Res.string.settings_layout_remember_screen_description)
+    val rememberFullscreenTitle = stringResource(Res.string.settings_layout_remember_fullscreen)
+    val rememberFullscreenDescription = stringResource(Res.string.settings_layout_remember_fullscreen_description)
 
     return listOf(
         SettingsSearchEntry(
@@ -81,6 +93,26 @@ internal actual fun platformSettingsSearchEntries(): List<SettingsSearchEntry> {
             category = aboutCategory,
             icon = Icons.Rounded.BugReport,
             target = SettingsSearchTarget.Page(SettingsPage.Root),
+        ),
+        SettingsSearchEntry(
+            key = "desktop-remember-screen",
+            title = rememberScreenTitle,
+            description = rememberScreenDescription,
+            page = layoutPage,
+            section = windowSection,
+            category = generalCategory,
+            icon = Icons.Rounded.Tune,
+            target = SettingsSearchTarget.Page(SettingsPage.Appearance),
+        ),
+        SettingsSearchEntry(
+            key = "desktop-remember-fullscreen",
+            title = rememberFullscreenTitle,
+            description = rememberFullscreenDescription,
+            page = layoutPage,
+            section = windowSection,
+            category = generalCategory,
+            icon = Icons.Rounded.Tune,
+            target = SettingsSearchTarget.Page(SettingsPage.Appearance),
         ),
         SettingsSearchEntry(
             key = "desktop-always-animate-gif",

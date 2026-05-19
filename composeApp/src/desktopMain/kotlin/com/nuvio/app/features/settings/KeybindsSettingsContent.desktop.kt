@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -249,54 +248,64 @@ internal actual fun KeybindsSettingsContent(isTablet: Boolean) {
     }
 
     SettingsSection(
-        title = stringResource(Res.string.settings_keybinds_title),
+        title = stringResource(Res.string.settings_keybinds_title).uppercase(),
         isTablet = isTablet,
-        actions = {
-            TextButton(
-                onClick = {
-                    KeybindsStorage.save(KeybindsConfig())
-                    config = KeybindsStorage.load()
-                    recordingAction = null
-                },
-            ) {
-                Text(stringResource(Res.string.settings_keybind_reset_defaults))
-            }
-        },
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(if (isTablet) 16.dp else 14.dp),
         ) {
-            Text(
-                text = stringResource(Res.string.settings_keybinds_description),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.widthIn(max = 720.dp),
-            )
-            KeybindActionGroups.forEach { group ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 720.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    text = stringResource(group.titleRes),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .padding(start = if (isTablet) 4.dp else 0.dp)
-                        .widthIn(max = 720.dp),
+                    text = stringResource(Res.string.settings_keybinds_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
                 )
-                SettingsGroup(isTablet = isTablet) {
-                    group.actions.forEachIndexed { index, descriptor ->
-                        val entry = config.binds.firstOrNull { it.action == descriptor.action }
-                            ?: KeybindsConfig.defaultKeybinds().first { it.action == descriptor.action }
-                        KeybindRow(
-                            descriptor = descriptor,
-                            entry = entry,
-                            isTablet = isTablet,
-                            isRecording = recordingAction == descriptor.action,
-                            onClick = { recordingAction = descriptor.action },
-                        )
-                        if (index < group.actions.lastIndex) {
-                            SettingsGroupDivider(isTablet = isTablet)
+                TextButton(
+                    onClick = {
+                        KeybindsStorage.save(KeybindsConfig())
+                        config = KeybindsStorage.load()
+                        recordingAction = null
+                    },
+                ) {
+                    Text(stringResource(Res.string.settings_keybind_reset_defaults))
+                }
+            }
+            KeybindActionGroups.forEach { group ->
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(if (isTablet) 10.dp else 8.dp),
+                ) {
+                    Text(
+                        text = stringResource(group.titleRes),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .padding(start = if (isTablet) 4.dp else 0.dp)
+                            .widthIn(max = 720.dp),
+                    )
+                    SettingsGroup(isTablet = isTablet) {
+                        group.actions.forEachIndexed { index, descriptor ->
+                            val entry = config.binds.firstOrNull { it.action == descriptor.action }
+                                ?: KeybindsConfig.defaultKeybinds().first { it.action == descriptor.action }
+                            KeybindRow(
+                                descriptor = descriptor,
+                                entry = entry,
+                                isTablet = isTablet,
+                                isRecording = recordingAction == descriptor.action,
+                                onClick = { recordingAction = descriptor.action },
+                            )
+                            if (index < group.actions.lastIndex) {
+                                SettingsGroupDivider(isTablet = isTablet)
+                            }
                         }
                     }
                 }
