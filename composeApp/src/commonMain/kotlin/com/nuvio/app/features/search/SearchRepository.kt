@@ -20,8 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -97,31 +96,61 @@ object SearchRepository {
         lastRequestKey = requestKey
 
         activeJob?.cancel()
-        _uiState.value = SearchUiState(query = normalizedQuery, isLoading = true)
+        _uiState.value = SearchUiState(
+            query = normalizedQuery,
+            isLoading = true,
+            pendingCatalogCount = requests.size,
+        )
 
         activeJob = scope.launch {
-            val results = requests.map { request ->
-                async {
-                    runCatching { request.toSection() }
+            val resultChannel = Channel<IndexedSearchResult>(capacity = Channel.UNLIMITED)
+            requests.forEachIndexed { index, request ->
+                launch {
+                    val result = try {
+                        Result.success(request.toSection())
+                    } catch (error: Throwable) {
+                        if (error is CancellationException) throw error
+                        Result.failure(error)
+                    }
+                    resultChannel.send(IndexedSearchResult(index = index, result = result))
                 }
-            }.awaitAll()
+            }
 
-            val sections = results
-                .mapNotNull { it.getOrNull() }
-            val firstFailure = results.firstNotNullOfOrNull { it.exceptionOrNull()?.message }
-            val allFailed = results.isNotEmpty() && results.all { it.isFailure }
+            val sectionsByIndex = arrayOfNulls<HomeCatalogSection>(requests.size)
+            val failures = mutableListOf<Throwable>()
+            var remainingCatalogs = requests.size
 
-            _uiState.value = SearchUiState(
-                query = normalizedQuery,
-                isLoading = false,
-                sections = sections,
-                emptyStateReason = when {
-                    sections.isNotEmpty() -> null
-                    allFailed -> SearchEmptyStateReason.RequestFailed
-                    else -> SearchEmptyStateReason.NoResults
-                },
-                errorMessage = if (allFailed) firstFailure else null,
-            )
+            repeat(requests.size) {
+                val indexedResult = resultChannel.receive()
+                remainingCatalogs -= 1
+
+                indexedResult.result.fold(
+                    onSuccess = { section ->
+                        sectionsByIndex[indexedResult.index] = section
+                    },
+                    onFailure = { error ->
+                        failures += error
+                    },
+                )
+
+                val sections = sectionsByIndex.filterNotNull()
+                val completed = remainingCatalogs == 0
+                val allFailed = completed && failures.size == requests.size
+
+                _uiState.value = SearchUiState(
+                    query = normalizedQuery,
+                    isLoading = !completed,
+                    pendingCatalogCount = remainingCatalogs,
+                    sections = sections,
+                    emptyStateReason = when {
+                        !completed -> null
+                        sections.isNotEmpty() -> null
+                        allFailed -> SearchEmptyStateReason.RequestFailed
+                        else -> SearchEmptyStateReason.NoResults
+                    },
+                    errorMessage = if (allFailed) failures.firstOrNull()?.message else null,
+                )
+            }
         }
     }
 
@@ -460,6 +489,11 @@ private data class SearchCatalogRequest(
     val type: String,
     val query: String,
     val supportsPagination: Boolean,
+)
+
+private data class IndexedSearchResult(
+    val index: Int,
+    val result: Result<HomeCatalogSection>,
 )
 
 private fun AddonCatalog.supportsSearch(): Boolean =

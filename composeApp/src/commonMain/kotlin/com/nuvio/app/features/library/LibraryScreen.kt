@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.network.NetworkCondition
@@ -43,6 +44,7 @@ private data class PendingLibraryRemoval(
 @Composable
 fun LibraryScreen(
     modifier: Modifier = Modifier,
+    topPadding: Dp? = null,
     onPosterClick: ((LibraryItem) -> Unit)? = null,
     onSectionViewAllClick: ((LibrarySection) -> Unit)? = null,
 ) {
@@ -89,6 +91,7 @@ fun LibraryScreen(
     NuvioScreen(
         modifier = modifier,
         horizontalPadding = 0.dp,
+        topPadding = topPadding,
     ) {
         stickyHeader {
             androidx.compose.foundation.layout.Column(

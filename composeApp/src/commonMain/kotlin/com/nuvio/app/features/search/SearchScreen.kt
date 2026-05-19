@@ -154,25 +154,11 @@ fun SearchScreen(
         val homeSectionPadding = remember(maxWidth) {
             homeSectionHorizontalPaddingForWidth(maxWidth.value)
         }
-        val desktopRecentMatchCount = remember(recentSearches, query, uiState.query, uiState.isLoading) {
-            val normalizedQuery = query.trim()
-            val searchSettledForQuery = normalizedQuery.isNotBlank() &&
-                !uiState.isLoading &&
-                uiState.query == normalizedQuery
-
-            when {
-                searchSettledForQuery -> 0
-                normalizedQuery.isBlank() -> recentSearches.size.coerceAtMost(3)
-                else -> recentSearches.count { recentQuery ->
-                    recentQuery.contains(normalizedQuery, ignoreCase = true)
-                }.coerceAtMost(3)
-            }
-        }
         val desktopSearchTopPadding = if (showSearchChrome) {
             null
         } else {
             val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-            statusBarPadding + 10.dp + 16.dp + 38.dp + 8.dp + 56.dp + (desktopRecentMatchCount * 44).dp + 22.dp
+            statusBarPadding + 10.dp + 16.dp + 38.dp + 8.dp + 56.dp + 22.dp
         }
         val normalizedSearchQuery = query.trim()
         val searchIsPendingForCurrentQuery = uiState.isLoading ||
@@ -280,6 +266,15 @@ fun SearchScreen(
                                 onPosterClick = onPosterClick,
                                 onPosterLongClick = onPosterLongClick,
                             )
+                        }
+
+                        if (uiState.isLoading && uiState.pendingCatalogCount > 0) {
+                            item(
+                                key = "search_pending_catalog_skeleton",
+                                contentType = "search_skeleton_row",
+                            ) {
+                                HomeSkeletonRow(modifier = Modifier.padding(horizontal = homeSectionPadding))
+                            }
                         }
                     }
                 }

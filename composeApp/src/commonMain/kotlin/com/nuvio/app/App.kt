@@ -70,6 +70,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -136,7 +137,9 @@ import com.nuvio.app.features.home.HomeScreen
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.library.LibraryItem
 import com.nuvio.app.features.library.LibraryRepository
+import com.nuvio.app.features.library.LibraryScreen
 import com.nuvio.app.features.library.LibrarySourceMode
+import com.nuvio.app.features.library.toMetaPreview
 import com.nuvio.app.features.library.toLibraryItem
 import com.nuvio.app.features.notifications.EpisodeReleaseNotificationsRepository
 import com.nuvio.app.features.player.PlayerLaunch
@@ -285,6 +288,7 @@ data class CatalogRoute(
 enum class AppScreenTab {
     Home,
     Discover,
+    Library,
     Search,
     Settings,
 }
@@ -292,6 +296,7 @@ enum class AppScreenTab {
 private fun AppScreenTab.toNativeNavigationTab(): NativeNavigationTab = when (this) {
     AppScreenTab.Home -> NativeNavigationTab.Home
     AppScreenTab.Discover -> NativeNavigationTab.Discover
+    AppScreenTab.Library -> NativeNavigationTab.Discover
     AppScreenTab.Search -> NativeNavigationTab.Search
     AppScreenTab.Settings -> NativeNavigationTab.Settings
 }
@@ -1037,6 +1042,12 @@ private fun MainAppContent(
                                                 onClick = { selectedTab = AppScreenTab.Discover },
                                                 icon = Res.drawable.sidebar_discover,
                                                 contentDescription = stringResource(Res.string.compose_search_discover_title),
+                                            )
+                                            NavItem(
+                                                selected = selectedTab == AppScreenTab.Library,
+                                                onClick = { selectedTab = AppScreenTab.Library },
+                                                icon = Res.drawable.sidebar_library,
+                                                contentDescription = stringResource(Res.string.compose_nav_library),
                                             )
                                             NavItem(
                                                 selected = selectedTab == AppScreenTab.Search,
@@ -2044,6 +2055,21 @@ private fun AppTabHost(
                     )
                 }
 
+                AppScreenTab.Library -> {
+                    val desktopTopPadding = if (showSearchChrome) {
+                        null
+                    } else {
+                        val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                        statusBarPadding + 10.dp + 16.dp + 38.dp + 22.dp
+                    }
+
+                    LibraryScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        topPadding = desktopTopPadding,
+                        onPosterClick = { item -> onPosterClick?.invoke(item.toMetaPreview()) },
+                    )
+                }
+
                 AppScreenTab.Search -> {
                     SearchScreen(
                         modifier = Modifier.fillMaxSize(),
@@ -2091,6 +2117,7 @@ private fun TabletFloatingTopBar(
     val searchFocusRequester = remember { FocusRequester() }
     var searchExpanded by rememberSaveable { mutableStateOf(selectedTab == AppScreenTab.Search) }
     var searchPanelShapeExpanded by rememberSaveable { mutableStateOf(searchExpanded) }
+    var recentSearchOverlayVisible by rememberSaveable { mutableStateOf(false) }
     var previousNonSearchTabName by rememberSaveable {
         mutableStateOf(if (selectedTab == AppScreenTab.Search) AppScreenTab.Home.name else selectedTab.name)
     }
@@ -2113,7 +2140,8 @@ private fun TabletFloatingTopBar(
                 .toList()
         }
     }
-    val canDismissInactiveSearch = searchExpanded && searchQuery.isBlank()
+    val showRecentSearchOverlay = searchExpanded && recentSearchOverlayVisible && visibleRecentSearches.isNotEmpty()
+    val canDismissSearchChrome = searchExpanded && (searchQuery.isBlank() || recentSearchOverlayVisible)
     val outsideDismissInteractionSource = remember { MutableInteractionSource() }
 
     LaunchedEffect(Unit) {
@@ -2123,6 +2151,7 @@ private fun TabletFloatingTopBar(
     LaunchedEffect(selectedTab) {
         if (selectedTab != AppScreenTab.Search) {
             previousNonSearchTabName = selectedTab.name
+            recentSearchOverlayVisible = false
         }
         searchExpanded = selectedTab == AppScreenTab.Search
     }
@@ -2139,11 +2168,15 @@ private fun TabletFloatingTopBar(
 
     fun selectTab(tab: AppScreenTab) {
         searchExpanded = false
+        recentSearchOverlayVisible = false
         onTabSelected(tab)
     }
 
-    fun dismissInactiveSearch() {
-        if (!canDismissInactiveSearch) return
+    fun dismissSearchChrome() {
+        if (!canDismissSearchChrome) return
+        recentSearchOverlayVisible = false
+        if (searchQuery.isNotBlank()) return
+
         searchExpanded = false
         if (selectedTab == AppScreenTab.Search) {
             onTabSelected(previousNonSearchTab)
@@ -2154,14 +2187,14 @@ private fun TabletFloatingTopBar(
         modifier = modifier
             .fillMaxSize(),
     ) {
-        if (canDismissInactiveSearch) {
+        if (canDismissSearchChrome) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .clickable(
                         interactionSource = outsideDismissInteractionSource,
                         indication = null,
-                        onClick = ::dismissInactiveSearch,
+                        onClick = ::dismissSearchChrome,
                     ),
             )
         }
@@ -2225,15 +2258,15 @@ private fun TabletFloatingTopBar(
                             },
                         )
                         TabletTopPillItem(
-                            label = stringResource(Res.string.compose_nav_search),
-                            selected = searchExpanded || selectedTab == AppScreenTab.Search,
-                            onClick = { searchExpanded = true },
+                            label = stringResource(Res.string.compose_nav_library),
+                            selected = selectedTab == AppScreenTab.Library,
+                            onClick = { selectTab(AppScreenTab.Library) },
                             icon = {
                                 Icon(
-                                    painter = painterResource(Res.drawable.sidebar_search),
-                                    contentDescription = stringResource(Res.string.compose_nav_search),
+                                    painter = painterResource(Res.drawable.sidebar_library),
+                                    contentDescription = stringResource(Res.string.compose_nav_library),
                                     modifier = Modifier.size(18.dp),
-                                    tint = if (searchExpanded || selectedTab == AppScreenTab.Search) {
+                                    tint = if (selectedTab == AppScreenTab.Library) {
                                         MaterialTheme.colorScheme.onPrimaryContainer
                                     } else {
                                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -2242,15 +2275,18 @@ private fun TabletFloatingTopBar(
                             },
                         )
                         TabletTopPillItem(
-                            label = stringResource(Res.string.compose_settings_page_root),
-                            selected = selectedTab == AppScreenTab.Settings,
-                            onClick = { selectTab(AppScreenTab.Settings) },
+                            label = stringResource(Res.string.compose_nav_search),
+                            selected = searchExpanded || selectedTab == AppScreenTab.Search,
+                            onClick = {
+                                searchExpanded = true
+                                recentSearchOverlayVisible = true
+                            },
                             icon = {
                                 Icon(
-                                    painter = painterResource(Res.drawable.sidebar_settings),
-                                    contentDescription = stringResource(Res.string.compose_settings_page_root),
+                                    painter = painterResource(Res.drawable.sidebar_search),
+                                    contentDescription = stringResource(Res.string.compose_nav_search),
                                     modifier = Modifier.size(18.dp),
-                                    tint = if (selectedTab == AppScreenTab.Settings) {
+                                    tint = if (searchExpanded || selectedTab == AppScreenTab.Search) {
                                         MaterialTheme.colorScheme.onPrimaryContainer
                                     } else {
                                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -2276,6 +2312,7 @@ private fun TabletFloatingTopBar(
                                 value = searchQuery,
                                 onValueChange = { value ->
                                     SearchRepository.updateQuery(value)
+                                    recentSearchOverlayVisible = true
                                     if (value.isNotBlank() && selectedTab != AppScreenTab.Search) {
                                         onTabSelected(AppScreenTab.Search)
                                     }
@@ -2283,6 +2320,11 @@ private fun TabletFloatingTopBar(
                                 placeholder = stringResource(Res.string.compose_search_placeholder),
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .onFocusChanged { focusState ->
+                                        if (focusState.isFocused) {
+                                            recentSearchOverlayVisible = true
+                                        }
+                                    }
                                     .focusRequester(searchFocusRequester),
                                 trailingContent = if (searchQuery.isNotBlank()) {
                                     {
@@ -2298,29 +2340,82 @@ private fun TabletFloatingTopBar(
                                     null
                                 },
                             )
-
-                            visibleRecentSearches.forEach { recentQuery ->
-                                TabletSearchRecentRow(
-                                    query = recentQuery,
-                                    onClick = {
-                                        SearchRepository.updateQuery(recentQuery)
-                                        onTabSelected(AppScreenTab.Search)
-                                    },
-                                    onRemove = { SearchHistoryRepository.removeSearch(recentQuery) },
-                                )
-                            }
                         }
                     }
                 }
             }
 
-            ProfileSelectorButton(
-                onClick = onProfileClick,
-                onEditProfilesClick = onEditProfilesClick,
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(end = 20.dp),
-            )
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TabletTopPillItem(
+                    label = stringResource(Res.string.compose_settings_page_root),
+                    selected = selectedTab == AppScreenTab.Settings,
+                    onClick = { selectTab(AppScreenTab.Settings) },
+                    icon = {
+                        Icon(
+                            painter = painterResource(Res.drawable.sidebar_settings),
+                            contentDescription = stringResource(Res.string.compose_settings_page_root),
+                            modifier = Modifier.size(18.dp),
+                            tint = if (selectedTab == AppScreenTab.Settings) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    },
+                )
+
+                ProfileSelectorButton(
+                    onClick = onProfileClick,
+                    onEditProfilesClick = onEditProfilesClick,
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showRecentSearchOverlay,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = statusBarPadding + 132.dp)
+                .widthIn(max = 560.dp)
+                .zIndex(2f),
+            enter = expandVertically(
+                expandFrom = Alignment.Top,
+                animationSpec = tween(140),
+            ) + fadeIn(animationSpec = tween(100)),
+            exit = shrinkVertically(
+                shrinkTowards = Alignment.Top,
+                animationSpec = tween(110),
+            ) + fadeOut(animationSpec = tween(80)),
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                shape = RoundedCornerShape(18.dp),
+                tonalElevation = 4.dp,
+                shadowElevation = 10.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    visibleRecentSearches.forEach { recentQuery ->
+                        TabletSearchRecentRow(
+                            query = recentQuery,
+                            onClick = {
+                                recentSearchOverlayVisible = false
+                                SearchRepository.updateQuery(recentQuery)
+                                onTabSelected(AppScreenTab.Search)
+                            },
+                            onRemove = { SearchHistoryRepository.removeSearch(recentQuery) },
+                        )
+                    }
+                }
+            }
         }
     }
 }
