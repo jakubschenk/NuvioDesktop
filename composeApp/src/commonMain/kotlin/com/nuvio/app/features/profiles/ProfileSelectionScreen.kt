@@ -70,12 +70,13 @@ fun ProfileSelectionScreen(
     onEditProfile: (NuvioProfile) -> Unit,
     onAddProfile: () -> Unit,
     modifier: Modifier = Modifier,
+    initialEditMode: Boolean = false,
 ) {
     val authState by AuthRepository.state.collectAsStateWithLifecycle()
     val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var pinDialogProfile by remember { mutableStateOf<NuvioProfile?>(null) }
-    var isEditMode by remember { mutableStateOf(false) }
+    var isEditMode by remember(initialEditMode) { mutableStateOf(initialEditMode) }
 
     val titleAlpha = remember { Animatable(0f) }
     val titleOffset = remember { Animatable(20f) }

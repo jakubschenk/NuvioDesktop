@@ -25,14 +25,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 
@@ -55,6 +62,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -99,6 +107,7 @@ import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.NativeNavigationTab
 import com.nuvio.app.core.ui.NativeTabBridge
+import com.nuvio.app.core.ui.desktopContextMenuPointer
 import com.nuvio.app.core.ui.isLiquidGlassNativeTabBarSupported
 import com.nuvio.app.core.ui.localizedContinueWatchingSubtitle
 import com.nuvio.app.features.auth.AuthScreen
@@ -349,6 +358,7 @@ fun App() {
         var editingProfile by remember { mutableStateOf<NuvioProfile?>(null) }
         var isNewProfile by remember { mutableStateOf(false) }
         var autoSkipProfileSelection by rememberSaveable { mutableStateOf(false) }
+        var startProfileSelectionInEditMode by rememberSaveable { mutableStateOf(false) }
 
         fun enterProfileGate(profiles: List<NuvioProfile>, syncOnEnter: Boolean) {
             if (profiles.isEmpty()) {
@@ -448,11 +458,13 @@ fun App() {
                 }
                 AppGateScreen.ProfileSelection.name -> {
                     ProfileSelectionScreen(
+                        initialEditMode = startProfileSelectionInEditMode,
                         onProfileSelected = { profile ->
                             ProfileRepository.selectProfile(profile.profileIndex)
                             if (authState is AuthState.Authenticated) {
                                 SyncManager.pullAllForProfile(profile.profileIndex)
                             }
+                            startProfileSelectionInEditMode = false
                             gateScreen = AppGateScreen.Main.name
                         },
                         onEditProfile = { profile ->
@@ -480,6 +492,12 @@ fun App() {
                     MainAppContent(
                         onSwitchProfile = {
                             autoSkipProfileSelection = false
+                            startProfileSelectionInEditMode = false
+                            gateScreen = AppGateScreen.ProfileSelection.name
+                        },
+                        onEditProfiles = {
+                            autoSkipProfileSelection = false
+                            startProfileSelectionInEditMode = true
                             gateScreen = AppGateScreen.ProfileSelection.name
                         },
                     )
@@ -493,6 +511,7 @@ fun App() {
 @Composable
 private fun MainAppContent(
     onSwitchProfile: () -> Unit = {},
+    onEditProfiles: () -> Unit = {},
 ) {
         val navController = rememberNavController()
         val appUpdaterController = rememberAppUpdaterController()
@@ -1088,6 +1107,7 @@ private fun MainAppContent(
                                             selectedTab = selectedTab,
                                             onTabSelected = { selectedTab = it },
                                             onProfileClick = onSwitchProfile,
+                                            onEditProfilesClick = onEditProfiles,
                                         )
                                     }
                                 }
@@ -2046,6 +2066,7 @@ private fun TabletFloatingTopBar(
     selectedTab: AppScreenTab,
     onTabSelected: (AppScreenTab) -> Unit,
     onProfileClick: () -> Unit,
+    onEditProfilesClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -2140,6 +2161,7 @@ private fun TabletFloatingTopBar(
 
         ProfileSelectorButton(
             onClick = onProfileClick,
+            onEditProfilesClick = onEditProfilesClick,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(end = 20.dp),
@@ -2150,33 +2172,128 @@ private fun TabletFloatingTopBar(
 @Composable
 private fun ProfileSelectorButton(
     onClick: () -> Unit,
+    onEditProfilesClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
     val avatars by AvatarRepository.avatars.collectAsStateWithLifecycle()
+    var menuExpanded by remember { mutableStateOf(false) }
+    val fallbackProfileLabel = stringResource(Res.string.compose_nav_profile)
+    val activeProfile = profileState.activeProfile
+    val activeProfileLabel = activeProfile
+        ?.name
+        ?.takeIf { it.isNotBlank() }
+        ?: fallbackProfileLabel
 
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-        shape = RoundedCornerShape(999.dp),
-        tonalElevation = 4.dp,
-        shadowElevation = 10.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    Box(modifier = modifier) {
+        Surface(
+            modifier = Modifier
+                .desktopContextMenuPointer { menuExpanded = true }
+                .clickable(onClick = onClick),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            shape = RoundedCornerShape(999.dp),
+            tonalElevation = 4.dp,
+            shadowElevation = 10.dp,
         ) {
-            ActiveProfileMiniAvatar(
-                profile = profileState.activeProfile,
-                avatars = avatars,
-                selected = false,
-                size = 28,
-            )
-            Text(
-                text = stringResource(Res.string.compose_nav_profile),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ActiveProfileMiniAvatar(
+                    profile = activeProfile,
+                    avatars = avatars,
+                    selected = false,
+                    size = 28,
+                )
+                Text(
+                    text = activeProfileLabel,
+                    modifier = Modifier.widthIn(max = 148.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false },
+        ) {
+            profileState.profiles.forEach { profile ->
+                val isActive = profile.profileIndex == activeProfile?.profileIndex
+                val profileLabel = profile.name.takeIf { it.isNotBlank() } ?: fallbackProfileLabel
+
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = profileLabel,
+                            modifier = Modifier.widthIn(min = 128.dp, max = 220.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    onClick = {
+                        menuExpanded = false
+                        when {
+                            isActive -> Unit
+                            profile.pinEnabled -> onClick()
+                            else -> {
+                                ProfileRepository.selectProfile(profile.profileIndex)
+                                SyncManager.pullAllForProfile(profile.profileIndex)
+                            }
+                        }
+                    },
+                    leadingIcon = {
+                        ActiveProfileMiniAvatar(
+                            profile = profile,
+                            avatars = avatars,
+                            selected = isActive,
+                            size = 24,
+                        )
+                    },
+                    trailingIcon = {
+                        when {
+                            isActive -> Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            profile.pinEnabled -> Icon(
+                                imageVector = Icons.Rounded.Lock,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    },
+                )
+            }
+
+            if (profileState.profiles.isNotEmpty()) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            }
+
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = stringResource(Res.string.profile_manage_profiles),
+                        modifier = Modifier.widthIn(min = 128.dp, max = 220.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                onClick = {
+                    menuExpanded = false
+                    onEditProfilesClick()
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                    )
+                },
             )
         }
     }
