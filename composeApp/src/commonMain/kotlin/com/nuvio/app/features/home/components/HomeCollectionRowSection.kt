@@ -1,5 +1,6 @@
 package com.nuvio.app.features.home.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -13,8 +14,6 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,22 +21,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.NuvioShelfSection
 import com.nuvio.app.core.ui.PosterLandscapeAspectRatio
+import com.nuvio.app.core.ui.PosterCardStyleUiState
 import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.upgradeTmdbImageQuality
 import com.nuvio.app.features.collection.Collection
 import com.nuvio.app.features.collection.CollectionFolder
-import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.PosterShape
 
 @Composable
@@ -45,6 +44,8 @@ fun HomeCollectionRowSection(
     collection: Collection,
     modifier: Modifier = Modifier,
     sectionPadding: Dp? = null,
+    posterCardStyle: PosterCardStyleUiState? = null,
+    showHeaderAccent: Boolean = true,
     animateGifs: Boolean = true,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
 ) {
@@ -55,6 +56,8 @@ fun HomeCollectionRowSection(
             collection = collection,
             modifier = modifier.fillMaxWidth(),
             sectionPadding = sectionPadding,
+            posterCardStyle = posterCardStyle,
+            showHeaderAccent = showHeaderAccent,
             animateGifs = animateGifs,
             onFolderClick = onFolderClick,
         )
@@ -64,6 +67,8 @@ fun HomeCollectionRowSection(
                 collection = collection,
                 modifier = Modifier.fillMaxWidth(),
                 sectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value),
+                posterCardStyle = posterCardStyle,
+                showHeaderAccent = showHeaderAccent,
                 animateGifs = animateGifs,
                 onFolderClick = onFolderClick,
             )
@@ -76,13 +81,12 @@ private fun HomeCollectionRowSectionContent(
     collection: Collection,
     modifier: Modifier,
     sectionPadding: Dp,
+    posterCardStyle: PosterCardStyleUiState?,
+    showHeaderAccent: Boolean,
     animateGifs: Boolean,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)?,
 ) {
-    val homeCatalogSettings by remember {
-        HomeCatalogSettingsRepository.snapshot()
-        HomeCatalogSettingsRepository.uiState
-    }.collectAsStateWithLifecycle()
+    val resolvedPosterCardStyle = posterCardStyle ?: rememberPosterCardStyleUiState()
 
     NuvioShelfSection(
         title = collection.title,
@@ -90,7 +94,7 @@ private fun HomeCollectionRowSectionContent(
         modifier = modifier,
         headerHorizontalPadding = sectionPadding,
         rowContentPadding = PaddingValues(horizontal = sectionPadding),
-        showHeaderAccent = !homeCatalogSettings.hideCatalogUnderline,
+        showHeaderAccent = showHeaderAccent,
         key = { folder -> "collection_${collection.id}_folder_${folder.id}" },
     ) { folder ->
         val folderClick = onFolderClick?.let { callback ->
@@ -98,6 +102,7 @@ private fun HomeCollectionRowSectionContent(
         }
         CollectionFolderCard(
             folder = folder,
+            posterCardStyle = resolvedPosterCardStyle,
             animateGifs = animateGifs,
             onClick = folderClick,
         )
@@ -108,26 +113,27 @@ private fun HomeCollectionRowSectionContent(
 private fun CollectionFolderCard(
     folder: CollectionFolder,
     modifier: Modifier = Modifier,
+    posterCardStyle: PosterCardStyleUiState? = null,
     animateGifs: Boolean = true,
     onClick: (() -> Unit)? = null,
 ) {
-    val posterCardStyle = rememberPosterCardStyleUiState()
-    val isLandscapeMode = posterCardStyle.catalogLandscapeModeEnabled
+    val resolvedPosterCardStyle = posterCardStyle ?: rememberPosterCardStyleUiState()
+    val isLandscapeMode = resolvedPosterCardStyle.catalogLandscapeModeEnabled
     val shape = if (isLandscapeMode) PosterShape.Landscape else folder.posterShape
     val cardWidth: Dp
     val aspectRatio: Float
 
     when (shape) {
         PosterShape.Poster -> {
-            cardWidth = posterCardStyle.widthDp.dp
+            cardWidth = resolvedPosterCardStyle.widthDp.dp
             aspectRatio = 0.675f
         }
         PosterShape.Landscape -> {
-            cardWidth = landscapePosterWidth(posterCardStyle.widthDp)
+            cardWidth = landscapePosterWidth(resolvedPosterCardStyle.widthDp)
             aspectRatio = PosterLandscapeAspectRatio
         }
         PosterShape.Square -> {
-            cardWidth = posterCardStyle.widthDp.dp
+            cardWidth = resolvedPosterCardStyle.widthDp.dp
             aspectRatio = 1f
         }
     }
@@ -136,18 +142,13 @@ private fun CollectionFolderCard(
         modifier = modifier.width(cardWidth),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        val shapeCorner = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
-        Card(
+        val shapeCorner = RoundedCornerShape(resolvedPosterCardStyle.cornerRadiusDp.dp)
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(aspectRatio),
-            shape = shapeCorner,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-            ),
-            elevation = CardDefaults.cardElevation(
-                defaultElevation = 2.dp,
-            ),
+                .aspectRatio(aspectRatio)
+                .clip(shapeCorner)
+                .background(MaterialTheme.colorScheme.surface),
         ) {
             Box(
                 modifier = Modifier.fillMaxSize(),

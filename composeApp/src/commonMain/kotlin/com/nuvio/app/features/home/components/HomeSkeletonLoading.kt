@@ -33,6 +33,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.PosterCardStyleUiState
 import com.nuvio.app.core.ui.landscapePosterHeightForWidth
 import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
@@ -182,18 +183,21 @@ fun HomeSkeletonHero(
 }
 
 @Composable
-fun HomeSkeletonRow(modifier: Modifier = Modifier) {
+fun HomeSkeletonRow(
+    modifier: Modifier = Modifier,
+    posterCardStyle: PosterCardStyleUiState? = null,
+) {
     val brush = rememberHomeSkeletonBrush()
-    val posterCardStyle = rememberPosterCardStyleUiState()
-    val skeletonWidth = if (posterCardStyle.catalogLandscapeModeEnabled) {
-        landscapePosterWidth(posterCardStyle.widthDp)
+    val resolvedPosterCardStyle = posterCardStyle ?: rememberPosterCardStyleUiState()
+    val skeletonWidth = if (resolvedPosterCardStyle.catalogLandscapeModeEnabled) {
+        landscapePosterWidth(resolvedPosterCardStyle.widthDp)
     } else {
-        posterCardStyle.widthDp.dp
+        resolvedPosterCardStyle.widthDp.dp
     }
-    val skeletonHeight = if (posterCardStyle.catalogLandscapeModeEnabled) {
+    val skeletonHeight = if (resolvedPosterCardStyle.catalogLandscapeModeEnabled) {
         landscapePosterHeightForWidth(skeletonWidth)
     } else {
-        posterCardStyle.heightDp.dp
+        resolvedPosterCardStyle.heightDp.dp
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
@@ -233,7 +237,7 @@ fun HomeSkeletonRow(modifier: Modifier = Modifier) {
                         modifier = Modifier
                             .width(skeletonWidth)
                             .height(skeletonHeight)
-                            .clip(RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp))
+                            .clip(RoundedCornerShape(resolvedPosterCardStyle.cornerRadiusDp.dp))
                             .background(brush),
                     )
                 }

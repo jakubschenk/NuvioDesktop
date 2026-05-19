@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.ui.NuvioPosterCard
 import com.nuvio.app.core.ui.NuvioPosterShape
+import com.nuvio.app.core.ui.PosterCardStyleUiState
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.home.PosterShape
@@ -14,22 +15,24 @@ fun HomePosterCard(
     item: MetaPreview,
     modifier: Modifier = Modifier,
     useLandscapeBackdropMode: Boolean = false,
+    posterCardStyle: PosterCardStyleUiState? = null,
     isWatched: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
-    val posterCardStyle = rememberPosterCardStyleUiState()
-    val isLandscapeMode = useLandscapeBackdropMode || posterCardStyle.catalogLandscapeModeEnabled
+    val resolvedPosterCardStyle = posterCardStyle ?: rememberPosterCardStyleUiState()
+    val isLandscapeMode = useLandscapeBackdropMode || resolvedPosterCardStyle.catalogLandscapeModeEnabled
 
     NuvioPosterCard(
         title = item.name,
         imageUrl = if (isLandscapeMode) (item.banner ?: item.poster) else item.poster,
         modifier = modifier,
+        posterCardStyle = resolvedPosterCardStyle,
         shape = if (isLandscapeMode) NuvioPosterShape.Landscape else item.posterShape.toNuvioPosterShape(),
-        detailLine = if (isLandscapeMode || posterCardStyle.hideLabelsEnabled) null else item.releaseInfo?.let { formatReleaseDateForDisplay(it) },
-        showTitleBelow = !posterCardStyle.hideLabelsEnabled,
+        detailLine = if (isLandscapeMode || resolvedPosterCardStyle.hideLabelsEnabled) null else item.releaseInfo?.let { formatReleaseDateForDisplay(it) },
+        showTitleBelow = !resolvedPosterCardStyle.hideLabelsEnabled,
         bottomLeftLogoUrl = if (isLandscapeMode) item.logo else null,
-        bottomLeftText = if (isLandscapeMode && item.logo.isNullOrBlank() && !posterCardStyle.hideLabelsEnabled) item.name else null,
+        bottomLeftText = if (isLandscapeMode && item.logo.isNullOrBlank() && !resolvedPosterCardStyle.hideLabelsEnabled) item.name else null,
         isWatched = isWatched,
         onClick = onClick,
         onLongClick = onLongClick,

@@ -380,7 +380,6 @@ fun HomeScreen(
         )
     }
 
-    val hasActiveAddons = addonsUiState.addons.any { it.manifest != null }
     val showHeroSlot = homeSettingsUiState.heroEnabled
     val isResolvingHeroSources = addonsUiState.addons.any { it.isRefreshing } || homeUiState.isLoading
     val showHeroSkeleton = showHeroSlot &&
@@ -410,6 +409,7 @@ fun HomeScreen(
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val homeSectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value)
         val posterCardStyle = rememberPosterCardStyleUiState()
+        val showCatalogHeaderAccent = !homeSettingsUiState.hideCatalogUnderline
         val continueWatchingLayout = rememberContinueWatchingLayout(maxWidth.value, posterCardStyle)
         val nativeBottomNavigationOverlayHeight =
             if (LocalNuvioBottomNavigationOverlayPadding.current > 0.dp) {
@@ -521,9 +521,13 @@ fun HomeScreen(
                     }
                     items(
                         count = 3,
+                        key = { index -> "home_skeleton_row_$index" },
                         contentType = { "home_skeleton_row" },
                     ) {
-                        HomeSkeletonRow(modifier = Modifier.padding(horizontal = 16.dp))
+                        HomeSkeletonRow(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            posterCardStyle = posterCardStyle,
+                        )
                     }
                 }
 
@@ -582,6 +586,8 @@ fun HomeScreen(
                                         collection = collection,
                                         modifier = Modifier.padding(bottom = 12.dp),
                                         sectionPadding = homeSectionPadding,
+                                        posterCardStyle = posterCardStyle,
+                                        showHeaderAccent = showCatalogHeaderAccent,
                                         onFolderClick = onFolderClick,
                                     )
                                 }
@@ -593,16 +599,24 @@ fun HomeScreen(
                                     key = settingsItem.key,
                                     contentType = "catalog_row",
                                 ) {
+                                    val previewEntries = remember(section.items) {
+                                        section.items.take(HOME_CATALOG_PREVIEW_LIMIT)
+                                    }
+                                    val viewAllClick = if (section.canOpenCatalog(HOME_CATALOG_PREVIEW_LIMIT)) {
+                                        onCatalogClick?.let { callback ->
+                                            remember(section, callback) { { callback(section) } }
+                                        }
+                                    } else {
+                                        null
+                                    }
                                     HomeCatalogRowSection(
                                         section = section,
-                                        entries = section.items.take(HOME_CATALOG_PREVIEW_LIMIT),
+                                        entries = previewEntries,
                                         modifier = Modifier.padding(bottom = 12.dp),
                                         sectionPadding = homeSectionPadding,
-                                        onViewAllClick = if (section.canOpenCatalog(HOME_CATALOG_PREVIEW_LIMIT)) {
-                                            onCatalogClick?.let { { it(section) } }
-                                        } else {
-                                            null
-                                        },
+                                        posterCardStyle = posterCardStyle,
+                                        showHeaderAccent = showCatalogHeaderAccent,
+                                        onViewAllClick = viewAllClick,
                                         watchedKeys = watchedUiState.watchedKeys,
                                         onPosterClick = onPosterClick,
                                         onPosterLongClick = onPosterLongClick,

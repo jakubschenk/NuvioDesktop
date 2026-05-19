@@ -17,10 +17,14 @@ import kotlinx.coroutines.withContext
 
 private const val DumpConnectTimeoutMs = 15_000
 private const val DumpReadTimeoutMs = 30_000
+private const val DumpEnabledEnvironmentKey = "NUVIO_DUMP_HERO_LOGOS"
+private const val DumpEnabledPropertyKey = "nuvio.dumpHeroLogos"
 private val DumpTimestampFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS").withZone(ZoneId.systemDefault())
 
 internal actual suspend fun dumpHomeHeroLogos(items: List<HomeHeroLogoDumpItem>) {
+    if (!isHeroLogoDumpEnabled()) return
+
     if (items.isEmpty()) {
         DesktopRuntimeLog.info("homeHeroLogoDump skipped: no hero logos")
         return
@@ -77,6 +81,16 @@ internal actual suspend fun dumpHomeHeroLogos(items: List<HomeHeroLogoDumpItem>)
         DesktopRuntimeLog.info("homeHeroLogoDump done dir=$outputDir manifest=$manifestPath")
     }
 }
+
+private fun isHeroLogoDumpEnabled(): Boolean =
+    System.getProperty(DumpEnabledPropertyKey).isTruthy() ||
+        System.getenv(DumpEnabledEnvironmentKey).isTruthy()
+
+private fun String?.isTruthy(): Boolean =
+    equals("true", ignoreCase = true) ||
+        equals("1") ||
+        equals("yes", ignoreCase = true) ||
+        equals("on", ignoreCase = true)
 
 private fun dumpHeroLogo(
     outputDir: Path,
