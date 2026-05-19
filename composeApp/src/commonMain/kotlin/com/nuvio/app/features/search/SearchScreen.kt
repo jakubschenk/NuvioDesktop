@@ -102,8 +102,7 @@ fun SearchScreen(
             lastRequestedQuery = null
             SearchRepository.clear()
         } else {
-            SearchRepository.prepareSearch()
-            delay(200)
+            delay(450)
             lastRequestedQuery = normalizedQuery
             SearchRepository.search(
                 query = normalizedQuery,
@@ -155,16 +154,18 @@ fun SearchScreen(
         val homeSectionPadding = remember(maxWidth) {
             homeSectionHorizontalPaddingForWidth(maxWidth.value)
         }
-        val desktopRecentMatchCount = remember(recentSearches, query, uiState.isLoading) {
+        val desktopRecentMatchCount = remember(recentSearches, query, uiState.query, uiState.isLoading) {
             val normalizedQuery = query.trim()
-            if (normalizedQuery.isBlank()) {
-                recentSearches.size.coerceAtMost(3)
-            } else if (uiState.isLoading) {
-                recentSearches.count { recentQuery ->
+            val searchSettledForQuery = normalizedQuery.isNotBlank() &&
+                !uiState.isLoading &&
+                uiState.query == normalizedQuery
+
+            when {
+                searchSettledForQuery -> 0
+                normalizedQuery.isBlank() -> recentSearches.size.coerceAtMost(3)
+                else -> recentSearches.count { recentQuery ->
                     recentQuery.contains(normalizedQuery, ignoreCase = true)
                 }.coerceAtMost(3)
-            } else {
-                0
             }
         }
         val desktopSearchTopPadding = if (showSearchChrome) {

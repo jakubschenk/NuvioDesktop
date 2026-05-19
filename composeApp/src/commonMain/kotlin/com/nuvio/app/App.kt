@@ -1,16 +1,20 @@
 package com.nuvio.app
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -2086,26 +2090,39 @@ private fun TabletFloatingTopBar(
     val recentSearches by SearchHistoryRepository.uiState.collectAsStateWithLifecycle()
     val searchFocusRequester = remember { FocusRequester() }
     var searchExpanded by rememberSaveable { mutableStateOf(selectedTab == AppScreenTab.Search) }
-    val visibleRecentSearches = remember(recentSearches, searchQuery, searchUiState.isLoading) {
+    var previousNonSearchTabName by rememberSaveable {
+        mutableStateOf(if (selectedTab == AppScreenTab.Search) AppScreenTab.Home.name else selectedTab.name)
+    }
+    val previousNonSearchTab = remember(previousNonSearchTabName) {
+        runCatching { AppScreenTab.valueOf(previousNonSearchTabName) }.getOrDefault(AppScreenTab.Home)
+    }
+    val visibleRecentSearches = remember(recentSearches, searchQuery, searchUiState.query, searchUiState.isLoading) {
         val normalizedQuery = searchQuery.trim()
-        if (normalizedQuery.isBlank()) {
-            recentSearches.take(3)
-        } else if (searchUiState.isLoading) {
-            recentSearches
+        val searchSettledForQuery = normalizedQuery.isNotBlank() &&
+            !searchUiState.isLoading &&
+            searchUiState.query == normalizedQuery
+
+        when {
+            searchSettledForQuery -> emptyList()
+            normalizedQuery.isBlank() -> recentSearches.take(3)
+            else -> recentSearches
                 .asSequence()
                 .filter { recentQuery -> recentQuery.contains(normalizedQuery, ignoreCase = true) }
                 .take(3)
                 .toList()
-        } else {
-            emptyList()
         }
     }
+    val canDismissInactiveSearch = searchExpanded && searchQuery.isBlank()
+    val outsideDismissInteractionSource = remember { MutableInteractionSource() }
 
     LaunchedEffect(Unit) {
         SearchHistoryRepository.ensureLoaded()
     }
 
     LaunchedEffect(selectedTab) {
+        if (selectedTab != AppScreenTab.Search) {
+            previousNonSearchTabName = selectedTab.name
+        }
         searchExpanded = selectedTab == AppScreenTab.Search
     }
 
@@ -2120,148 +2137,186 @@ private fun TabletFloatingTopBar(
         onTabSelected(tab)
     }
 
+    fun dismissInactiveSearch() {
+        if (!canDismissInactiveSearch) return
+        searchExpanded = false
+        if (selectedTab == AppScreenTab.Search) {
+            onTabSelected(previousNonSearchTab)
+        }
+    }
+
     Box(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(top = statusBarPadding + 10.dp, bottom = 8.dp),
-        contentAlignment = Alignment.TopCenter,
+            .fillMaxSize(),
     ) {
-        Surface(
+        if (canDismissInactiveSearch) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = outsideDismissInteractionSource,
+                        indication = null,
+                        onClick = ::dismissInactiveSearch,
+                    ),
+            )
+        }
+
+        Box(
             modifier = Modifier
-                .widthIn(max = 560.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-            shape = RoundedCornerShape(if (searchExpanded) 24.dp else 999.dp),
-            tonalElevation = 4.dp,
-            shadowElevation = 10.dp,
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(top = statusBarPadding + 10.dp, bottom = 8.dp),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+            Surface(
+                modifier = Modifier
+                    .widthIn(max = 560.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                shape = RoundedCornerShape(if (searchExpanded) 24.dp else 999.dp),
+                tonalElevation = 4.dp,
+                shadowElevation = 10.dp,
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    TabletTopPillItem(
-                        label = stringResource(Res.string.compose_nav_home),
-                        selected = selectedTab == AppScreenTab.Home,
-                        onClick = { selectTab(AppScreenTab.Home) },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Filled.Home,
-                                contentDescription = stringResource(Res.string.compose_nav_home),
-                                modifier = Modifier.size(18.dp),
-                                tint = if (selectedTab == AppScreenTab.Home) {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                        },
-                    )
-                    TabletTopPillItem(
-                        label = stringResource(Res.string.compose_search_discover_title),
-                        selected = selectedTab == AppScreenTab.Discover,
-                        onClick = { selectTab(AppScreenTab.Discover) },
-                        icon = {
-                            Icon(
-                                painter = painterResource(Res.drawable.sidebar_discover),
-                                contentDescription = stringResource(Res.string.compose_search_discover_title),
-                                modifier = Modifier.size(18.dp),
-                                tint = if (selectedTab == AppScreenTab.Discover) {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                        },
-                    )
-                    TabletTopPillItem(
-                        label = stringResource(Res.string.compose_nav_search),
-                        selected = searchExpanded || selectedTab == AppScreenTab.Search,
-                        onClick = { searchExpanded = true },
-                        icon = {
-                            Icon(
-                                painter = painterResource(Res.drawable.sidebar_search),
-                                contentDescription = stringResource(Res.string.compose_nav_search),
-                                modifier = Modifier.size(18.dp),
-                                tint = if (searchExpanded || selectedTab == AppScreenTab.Search) {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                        },
-                    )
-                    TabletTopPillItem(
-                        label = stringResource(Res.string.compose_settings_page_root),
-                        selected = selectedTab == AppScreenTab.Settings,
-                        onClick = { selectTab(AppScreenTab.Settings) },
-                        icon = {
-                            Icon(
-                                painter = painterResource(Res.drawable.sidebar_settings),
-                                contentDescription = stringResource(Res.string.compose_settings_page_root),
-                                modifier = Modifier.size(18.dp),
-                                tint = if (selectedTab == AppScreenTab.Settings) {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                        },
-                    )
-                }
-
-                if (searchExpanded) {
-                    NuvioInputField(
-                        value = searchQuery,
-                        onValueChange = { value ->
-                            SearchRepository.updateQuery(value)
-                            if (value.isNotBlank() && selectedTab != AppScreenTab.Search) {
-                                onTabSelected(AppScreenTab.Search)
-                            }
-                        },
-                        placeholder = stringResource(Res.string.compose_search_placeholder),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(searchFocusRequester),
-                        trailingContent = if (searchQuery.isNotBlank()) {
-                            {
-                                IconButton(onClick = { SearchRepository.updateQuery("") }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = stringResource(Res.string.compose_search_clear),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        } else {
-                            null
-                        },
-                    )
-
-                    visibleRecentSearches.forEach { recentQuery ->
-                        TabletSearchRecentRow(
-                            query = recentQuery,
-                            onClick = {
-                                SearchRepository.updateQuery(recentQuery)
-                                onTabSelected(AppScreenTab.Search)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TabletTopPillItem(
+                            label = stringResource(Res.string.compose_nav_home),
+                            selected = selectedTab == AppScreenTab.Home,
+                            onClick = { selectTab(AppScreenTab.Home) },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Home,
+                                    contentDescription = stringResource(Res.string.compose_nav_home),
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (selectedTab == AppScreenTab.Home) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
                             },
-                            onRemove = { SearchHistoryRepository.removeSearch(recentQuery) },
                         )
+                        TabletTopPillItem(
+                            label = stringResource(Res.string.compose_search_discover_title),
+                            selected = selectedTab == AppScreenTab.Discover,
+                            onClick = { selectTab(AppScreenTab.Discover) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(Res.drawable.sidebar_discover),
+                                    contentDescription = stringResource(Res.string.compose_search_discover_title),
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (selectedTab == AppScreenTab.Discover) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            },
+                        )
+                        TabletTopPillItem(
+                            label = stringResource(Res.string.compose_nav_search),
+                            selected = searchExpanded || selectedTab == AppScreenTab.Search,
+                            onClick = { searchExpanded = true },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(Res.drawable.sidebar_search),
+                                    contentDescription = stringResource(Res.string.compose_nav_search),
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (searchExpanded || selectedTab == AppScreenTab.Search) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            },
+                        )
+                        TabletTopPillItem(
+                            label = stringResource(Res.string.compose_settings_page_root),
+                            selected = selectedTab == AppScreenTab.Settings,
+                            onClick = { selectTab(AppScreenTab.Settings) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(Res.drawable.sidebar_settings),
+                                    contentDescription = stringResource(Res.string.compose_settings_page_root),
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (selectedTab == AppScreenTab.Settings) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            },
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = searchExpanded,
+                        enter = expandVertically(
+                            expandFrom = Alignment.Top,
+                            animationSpec = tween(180),
+                        ) + fadeIn(animationSpec = tween(120)),
+                        exit = shrinkVertically(
+                            shrinkTowards = Alignment.Top,
+                            animationSpec = tween(140),
+                        ) + fadeOut(animationSpec = tween(90)),
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            NuvioInputField(
+                                value = searchQuery,
+                                onValueChange = { value ->
+                                    SearchRepository.updateQuery(value)
+                                    if (value.isNotBlank() && selectedTab != AppScreenTab.Search) {
+                                        onTabSelected(AppScreenTab.Search)
+                                    }
+                                },
+                                placeholder = stringResource(Res.string.compose_search_placeholder),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(searchFocusRequester),
+                                trailingContent = if (searchQuery.isNotBlank()) {
+                                    {
+                                        IconButton(onClick = { SearchRepository.updateQuery("") }) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Close,
+                                                contentDescription = stringResource(Res.string.compose_search_clear),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    null
+                                },
+                            )
+
+                            visibleRecentSearches.forEach { recentQuery ->
+                                TabletSearchRecentRow(
+                                    query = recentQuery,
+                                    onClick = {
+                                        SearchRepository.updateQuery(recentQuery)
+                                        onTabSelected(AppScreenTab.Search)
+                                    },
+                                    onRemove = { SearchHistoryRepository.removeSearch(recentQuery) },
+                                )
+                            }
+                        }
                     }
                 }
             }
-        }
 
-        ProfileSelectorButton(
-            onClick = onProfileClick,
-            onEditProfilesClick = onEditProfilesClick,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(end = 20.dp),
-        )
+            ProfileSelectorButton(
+                onClick = onProfileClick,
+                onEditProfilesClick = onEditProfilesClick,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 20.dp),
+            )
+        }
     }
 }
 

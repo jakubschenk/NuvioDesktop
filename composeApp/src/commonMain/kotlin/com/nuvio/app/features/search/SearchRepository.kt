@@ -50,12 +50,6 @@ object SearchRepository {
         _query.value = query
     }
 
-    fun prepareSearch() {
-        activeJob?.cancel()
-        lastRequestKey = null
-        _uiState.value = SearchUiState(isLoading = true)
-    }
-
     fun search(query: String, addons: List<ManagedAddon>) {
         val normalizedQuery = query.trim()
         if (normalizedQuery.isBlank()) {
@@ -68,6 +62,7 @@ object SearchRepository {
             activeJob?.cancel()
             lastRequestKey = null
             _uiState.value = SearchUiState(
+                query = normalizedQuery,
                 emptyStateReason = SearchEmptyStateReason.NoActiveAddons,
             )
             return
@@ -81,6 +76,7 @@ object SearchRepository {
             activeJob?.cancel()
             lastRequestKey = null
             _uiState.value = SearchUiState(
+                query = normalizedQuery,
                 emptyStateReason = SearchEmptyStateReason.NoSearchCatalogs,
             )
             return
@@ -101,7 +97,7 @@ object SearchRepository {
         lastRequestKey = requestKey
 
         activeJob?.cancel()
-        _uiState.value = SearchUiState(isLoading = true)
+        _uiState.value = SearchUiState(query = normalizedQuery, isLoading = true)
 
         activeJob = scope.launch {
             val results = requests.map { request ->
@@ -116,6 +112,7 @@ object SearchRepository {
             val allFailed = results.isNotEmpty() && results.all { it.isFailure }
 
             _uiState.value = SearchUiState(
+                query = normalizedQuery,
                 isLoading = false,
                 sections = sections,
                 emptyStateReason = when {
