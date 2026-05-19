@@ -2088,13 +2088,15 @@ private fun TabletFloatingTopBar(
     var searchExpanded by rememberSaveable { mutableStateOf(selectedTab == AppScreenTab.Search) }
     val filteredRecentSearches = remember(recentSearches, searchQuery) {
         val normalizedQuery = searchQuery.trim()
-        recentSearches
-            .asSequence()
-            .filter { recentQuery ->
-                normalizedQuery.isBlank() || recentQuery.contains(normalizedQuery, ignoreCase = true)
-            }
-            .take(3)
-            .toList()
+        if (normalizedQuery.isBlank()) {
+            emptyList()
+        } else {
+            recentSearches
+                .asSequence()
+                .filter { recentQuery -> recentQuery.contains(normalizedQuery, ignoreCase = true) }
+                .take(3)
+                .toList()
+        }
     }
 
     LaunchedEffect(Unit) {

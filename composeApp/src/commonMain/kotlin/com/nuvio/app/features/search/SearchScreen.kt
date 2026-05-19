@@ -157,9 +157,13 @@ fun SearchScreen(
         }
         val desktopRecentMatchCount = remember(recentSearches, query) {
             val normalizedQuery = query.trim()
-            recentSearches.count { recentQuery ->
-                normalizedQuery.isBlank() || recentQuery.contains(normalizedQuery, ignoreCase = true)
-            }.coerceAtMost(3)
+            if (normalizedQuery.isBlank()) {
+                0
+            } else {
+                recentSearches.count { recentQuery ->
+                    recentQuery.contains(normalizedQuery, ignoreCase = true)
+                }.coerceAtMost(3)
+            }
         }
         val desktopSearchTopPadding = if (showSearchChrome) {
             null
