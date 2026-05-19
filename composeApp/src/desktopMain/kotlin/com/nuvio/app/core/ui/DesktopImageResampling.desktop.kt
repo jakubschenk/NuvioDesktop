@@ -4,9 +4,16 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.IntSize
+import java.awt.AlphaComposite
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import javax.imageio.ImageIO
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Canvas
 import org.jetbrains.skia.CubicResampler
+import org.jetbrains.skia.EncodedImageFormat
 import org.jetbrains.skia.FilterMipmap
 import org.jetbrains.skia.FilterMode
 import org.jetbrains.skia.Image
@@ -50,6 +57,12 @@ internal fun Bitmap.nuvioScaleToFillBitmap(
         Rect.makeLTRB(0f, top, width.toFloat(), top + cropHeight)
     }
 
+    nuvioScaleToFillBitmapWithJava2D(
+        widthPx = widthPx,
+        heightPx = heightPx,
+        sourceRect = sourceRect,
+    )?.let { return it }
+
     val cropped = if (sourceRect.isWholeBitmap(width, height)) {
         this
     } else {
@@ -64,6 +77,88 @@ internal fun Bitmap.nuvioScaleToFillBitmap(
         cropped.close()
     }
     return scaled
+}
+
+private fun Bitmap.nuvioScaleToFillBitmapWithJava2D(
+    widthPx: Int,
+    heightPx: Int,
+    sourceRect: Rect,
+): Bitmap? {
+    val source = nuvioToBufferedImage() ?: return null
+    val cropX = sourceRect.left.roundToInt().coerceIn(0, source.width - 1)
+    val cropY = sourceRect.top.roundToInt().coerceIn(0, source.height - 1)
+    val cropRight = sourceRect.right.roundToInt().coerceIn(cropX + 1, source.width)
+    val cropBottom = sourceRect.bottom.roundToInt().coerceIn(cropY + 1, source.height)
+    val cropWidth = cropRight - cropX
+    val cropHeight = cropBottom - cropY
+    if (cropWidth <= 0 || cropHeight <= 0) return null
+
+    val cropped = source.getSubimage(cropX, cropY, cropWidth, cropHeight)
+    return cropped
+        .nuvioProgressiveResize(widthPx, heightPx)
+        .nuvioToSkiaBitmap()
+}
+
+private fun Bitmap.nuvioToBufferedImage(): BufferedImage? {
+    val image = Image.makeFromBitmap(this)
+    val data = try {
+        image.encodeToData(EncodedImageFormat.PNG, 100)
+    } finally {
+        image.close()
+    } ?: return null
+    return try {
+        ImageIO.read(ByteArrayInputStream(data.bytes))
+    } finally {
+        data.close()
+    }
+}
+
+private fun BufferedImage.nuvioProgressiveResize(
+    widthPx: Int,
+    heightPx: Int,
+): BufferedImage {
+    if (width == widthPx && height == heightPx) return this
+
+    var current = this
+    while (current.width > widthPx * 2 || current.height > heightPx * 2) {
+        val nextWidth = (current.width / 2).coerceAtLeast(widthPx)
+        val nextHeight = (current.height / 2).coerceAtLeast(heightPx)
+        current = current.nuvioResizeOnce(nextWidth, nextHeight)
+    }
+    return current.nuvioResizeOnce(widthPx, heightPx)
+}
+
+private fun BufferedImage.nuvioResizeOnce(
+    widthPx: Int,
+    heightPx: Int,
+): BufferedImage {
+    val output = BufferedImage(widthPx, heightPx, BufferedImage.TYPE_INT_ARGB)
+    val graphics = output.createGraphics()
+    try {
+        graphics.composite = AlphaComposite.Src
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+        graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        graphics.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY)
+        graphics.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY)
+        graphics.drawImage(this, 0, 0, widthPx, heightPx, null)
+    } finally {
+        graphics.dispose()
+    }
+    return output
+}
+
+private fun BufferedImage.nuvioToSkiaBitmap(): Bitmap? {
+    val output = ByteArrayOutputStream()
+    if (!ImageIO.write(this, "png", output)) return null
+    val image = Image.makeFromEncoded(output.toByteArray())
+    return try {
+        val bitmap = Bitmap()
+        bitmap.allocN32Pixels(image.width, image.height)
+        if (image.readPixels(bitmap)) bitmap else null
+    } finally {
+        image.close()
+    }
 }
 
 private fun Bitmap.nuvioDrawToBitmap(
