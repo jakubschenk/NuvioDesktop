@@ -219,6 +219,15 @@ internal actual fun DesktopDecoderSettingsSection(isTablet: Boolean) {
                 },
             )
         }
+
+        SettingsGroup(isTablet = isTablet) {
+            Text(
+                text = "Direct3D renderers use the native MPV window surface by default. Set NUVIO_MPV_SURFACE=opengl or NUVIO_SKIKO_RENDER_API=OPENGL before launch to use the legacy OpenGL interop path.",
+                modifier = Modifier.padding(16.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 
     if (showPresetDialog) {

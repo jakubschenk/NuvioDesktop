@@ -30,6 +30,7 @@ import com.nuvio.app.features.player.desktop.mpv.safePath
 import com.nuvio.app.features.player.desktop.mpv.setMpvProperty
 import com.nuvio.app.features.player.desktop.mpv.subtitleTracks
 import com.nuvio.app.features.player.desktop.mpv.toDesktopPhase
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,6 +43,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -80,11 +82,13 @@ internal class MpvDesktopPlayerBackend private constructor(
     private val mpvHandle: MPVHandle get() = player.impl as MPVHandle
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val surfaceMode = MpvDesktopSurfaceMode.resolve()
+    private val nativeSurfaceReady = CompletableDeferred<Unit>()
     private val stateFlow = MutableStateFlow(
         DesktopPlayerState(
             phase = DesktopPlayerPhase.Idle,
             backendName = backendName,
-            diagnostics = runtime.diagnostics,
+            diagnostics = diagnostics(),
         ),
     )
 
@@ -113,7 +117,10 @@ internal class MpvDesktopPlayerBackend private constructor(
         observePlaybackSettings()
         applyDecoderSettings()
         applyCursorSettings()
-        DesktopRuntimeLog.info("MPV backend created id=$id runtime=${runtime.directory?.safePath() ?: "none"}")
+        DesktopRuntimeLog.info(
+            "MPV backend created id=$id surfaceMode=$surfaceMode " +
+                "runtime=${runtime.directory?.safePath() ?: "none"}",
+        )
     }
 
     override suspend fun load(request: DesktopPlayerRequest) {
@@ -129,13 +136,15 @@ internal class MpvDesktopPlayerBackend private constructor(
         stopped = false
         stateFlow.value = stateFlow.value.copy(phase = DesktopPlayerPhase.Preparing, error = null)
         runCatching {
+            awaitNativeSurfaceIfNeeded()
             val headers = request.sourceHeaders.toMutableMap()
             DesktopRuntimeLog.info(
                 "MPV load start session=${request.sessionKey} source=${request.sourceUrl.redactedMediaUrl()} " +
-                    "audio=${request.sourceAudioUrl?.redactedMediaUrl() ?: "none"} headersPresent=${headers.isNotEmpty()}",
+                    "audio=${request.sourceAudioUrl?.redactedMediaUrl() ?: "none"} " +
+                    "headersPresent=${headers.isNotEmpty()} surfaceMode=$surfaceMode",
             )
             resetExternalSubtitleState("load")
-                        player.setMediaData(UriMediaData(request.sourceUrl, headers))
+            player.setMediaData(UriMediaData(request.sourceUrl, headers))
             // Defer seek to after vo-configured (duration > 0)
             if (request.seekTargetMs > 0L) {
                 pendingSeekMs = request.seekTargetMs
@@ -205,7 +214,25 @@ internal class MpvDesktopPlayerBackend private constructor(
 
     @Composable
     override fun Surface(modifier: Modifier) {
-        MpvDesktopPlayerSurface(player = player, modifier = modifier)
+        MpvDesktopPlayerSurface(
+            player = player,
+            modifier = modifier,
+            surfaceMode = surfaceMode,
+            onSurfaceReady = {
+                if (!nativeSurfaceReady.isCompleted) nativeSurfaceReady.complete(Unit)
+            },
+        )
+    }
+
+    private suspend fun awaitNativeSurfaceIfNeeded() {
+        if (!surfaceMode.requiresSurfaceBeforeLoad || nativeSurfaceReady.isCompleted) return
+        val attached = withTimeoutOrNull(2_000L) {
+            nativeSurfaceReady.await()
+            true
+        } ?: false
+        if (!attached) {
+            DesktopRuntimeLog.warn("MPV native window surface was not ready before load; continuing anyway")
+        }
     }
 
     private fun observePlayerState() {
@@ -236,7 +263,7 @@ internal class MpvDesktopPlayerBackend private constructor(
                 bufferedPositionMs = 0L,
                 playbackSpeed = player.features[PlaybackSpeed]?.value ?: 1.0f,
                 backendName = backendName,
-                diagnostics = runtime.diagnostics,
+                diagnostics = diagnostics(),
                 error = if (playbackState == PlaybackState.ERROR) {
                     DesktopPlayerError.PlaybackFailed(backendName, "MPV playback state is ERROR")
                 } else {
@@ -407,6 +434,9 @@ internal class MpvDesktopPlayerBackend private constructor(
 
     private fun snapshotForLog(): String =
         "state=${player.getCurrentPlaybackState()} posMs=${player.currentPositionMillis.value} durationMs=${durationMs() ?: -1}"
+
+    private fun diagnostics(): String =
+        "${runtime.diagnostics}; surfaceMode=$surfaceMode"
 
     private fun resetExternalSubtitleState(reason: String) {
         if (nativeClosed) return
