@@ -95,7 +95,6 @@ private const val PlayerScrollVolumeApplyIntervalMs = 40L
 private const val PlayerScrollVolumePixelThreshold = 8f
 private const val PlayerScrollVolumePixelUnit = 120f
 private const val PlayerScrollVolumeMaxQueuedDelta = 0.06f
-private const val PlayerChromeFrameIntervalMs = 8L
 private const val PlayerNextEpisodeStreamPollIntervalMs = 100L
 private val PlayerSliderOverlayGap = 12.dp
 private val PlayerMetadataBlockHeight = 88.dp
@@ -130,18 +129,6 @@ private class PlayerVolumeScrollAccumulator {
     var pendingDelta = 0f
     var lastAppliedEpochMs = 0L
     var applyJob: Job? = null
-}
-
-private fun PlayerPlaybackSnapshot.displayPositionAt(
-    snapshotEpochMs: Long,
-    nowEpochMs: Long,
-): Long {
-    if (!isPlaying || durationMs <= 0L) {
-        return positionMs.coerceAtLeast(0L)
-    }
-    val elapsedMs = (nowEpochMs - snapshotEpochMs).coerceAtLeast(0L)
-    val interpolated = positionMs + (elapsedMs * playbackSpeed).roundToLong()
-    return interpolated.coerceIn(0L, durationMs)
 }
 
 private fun playerVolumeDeltaForScroll(scrollY: Float): Float {
@@ -283,7 +270,6 @@ fun PlayerScreen(
         var layoutSize by remember { mutableStateOf(IntSize.Zero) }
         var playbackSnapshot by remember { mutableStateOf(PlayerPlaybackSnapshot()) }
         var playbackSnapshotEpochMs by remember { mutableStateOf(WatchProgressClock.nowEpochMs()) }
-        var playerChromeFrameEpochMs by remember { mutableStateOf(WatchProgressClock.nowEpochMs()) }
         var playbackLoadGeneration by remember { mutableStateOf(0) }
         var playerController by remember { mutableStateOf<PlayerEngineController?>(null) }
         var playerControllerSourceUrl by remember { mutableStateOf<String?>(null) }
@@ -325,26 +311,9 @@ fun PlayerScreen(
         ) { mutableStateOf(false) }
 
         val backdropArtwork = background ?: poster
-        val displayedPositionMs = scrubbingPositionMs ?: playbackSnapshot.displayPositionAt(
-            snapshotEpochMs = playbackSnapshotEpochMs,
-            nowEpochMs = if (playbackSnapshot.isPlaying && controlsVisible && !playerControlsLocked) {
-                playerChromeFrameEpochMs
-            } else {
-                playbackSnapshotEpochMs
-            },
-        )
+        val displayedPositionMs = scrubbingPositionMs ?: playbackSnapshot.positionMs
         val isEpisode = activeSeasonNumber != null && activeEpisodeNumber != null
         val currentGestureFeedback = liveGestureFeedback ?: gestureFeedback
-
-        LaunchedEffect(playbackSnapshot.isPlaying, controlsVisible, playerControlsLocked, scrubbingPositionMs) {
-            if (!playbackSnapshot.isPlaying || !controlsVisible || playerControlsLocked || scrubbingPositionMs != null) {
-                return@LaunchedEffect
-            }
-            while (true) {
-                playerChromeFrameEpochMs = WatchProgressClock.nowEpochMs()
-                delay(PlayerChromeFrameIntervalMs)
-            }
-        }
 
         LaunchedEffect(currentGestureFeedback) {
             if (currentGestureFeedback != null) {
@@ -2177,6 +2146,8 @@ fun PlayerScreen(
                     episodeTitle = activeEpisodeTitle,
                     playbackSnapshot = playbackSnapshot,
                     displayedPositionMs = displayedPositionMs,
+                    snapshotEpochMs = playbackSnapshotEpochMs,
+                    animateDisplayedPosition = scrubbingPositionMs == null && playbackSnapshot.isPlaying,
                     metrics = metrics,
                     resizeMode = resizeMode,
                     isFullscreenSupported = fullscreenController.isFullscreenSupported,

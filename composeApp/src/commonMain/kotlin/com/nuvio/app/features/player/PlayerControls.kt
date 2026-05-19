@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -99,6 +100,53 @@ private val PlayerSeekTimeHorizontalGap = 6.dp
 private val PlayerToolbarButtonSize = 44.dp
 private val PlayerToolbarIconSize = 23.dp
 
+private fun PlayerPlaybackSnapshot.displayPositionAt(
+    snapshotEpochMs: Long,
+    nowEpochMs: Long,
+): Long {
+    if (!isPlaying || durationMs <= 0L) {
+        return positionMs.coerceAtLeast(0L)
+    }
+    val elapsedMs = (nowEpochMs - snapshotEpochMs).coerceAtLeast(0L)
+    val interpolated = positionMs + (elapsedMs * playbackSpeed).roundToLong()
+    return interpolated.coerceIn(0L, durationMs)
+}
+
+@Composable
+private fun rememberLiveDisplayedPositionMs(
+    playbackSnapshot: PlayerPlaybackSnapshot,
+    displayedPositionMs: Long,
+    snapshotEpochMs: Long,
+    animateDisplayedPosition: Boolean,
+): Long {
+    var frameEpochMs by remember { mutableStateOf(PlayerWallClock.nowEpochMs()) }
+
+    LaunchedEffect(
+        animateDisplayedPosition,
+        playbackSnapshot.isPlaying,
+        playbackSnapshot.durationMs,
+        playbackSnapshot.playbackSpeed,
+        snapshotEpochMs,
+    ) {
+        if (!animateDisplayedPosition || !playbackSnapshot.isPlaying || playbackSnapshot.durationMs <= 0L) {
+            return@LaunchedEffect
+        }
+        while (true) {
+            withFrameNanos { }
+            frameEpochMs = PlayerWallClock.nowEpochMs()
+        }
+    }
+
+    return if (animateDisplayedPosition) {
+        playbackSnapshot.displayPositionAt(
+            snapshotEpochMs = snapshotEpochMs,
+            nowEpochMs = frameEpochMs,
+        )
+    } else {
+        displayedPositionMs
+    }
+}
+
 @Composable
 internal fun PlayerControlsShell(
     title: String,
@@ -109,6 +157,8 @@ internal fun PlayerControlsShell(
     episodeTitle: String?,
     playbackSnapshot: PlayerPlaybackSnapshot,
     displayedPositionMs: Long,
+    snapshotEpochMs: Long,
+    animateDisplayedPosition: Boolean,
     metrics: PlayerLayoutMetrics,
     resizeMode: PlayerResizeMode,
     isFullscreenSupported: Boolean,
@@ -135,6 +185,13 @@ internal fun PlayerControlsShell(
     horizontalSafePadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
 ) {
+    val liveDisplayedPositionMs = rememberLiveDisplayedPositionMs(
+        playbackSnapshot = playbackSnapshot,
+        displayedPositionMs = displayedPositionMs,
+        snapshotEpochMs = snapshotEpochMs,
+        animateDisplayedPosition = animateDisplayedPosition,
+    )
+
     Box(modifier = modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -173,7 +230,7 @@ internal fun PlayerControlsShell(
         ) {
             PlayerHeader(
                 metrics = metrics,
-                displayedPositionMs = displayedPositionMs,
+                displayedPositionMs = liveDisplayedPositionMs,
                 durationMs = playbackSnapshot.durationMs,
                 onBack = onBack,
                 modifier = Modifier
@@ -195,7 +252,7 @@ internal fun PlayerControlsShell(
                 episodeNumber = episodeNumber,
                 episodeTitle = episodeTitle,
                 playbackSnapshot = playbackSnapshot,
-                displayedPositionMs = displayedPositionMs,
+                displayedPositionMs = liveDisplayedPositionMs,
                 metrics = metrics,
                 resizeMode = resizeMode,
                 isFullscreenSupported = isFullscreenSupported,
