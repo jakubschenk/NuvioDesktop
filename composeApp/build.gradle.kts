@@ -394,6 +394,7 @@ kotlin {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.ktor.client.java)
                 implementation(libs.kotlinx.coroutines.swing)
+                implementation(libs.coil.svg)
                 implementation(libs.jna)
                 implementation("com.mortennobel:java-image-scaling:0.8.6")
                 implementation("com.squareup.okhttp3:okhttp:4.12.0")
