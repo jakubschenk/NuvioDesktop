@@ -631,12 +631,7 @@ private fun MainAppContent(
         }
         val hapticFeedback = LocalHapticFeedback.current
         val coroutineScope = rememberCoroutineScope()
-        val initialSelectedTab = remember {
-            LayoutSettingsRepository.loadRememberedScreenName()
-                ?.let { name -> runCatching { AppScreenTab.valueOf(name) }.getOrNull() }
-                ?: AppScreenTab.Home
-        }
-        var selectedTab by rememberSaveable { mutableStateOf(initialSelectedTab) }
+        var selectedTab by rememberSaveable { mutableStateOf(AppScreenTab.Home) }
         var rememberedFullscreenRestoreChecked by rememberSaveable { mutableStateOf(false) }
         var searchFocusRequestCount by remember { mutableStateOf(0) }
         val homeScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
@@ -739,11 +734,10 @@ private fun MainAppContent(
         }
     }
 
-    LaunchedEffect(selectedTab, layoutSettingsUiState.rememberScreen) {
+    LaunchedEffect(selectedTab) {
         if (selectedTab != AppScreenTab.Search) {
             SearchRepository.updateQuery("")
         }
-        LayoutSettingsRepository.recordScreen(selectedTab.name)
         NativeTabBridge.publishSelectedTab(selectedTab.toNativeNavigationTab())
         if (selectedTab != AppScreenTab.Search) {
             searchFocusRequestCount = 0

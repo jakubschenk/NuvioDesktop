@@ -36,6 +36,7 @@ import com.nuvio.app.desktop.DesktopWindowStateStore
 import com.nuvio.app.desktop.WindowsNativeBootstrap
 import com.nuvio.app.desktop.WindowsUrlProtocolRegistrar
 import com.nuvio.app.features.notifications.WindowsToastHelper
+import com.nuvio.app.features.settings.LayoutSettingsRepository
 import com.nuvio.app.features.trakt.TraktAuthRepository
 import io.ktor.http.Url
 import nuvio.composeapp.generated.resources.Res
@@ -161,12 +162,20 @@ fun main(args: Array<String>) {
     }
     rawStartupUrls.forEach(::handleIncomingDeepLink)
     WindowsNativeBootstrap.bootstrap()
+    LayoutSettingsRepository.ensureLoaded()
     configureMacOsNativeAppearance()
     application {
         DesktopRuntimeLog.info("window composition start pid=$pid")
         var hiddenToTrayForExternalPlayback by remember { mutableStateOf(false) }
-        val defaultWindowSize = computeStartupWindowSize()
-        val savedWindow = DesktopWindowStateStore.load()
+        val rememberScreenPlacementAtStartup = remember {
+            LayoutSettingsRepository.uiState.value.rememberScreen
+        }
+        val defaultWindowSize = remember { computeStartupWindowSize() }
+        val savedWindow = remember(rememberScreenPlacementAtStartup) {
+            DesktopWindowStateStore.load(
+                rememberScreenPlacement = rememberScreenPlacementAtStartup,
+            )
+        }
         val initialSize = savedWindow?.let {
             clampDpSizeToDisplay(DpSize(it.widthDp.dp, it.heightDp.dp))
         } ?: defaultWindowSize
@@ -175,9 +184,16 @@ fun main(args: Array<String>) {
         } else {
             WindowPlacement.Floating
         }
+        val initialPosition = savedWindow
+            ?.let { saved ->
+                val x = saved.x
+                val y = saved.y
+                if (x != null && y != null) WindowPosition(x.dp, y.dp) else null
+            }
+            ?: WindowPosition.Aligned(Alignment.Center)
         val startupWindowState = rememberWindowState(
             size = initialSize,
-            position = WindowPosition.Aligned(Alignment.Center),
+            position = initialPosition,
             placement = initialPlacement,
         )
         val trayIcon = painterResource(Res.drawable.nuvio_window_icon)
@@ -232,7 +248,12 @@ fun main(args: Array<String>) {
                 if (DesktopBorderlessFullscreenController.isFullscreenActive) {
                     DesktopRuntimeLog.info("windowClose skipped window-state save while borderless fullscreen is active")
                 } else {
-                    DesktopWindowStateStore.save(startupWindowState.size, startupWindowState.placement)
+                    DesktopWindowStateStore.save(
+                        size = startupWindowState.size,
+                        placement = startupWindowState.placement,
+                        window = desktopMainWindow,
+                        rememberScreenPlacement = LayoutSettingsRepository.uiState.value.rememberScreen,
+                    )
                 }
                 val closeStartMs = System.currentTimeMillis()
                 DesktopRuntimeLog.info("windowClose requested pid=$pid")

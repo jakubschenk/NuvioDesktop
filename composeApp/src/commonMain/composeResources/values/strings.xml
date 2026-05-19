@@ -501,7 +501,7 @@
     <string name="settings_appearance_section_theme">THEME</string>
     <string name="settings_layout_section_window">WINDOW</string>
     <string name="settings_layout_remember_screen">Remember screen</string>
-    <string name="settings_layout_remember_screen_description">Reopen the app on the last top-level screen.</string>
+    <string name="settings_layout_remember_screen_description">Reopen the app on the display it was closed on.</string>
     <string name="settings_layout_remember_fullscreen">Remember fullscreen</string>
     <string name="settings_layout_remember_fullscreen_description">Restore fullscreen on launch when the app was closed fullscreen.</string>
     <string name="settings_homescreen_collection_with_addon">Collection • %1$s</string>

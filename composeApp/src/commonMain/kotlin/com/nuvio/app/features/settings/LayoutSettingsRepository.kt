@@ -30,7 +30,7 @@ object LayoutSettingsRepository {
         _uiState.value = _uiState.value.copy(rememberScreen = enabled)
         LayoutSettingsStorage.saveRememberScreen(enabled)
         if (!enabled) {
-            LayoutSettingsStorage.clearLastScreen()
+            LayoutSettingsStorage.clearRememberedScreenPlacement()
         }
     }
 
@@ -41,22 +41,6 @@ object LayoutSettingsRepository {
         LayoutSettingsStorage.saveRememberFullscreen(enabled)
         if (!enabled) {
             LayoutSettingsStorage.clearLastFullscreen()
-        }
-    }
-
-    fun loadRememberedScreenName(): String? {
-        ensureLoaded()
-        return if (_uiState.value.rememberScreen) {
-            LayoutSettingsStorage.loadLastScreen()
-        } else {
-            null
-        }
-    }
-
-    fun recordScreen(screenName: String) {
-        ensureLoaded()
-        if (_uiState.value.rememberScreen) {
-            LayoutSettingsStorage.saveLastScreen(screenName)
         }
     }
 

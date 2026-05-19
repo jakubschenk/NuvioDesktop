@@ -116,7 +116,10 @@ fun SearchScreen(
     val watchedUiState by WatchedRepository.uiState.collectAsStateWithLifecycle()
     val networkStatusUiState by NetworkStatusRepository.uiState.collectAsStateWithLifecycle()
     val query by SearchRepository.query.collectAsStateWithLifecycle()
+    val normalizedSearchQuery = query.trim()
     var lastRequestedQuery by remember { mutableStateOf<String?>(null) }
+    var scrollResetQuery by remember { mutableStateOf<String?>(null) }
+    var initialResultsAnchoredQuery by remember { mutableStateOf<String?>(null) }
     var observedOfflineState by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val discoverInFocus by remember(query, listState) {
@@ -157,16 +160,49 @@ fun SearchScreen(
         SearchRepository.refreshDiscover(addonsUiState.addons)
     }
 
-    LaunchedEffect(query, addonRefreshKey, homeCatalogSettingsUiState.hideUnreleasedContent) {
-        val normalizedQuery = query.trim()
-        if (normalizedQuery.isBlank()) {
+    LaunchedEffect(normalizedSearchQuery) {
+        if (normalizedSearchQuery.isBlank()) {
+            scrollResetQuery = null
+            initialResultsAnchoredQuery = null
+            if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) {
+                listState.scrollToItem(0)
+            }
+            return@LaunchedEffect
+        }
+
+        if (scrollResetQuery == normalizedSearchQuery) return@LaunchedEffect
+        scrollResetQuery = normalizedSearchQuery
+        initialResultsAnchoredQuery = null
+        if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) {
+            listState.scrollToItem(0)
+        }
+    }
+
+    LaunchedEffect(
+        normalizedSearchQuery,
+        uiState.query,
+        uiState.sections.size,
+    ) {
+        if (normalizedSearchQuery.isBlank()) return@LaunchedEffect
+        if (uiState.query != normalizedSearchQuery) return@LaunchedEffect
+        if (uiState.sections.isEmpty()) return@LaunchedEffect
+        if (initialResultsAnchoredQuery == normalizedSearchQuery) return@LaunchedEffect
+
+        initialResultsAnchoredQuery = normalizedSearchQuery
+        if (listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset != 0) {
+            listState.scrollToItem(0)
+        }
+    }
+
+    LaunchedEffect(normalizedSearchQuery, addonRefreshKey, homeCatalogSettingsUiState.hideUnreleasedContent) {
+        if (normalizedSearchQuery.isBlank()) {
             lastRequestedQuery = null
             SearchRepository.clear()
         } else {
             delay(350)
-            lastRequestedQuery = normalizedQuery
+            lastRequestedQuery = normalizedSearchQuery
             SearchRepository.search(
-                query = normalizedQuery,
+                query = normalizedSearchQuery,
                 addons = addonsUiState.addons,
             )
         }
@@ -187,15 +223,14 @@ fun SearchScreen(
             }
     }
 
-    LaunchedEffect(query, lastRequestedQuery, uiState.isLoading, uiState.sections) {
-        val normalizedQuery = query.trim()
-        if (normalizedQuery.isBlank()) return@LaunchedEffect
-        if (lastRequestedQuery != normalizedQuery) return@LaunchedEffect
+    LaunchedEffect(normalizedSearchQuery, lastRequestedQuery, uiState.isLoading, uiState.sections) {
+        if (normalizedSearchQuery.isBlank()) return@LaunchedEffect
+        if (lastRequestedQuery != normalizedSearchQuery) return@LaunchedEffect
         if (uiState.isLoading || uiState.sections.isEmpty()) return@LaunchedEffect
-        SearchHistoryRepository.recordSearch(normalizedQuery)
+        SearchHistoryRepository.recordSearch(normalizedSearchQuery)
     }
 
-    LaunchedEffect(networkStatusUiState.condition, query, addonRefreshKey) {
+    LaunchedEffect(networkStatusUiState.condition, normalizedSearchQuery, addonRefreshKey) {
         when (networkStatusUiState.condition) {
             NetworkCondition.NoInternet,
             NetworkCondition.ServersUnreachable,
@@ -207,12 +242,11 @@ fun SearchScreen(
                 if (!observedOfflineState) return@LaunchedEffect
                 observedOfflineState = false
 
-                val normalizedQuery = query.trim()
-                if (normalizedQuery.isBlank()) {
+                if (normalizedSearchQuery.isBlank()) {
                     SearchRepository.refreshDiscover(addonsUiState.addons)
                 } else {
                     SearchRepository.search(
-                        query = normalizedQuery,
+                        query = normalizedSearchQuery,
                         addons = addonsUiState.addons,
                     )
                 }
@@ -260,7 +294,6 @@ fun SearchScreen(
             val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             statusBarPadding + 10.dp + 16.dp + 38.dp + 8.dp + 56.dp + (desktopRecentMatchCount * 44).dp + 22.dp
         }
-        val normalizedSearchQuery = query.trim()
         val searchIsPendingForCurrentQuery = uiState.isLoading ||
             uiState.query != normalizedSearchQuery ||
             lastRequestedQuery != normalizedSearchQuery

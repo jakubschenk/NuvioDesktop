@@ -5,9 +5,7 @@ internal expect object LayoutSettingsStorage {
     fun saveRememberScreen(enabled: Boolean)
     fun loadRememberFullscreen(): Boolean?
     fun saveRememberFullscreen(enabled: Boolean)
-    fun loadLastScreen(): String?
-    fun saveLastScreen(screenName: String)
-    fun clearLastScreen()
+    fun clearRememberedScreenPlacement()
     fun loadLastFullscreen(): Boolean?
     fun saveLastFullscreen(fullscreen: Boolean)
     fun clearLastFullscreen()

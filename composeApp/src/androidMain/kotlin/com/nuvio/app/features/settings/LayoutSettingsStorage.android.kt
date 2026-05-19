@@ -5,9 +5,7 @@ internal actual object LayoutSettingsStorage {
     actual fun saveRememberScreen(enabled: Boolean) = Unit
     actual fun loadRememberFullscreen(): Boolean? = null
     actual fun saveRememberFullscreen(enabled: Boolean) = Unit
-    actual fun loadLastScreen(): String? = null
-    actual fun saveLastScreen(screenName: String) = Unit
-    actual fun clearLastScreen() = Unit
+    actual fun clearRememberedScreenPlacement() = Unit
     actual fun loadLastFullscreen(): Boolean? = null
     actual fun saveLastFullscreen(fullscreen: Boolean) = Unit
     actual fun clearLastFullscreen() = Unit
