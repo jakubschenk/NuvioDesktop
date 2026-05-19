@@ -2608,9 +2608,17 @@ private fun AppTabHost(
                 }
 
                 AppScreenTab.Library -> {
+                    val desktopTopPadding = if (showSearchChrome) {
+                        null
+                    } else {
+                        val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                        statusBarPadding + 10.dp + 16.dp + 38.dp + 22.dp
+                    }
+
                     LibraryScreen(
                         modifier = Modifier.fillMaxSize(),
                         scrollToTopRequests = libraryScrollToTopRequests,
+                        topPadding = desktopTopPadding,
                         onPosterClick = onLibraryPosterClick,
                         onPosterLongClick = onLibraryPosterLongClick,
                         onSectionViewAllClick = onLibrarySectionViewAllClick,

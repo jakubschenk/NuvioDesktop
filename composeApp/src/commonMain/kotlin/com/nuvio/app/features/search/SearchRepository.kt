@@ -25,7 +25,6 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
@@ -98,73 +97,61 @@ object SearchRepository {
         lastRequestKey = requestKey
 
         activeJob?.cancel()
-        _uiState.value = SearchUiState(query = normalizedQuery, isLoading = true)
+        _uiState.value = SearchUiState(
+            query = normalizedQuery,
+            isLoading = true,
+            pendingCatalogCount = requests.size,
+        )
 
         activeJob = scope.launch {
-            val resultChannel = Channel<IndexedSearchResult>(Channel.UNLIMITED)
-            val jobs = requests.mapIndexed { index, request ->
+            val resultChannel = Channel<IndexedSearchResult>(capacity = Channel.UNLIMITED)
+            requests.forEachIndexed { index, request ->
                 launch {
-                    runCatching { request.toSection() }
-                        .fold(
-                            onSuccess = { section ->
-                                resultChannel.send(
-                                    IndexedSearchResult(
-                                        index = index,
-                                        section = section,
-                                    ),
-                                )
-                            },
-                            onFailure = { error ->
-                                if (error is CancellationException) throw error
-                                resultChannel.send(
-                                    IndexedSearchResult(
-                                        index = index,
-                                        error = error,
-                                    ),
-                                )
-                            },
-                        )
-                }
-            }
-            val closeChannelJob = launch {
-                jobs.joinAll()
-                resultChannel.close()
-            }
-            val results = arrayOfNulls<IndexedSearchResult>(requests.size)
-
-            try {
-                for (result in resultChannel) {
-                    results[result.index] = result
-                    val sections = results.orderedSections()
-                    if (sections.isNotEmpty()) {
-                        _uiState.value = SearchUiState(
-                            query = normalizedQuery,
-                            isLoading = true,
-                            sections = sections,
-                        )
+                    val result = try {
+                        Result.success(request.toSection())
+                    } catch (error: Throwable) {
+                        if (error is CancellationException) throw error
+                        Result.failure(error)
                     }
+                    resultChannel.send(IndexedSearchResult(index = index, result = result))
                 }
-            } finally {
-                closeChannelJob.cancel()
-                resultChannel.close()
             }
 
-            val completedResults = results.filterNotNull()
-            val sections = results.orderedSections()
-            val firstFailure = completedResults.firstNotNullOfOrNull { it.error?.message }
-            val allFailed = completedResults.isNotEmpty() && completedResults.all { it.error != null }
+            val sectionsByIndex = arrayOfNulls<HomeCatalogSection>(requests.size)
+            val failures = mutableListOf<Throwable>()
+            var remainingCatalogs = requests.size
 
-            _uiState.value = SearchUiState(
-                query = normalizedQuery,
-                isLoading = false,
-                sections = sections,
-                emptyStateReason = when {
-                    sections.isNotEmpty() -> null
-                    allFailed -> SearchEmptyStateReason.RequestFailed
-                    else -> SearchEmptyStateReason.NoResults
-                },
-                errorMessage = if (allFailed) firstFailure else null,
-            )
+            repeat(requests.size) {
+                val indexedResult = resultChannel.receive()
+                remainingCatalogs -= 1
+
+                indexedResult.result.fold(
+                    onSuccess = { section ->
+                        sectionsByIndex[indexedResult.index] = section
+                    },
+                    onFailure = { error ->
+                        failures += error
+                    },
+                )
+
+                val sections = sectionsByIndex.filterNotNull()
+                val completed = remainingCatalogs == 0
+                val allFailed = completed && failures.size == requests.size
+
+                _uiState.value = SearchUiState(
+                    query = normalizedQuery,
+                    isLoading = !completed,
+                    pendingCatalogCount = remainingCatalogs,
+                    sections = sections,
+                    emptyStateReason = when {
+                        !completed -> null
+                        sections.isNotEmpty() -> null
+                        allFailed -> SearchEmptyStateReason.RequestFailed
+                        else -> SearchEmptyStateReason.NoResults
+                    },
+                    errorMessage = if (allFailed) failures.firstOrNull()?.message else null,
+                )
+            }
         }
     }
 
@@ -492,12 +479,8 @@ object SearchRepository {
 
 private data class IndexedSearchResult(
     val index: Int,
-    val section: HomeCatalogSection? = null,
-    val error: Throwable? = null,
+    val result: Result<HomeCatalogSection>,
 )
-
-private fun Array<IndexedSearchResult?>.orderedSections(): List<HomeCatalogSection> =
-    mapNotNull { result -> result?.section }
 
 private fun CatalogPage.withUnreleasedFilter(): CatalogPage {
     if (!HomeCatalogSettingsRepository.snapshot().hideUnreleasedContent) return this

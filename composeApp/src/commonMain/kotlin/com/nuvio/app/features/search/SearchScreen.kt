@@ -384,8 +384,8 @@ fun SearchScreen(
                                 onPosterLongClick = onPosterLongClick,
                             )
                         }
-                        if (uiState.isLoading) {
-                            item(key = "search_loading_more") {
+                        if (uiState.isLoading && uiState.pendingCatalogCount > 0) {
+                            item(key = "search_pending_catalog_skeleton") {
                                 HomeSkeletonRow(
                                     modifier = Modifier.padding(horizontal = homeSectionPadding),
                                     showHeaderAccent = !homeCatalogSettingsUiState.hideCatalogUnderline,
