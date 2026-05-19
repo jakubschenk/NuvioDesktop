@@ -539,7 +539,10 @@ val iosDistributionSourceDir = if (iosDistribution == "full") {
     "src/iosAppStore/kotlin"
 }
 val iosFrameworkBundleId = "com.nuvio.media"
-val fullCommonSourceDir = project.file("src/fullCommonMain/kotlin")
+// Shared full-feature code stays platform-neutral so Android full, iOS full, and desktop can opt in.
+// Platform-specific hooks for that shared code live in androidFull, iosFull, and desktopFullMain.
+val sharedFullFeatureSourceDir = project.file("src/fullCommonMain/kotlin")
+val desktopFullFeatureSourceDir = project.file("src/desktopFullMain/kotlin")
 val generatedRuntimeConfigDir = layout.buildDirectory.dir("generated/runtime-config/kotlin")
 
 val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generateRuntimeConfigs") {
@@ -585,7 +588,7 @@ kotlin {
             }
 
             if (iosDistribution == "full") {
-                defaultSourceSet.kotlin.srcDir(fullCommonSourceDir)
+                defaultSourceSet.kotlin.srcDir(sharedFullFeatureSourceDir)
             }
             defaultSourceSet.kotlin.srcDir(project.file(iosDistributionSourceDir))
             defaultSourceSet.dependencies {
@@ -609,7 +612,8 @@ kotlin {
             kotlin.srcDir(generatedRuntimeConfigDir)
         }
         val desktopMain by getting {
-            kotlin.srcDir(fullCommonSourceDir)
+            kotlin.srcDir(sharedFullFeatureSourceDir)
+            kotlin.srcDir(desktopFullFeatureSourceDir)
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.ktor.client.java)
@@ -945,7 +949,7 @@ android {
     }
     sourceSets.getByName("full") {
         manifest.srcFile("src/androidFull/AndroidManifest.xml")
-        java.srcDir(fullCommonSourceDir)
+        java.srcDir(sharedFullFeatureSourceDir)
     }
     packaging {
         resources {
