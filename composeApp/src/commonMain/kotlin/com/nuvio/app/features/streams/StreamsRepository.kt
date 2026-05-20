@@ -5,7 +5,7 @@ import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.logging.redactedUrlForLog
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.buildAddonResourceUrl
-import com.nuvio.app.features.addons.httpGetText
+import com.nuvio.app.features.addons.httpGetSourceText
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.plugins.PluginRepository
@@ -34,7 +34,7 @@ import org.jetbrains.compose.resources.getString
 import kotlinx.coroutines.launch
 
 object StreamsRepository {
-    private const val SourceCacheTtlMs = 3L * 60L * 1000L
+    private const val SourceCacheTtlMs = 5L * 60L * 1000L
 
     private val log = Logger.withTag("StreamsRepo")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -44,8 +44,8 @@ object StreamsRepository {
     private var activeJob: Job? = null
     private var activeRequestKey: String? = null
     private val sourceCache = mutableMapOf<String, SourceCacheEntry>()
-    private val preloadCacheKeysInFlight = mutableSetOf<String>()
-    private val preloadMutex = Mutex()
+    private val prefetchCacheKeysInFlight = mutableSetOf<String>()
+    private val prefetchMutex = Mutex()
     private val rememberedSelectedFilterByRequestToken = mutableMapOf<String, String?>()
 
     fun requestToken(
@@ -79,7 +79,7 @@ object StreamsRepository {
         )
     }
 
-    fun preload(type: String, videoId: String, season: Int? = null, episode: Int? = null) {
+    fun prefetch(type: String, videoId: String, season: Int? = null, episode: Int? = null) {
         if (videoId.isBlank()) return
         val pluginUiState = currentPluginUiState()
         val installedAddons = AddonRepository.uiState.value.addons
@@ -111,18 +111,18 @@ object StreamsRepository {
         if (getFreshSourceCache(cacheKey) != null) return
 
         scope.launch {
-            val shouldStart = preloadMutex.withLock {
-                if (getFreshSourceCache(cacheKey) != null || cacheKey in preloadCacheKeysInFlight) {
+            val shouldStart = prefetchMutex.withLock {
+                if (getFreshSourceCache(cacheKey) != null || cacheKey in prefetchCacheKeysInFlight) {
                     false
                 } else {
-                    preloadCacheKeysInFlight.add(cacheKey)
+                    prefetchCacheKeysInFlight.add(cacheKey)
                     true
                 }
             }
             if (!shouldStart) return@launch
 
             try {
-                log.d { "Preloading streams for type=$type id=$videoId" }
+                log.d { "Prefetching streams for type=$type id=$videoId" }
                 val groups = fetchGroupsForCache(
                     type = type,
                     videoId = videoId,
@@ -131,12 +131,12 @@ object StreamsRepository {
                     streamAddons = streamAddons,
                     pluginProviderGroups = pluginProviderGroups,
                 )
-                preloadMutex.withLock {
+                prefetchMutex.withLock {
                     saveSourceCache(cacheKey, groups)
                 }
             } finally {
-                preloadMutex.withLock {
-                    preloadCacheKeysInFlight.remove(cacheKey)
+                prefetchMutex.withLock {
+                    prefetchCacheKeysInFlight.remove(cacheKey)
                 }
             }
         }
@@ -373,7 +373,7 @@ object StreamsRepository {
 
                     val displayName = addon.addonName
                     val group = runCatching {
-                        val payload = httpGetText(url)
+                        val payload = httpGetSourceText(url)
                         StreamParser.parse(
                             payload = payload,
                             addonName = displayName,
@@ -629,7 +629,7 @@ object StreamsRepository {
                 )
                 val displayName = addon.addonName
                 runCatching {
-                    val payload = httpGetText(url)
+                    val payload = httpGetSourceText(url)
                     StreamParser.parse(
                         payload = payload,
                         addonName = displayName,
@@ -645,7 +645,7 @@ object StreamsRepository {
                         )
                     },
                     onFailure = { err ->
-                        log.w(err) { "Failed to preload streams from ${displayName}" }
+                        log.w(err) { "Failed to load streams from ${displayName}" }
                         AddonStreamGroup(
                             addonName = displayName,
                             addonId = addon.addonId,

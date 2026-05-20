@@ -47,85 +47,111 @@ private val addonHttpClient = HttpClient(Darwin) {
 }
 
 actual suspend fun httpGetText(url: String): String =
-    addonHttpClient
-        .get(url) {
-            accept(ContentType.Application.Json)
-        }
-        .let { response ->
-            val payload = response.bodyAsText()
-            if (!response.status.isSuccess()) {
-                error("Request failed with HTTP ${response.status.value}")
+    ApiKacheClient.getText(url) {
+        addonHttpClient
+            .get(url) {
+                accept(ContentType.Application.Json)
             }
-            if (payload.isBlank()) {
-                throw IllegalStateException("Empty response body")
+            .let { response ->
+                val payload = response.bodyAsText()
+                if (!response.status.isSuccess()) {
+                    error("Request failed with HTTP ${response.status.value}")
+                }
+                if (payload.isBlank()) {
+                    throw IllegalStateException("Empty response body")
+                }
+                payload
             }
-            payload
-        }
+    }
+
+actual suspend fun httpGetSourceText(url: String): String =
+    ApiKacheClient.getSourceText(url) {
+        addonHttpClient
+            .get(url) {
+                accept(ContentType.Application.Json)
+            }
+            .let { response ->
+                val payload = response.bodyAsText()
+                if (!response.status.isSuccess()) {
+                    error("Request failed with HTTP ${response.status.value}")
+                }
+                if (payload.isBlank()) {
+                    throw IllegalStateException("Empty response body")
+                }
+                payload
+            }
+    }
 
 actual suspend fun httpPostJson(url: String, body: String): String =
-    addonHttpClient
-        .post(url) {
-            accept(ContentType.Application.Json)
-            header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-            setBody(body)
-        }
-        .let { response ->
-            val payload = response.bodyAsText()
-            if (!response.status.isSuccess()) {
-                error("Request failed with HTTP ${response.status.value}")
+    ApiKacheClient.noStore {
+        addonHttpClient
+            .post(url) {
+                accept(ContentType.Application.Json)
+                header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                setBody(body)
             }
-            if (payload.isBlank()) {
-                throw IllegalStateException("Empty response body")
+            .let { response ->
+                val payload = response.bodyAsText()
+                if (!response.status.isSuccess()) {
+                    error("Request failed with HTTP ${response.status.value}")
+                }
+                if (payload.isBlank()) {
+                    throw IllegalStateException("Empty response body")
+                }
+                payload
             }
-            payload
-        }
+    }
 
 actual suspend fun httpGetTextWithHeaders(
     url: String,
     headers: Map<String, String>,
 ): String =
-    addonHttpClient
-        .get(url) {
-            accept(ContentType.Application.Json)
-            headers.forEach { (key, value) ->
-                header(key, value)
+    ApiKacheClient.noStore {
+        addonHttpClient
+            .get(url) {
+                accept(ContentType.Application.Json)
+                headers.forEach { (key, value) ->
+                    header(key, value)
+                }
             }
-        }
-        .let { response ->
-            val payload = response.bodyAsText()
-            if (!response.status.isSuccess()) {
-                error("Request failed with HTTP ${response.status.value}")
+            .let { response ->
+                val payload = response.bodyAsText()
+                if (!response.status.isSuccess()) {
+                    error("Request failed with HTTP ${response.status.value}")
+                }
+                if (payload.isBlank()) {
+                    throw IllegalStateException("Empty response body")
+                }
+                payload
             }
-            if (payload.isBlank()) {
-                throw IllegalStateException("Empty response body")
-            }
-            payload
-        }
+    }
 
 actual suspend fun httpPostJsonWithHeaders(
     url: String,
     body: String,
     headers: Map<String, String>,
 ): String =
-    addonHttpClient
-        .post(url) {
-            accept(ContentType.Application.Json)
-            header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-            headers.forEach { (key, value) ->
-                header(key, value)
+    ApiKacheClient.noStore {
+        addonHttpClient
+            .post(url) {
+                accept(ContentType.Application.Json)
+                header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                headers.forEach { (key, value) ->
+                    header(key, value)
+                }
+                setBody(body)
             }
-            setBody(body)
-        }
-        .let { response ->
-            val payload = response.bodyAsText()
-            if (!response.status.isSuccess()) {
-                error("Request failed with HTTP ${response.status.value}")
+            .let { response ->
+                val payload = response.bodyAsText()
+                if (!response.status.isSuccess()) {
+                    error("Request failed with HTTP ${response.status.value}")
+                }
+                if (payload.isBlank()) {
+                    throw IllegalStateException("Empty response body")
+                }
+                payload
             }
-            if (payload.isBlank()) {
-                throw IllegalStateException("Empty response body")
-            }
-            payload
-        }
+    }
 
 actual suspend fun httpRequestRaw(
     method: String,
@@ -134,25 +160,27 @@ actual suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean,
 ): RawHttpResponse =
-    addonHttpClient
-        .request {
-            url(url)
-            this.method = HttpMethod.parse(method.uppercase())
-            headers.forEach { (key, value) ->
-                header(key, value)
+    ApiKacheClient.noStore {
+        addonHttpClient
+            .request {
+                url(url)
+                this.method = HttpMethod.parse(method.uppercase())
+                headers.forEach { (key, value) ->
+                    header(key, value)
+                }
+                if (this.method == HttpMethod.Post || this.method == HttpMethod.Put || this.method == HttpMethod.Patch) {
+                    setBody(body)
+                }
             }
-            if (this.method == HttpMethod.Post || this.method == HttpMethod.Put || this.method == HttpMethod.Patch) {
-                setBody(body)
+            .let { response ->
+                RawHttpResponse(
+                    status = response.status.value,
+                    statusText = response.status.description,
+                    url = response.call.request.url.toString(),
+                    body = response.bodyAsText(),
+                    headers = response.headers.entries().associate { (name, values) ->
+                        name.lowercase() to values.joinToString(",")
+                    },
+                )
             }
-        }
-        .let { response ->
-            RawHttpResponse(
-                status = response.status.value,
-                statusText = response.status.description,
-                url = response.call.request.url.toString(),
-                body = response.bodyAsText(),
-                headers = response.headers.entries().associate { (name, values) ->
-                    name.lowercase() to values.joinToString(",")
-                },
-            )
-        }
+    }

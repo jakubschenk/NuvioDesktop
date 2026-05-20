@@ -4,7 +4,7 @@ import co.touchlab.kermit.Logger
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.buildAddonResourceUrl
-import com.nuvio.app.features.addons.httpGetText
+import com.nuvio.app.features.addons.httpGetSourceText
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.plugins.PluginRepository
 import com.nuvio.app.features.plugins.pluginContentId
@@ -12,9 +12,11 @@ import com.nuvio.app.features.plugins.PluginRepositoryItem
 import com.nuvio.app.features.plugins.PluginRuntimeResult
 import com.nuvio.app.features.plugins.PluginScraper
 import com.nuvio.app.features.streams.AddonStreamGroup
+import com.nuvio.app.features.streams.StreamsEmptyStateReason
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamParser
 import com.nuvio.app.features.streams.StreamsUiState
+import com.nuvio.app.features.streams.epochMs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -32,8 +34,11 @@ import kotlinx.coroutines.launch
  * Uses its own state so it doesn't interfere with the main [StreamsRepository].
  */
 object PlayerStreamsRepository {
+    private const val PlayerStreamsCacheTtlMs = 5L * 60L * 1000L
+
     private val log = Logger.withTag("PlayerStreamsRepo")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val streamCache = mutableMapOf<String, PlayerStreamsCacheEntry>()
 
     // source panel
     private val _sourceState = MutableStateFlow(StreamsUiState())
@@ -204,6 +209,30 @@ object PlayerStreamsRepository {
             return
         }
 
+        val cacheKey = playerStreamsCacheKey(
+            type = type,
+            videoId = videoId,
+            season = season,
+            episode = episode,
+            groupByRepository = pluginUiState?.groupStreamsByRepository == true,
+            streamAddons = streamAddons,
+            pluginProviderGroups = pluginProviderGroups,
+        )
+        if (!forceRefresh) {
+            val cached = getFreshStreamCache(cacheKey)
+            if (cached != null) {
+                jobHolder()?.cancel()
+                stateFlow.value = StreamsUiState(
+                    groups = cached.groups,
+                    activeAddonIds = cached.activeAddonIds,
+                    isAnyLoading = false,
+                    emptyStateReason = cached.emptyStateReason,
+                )
+                log.d { "Using cached player streams for type=$type id=$videoId" }
+                return
+            }
+        }
+
         val initialGroups = streamAddons.map { addon ->
             AddonStreamGroup(
                 addonName = addon.addonName,
@@ -237,7 +266,7 @@ object PlayerStreamsRepository {
 
                     val displayName = addon.addonName
                     runCatching {
-                        val payload = httpGetText(url)
+                        val payload = httpGetSourceText(url)
                         StreamParser.parse(payload, displayName, addon.addonId)
                     }.fold(
                         onSuccess = { streams ->
@@ -318,10 +347,67 @@ object PlayerStreamsRepository {
                     )
                 }
             }
+
+            saveStreamCache(cacheKey, stateFlow.value.groups)
         }
         setJob(job)
     }
+
+    private fun getFreshStreamCache(cacheKey: String): PlayerStreamsCacheEntry? {
+        val cached = streamCache[cacheKey] ?: return null
+        val ageMs = epochMs() - cached.cachedAtMs
+        if (cached.cachedAtMs <= 0L || ageMs > PlayerStreamsCacheTtlMs) {
+            streamCache.remove(cacheKey)
+            return null
+        }
+        return cached
+    }
+
+    private fun saveStreamCache(cacheKey: String, groups: List<AddonStreamGroup>) {
+        val cachedGroups = groups.map { it.copy(isLoading = false) }
+        streamCache[cacheKey] = PlayerStreamsCacheEntry(
+            groups = cachedGroups,
+            activeAddonIds = cachedGroups.map { it.addonId }.toSet(),
+            emptyStateReason = cachedGroups.toPlayerEmptyStateReason(anyLoading = false),
+            cachedAtMs = epochMs(),
+        )
+    }
+
+    private fun playerStreamsCacheKey(
+        type: String,
+        videoId: String,
+        season: Int?,
+        episode: Int?,
+        groupByRepository: Boolean,
+        streamAddons: List<PlayerInstalledStreamAddonTarget>,
+        pluginProviderGroups: List<PlayerPluginProviderGroup>,
+    ): String = buildString {
+        append(type.lowercase())
+        append('|')
+        append(videoId.trim())
+        append('|')
+        append(season ?: -1)
+        append('|')
+        append(episode ?: -1)
+        append("|grouped=")
+        append(groupByRepository)
+        append("|addons=")
+        append(streamAddons.joinToString(separator = ",") { it.addonId })
+        append("|plugins=")
+        append(
+            pluginProviderGroups.joinToString(separator = ",") { group ->
+                "${group.addonId}[${group.scrapers.joinToString(separator = "+") { it.id }}]"
+            },
+        )
+    }
 }
+
+private data class PlayerStreamsCacheEntry(
+    val groups: List<AddonStreamGroup>,
+    val activeAddonIds: Set<String>,
+    val emptyStateReason: StreamsEmptyStateReason?,
+    val cachedAtMs: Long,
+)
 
 private data class PlayerInstalledStreamAddonTarget(
     val addonName: String,
@@ -339,6 +425,18 @@ private data class PlayerPluginScraperResult(
     val streams: List<StreamItem>,
     val error: String?,
 )
+
+private fun List<AddonStreamGroup>.toPlayerEmptyStateReason(anyLoading: Boolean): StreamsEmptyStateReason? {
+    if (anyLoading || any { it.streams.isNotEmpty() }) {
+        return null
+    }
+
+    return if (isNotEmpty() && all { !it.error.isNullOrBlank() }) {
+        StreamsEmptyStateReason.StreamFetchFailed
+    } else {
+        StreamsEmptyStateReason.NoStreamsFound
+    }
+}
 
 private fun com.nuvio.app.features.addons.ManagedAddon.streamAddonInstanceId(manifestId: String): String =
     "addon:$manifestId:$manifestUrl"

@@ -440,6 +440,7 @@ kotlin {
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.ktor.client.java)
+                implementation(libs.kache.file)
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(libs.coil.svg)
                 implementation(libs.quickjs.kt)
@@ -494,6 +495,7 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.androidx.navigation.compose)
             implementation(libs.kermit)
+            implementation(libs.kache.core)
             implementation(libs.supabase.postgrest)
             implementation(libs.supabase.auth)
             implementation(libs.supabase.functions)

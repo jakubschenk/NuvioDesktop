@@ -163,47 +163,64 @@ private suspend fun executeTextRequest(
 }
 
 actual suspend fun httpGetText(url: String): String =
-    executeTextRequest(
-        method = "GET",
-        url = url,
-        headers = mapOf("Accept" to "application/json"),
-    )
+    ApiKacheClient.getText(url) {
+        executeTextRequest(
+            method = "GET",
+            url = url,
+            headers = mapOf("Accept" to "application/json"),
+        )
+    }
+
+actual suspend fun httpGetSourceText(url: String): String =
+    ApiKacheClient.getSourceText(url) {
+        executeTextRequest(
+            method = "GET",
+            url = url,
+            headers = mapOf("Accept" to "application/json"),
+        )
+    }
 
 actual suspend fun httpPostJson(url: String, body: String): String =
-    executeTextRequest(
-        method = "POST",
-        url = url,
-        headers = mapOf(
-            "Accept" to "application/json",
-            "Content-Type" to "application/json",
-        ),
-        body = body,
-    )
+    ApiKacheClient.noStore {
+        executeTextRequest(
+            method = "POST",
+            url = url,
+            headers = mapOf(
+                "Accept" to "application/json",
+                "Content-Type" to "application/json",
+            ),
+            body = body,
+        )
+    }
 
 actual suspend fun httpGetTextWithHeaders(
     url: String,
     headers: Map<String, String>,
 ): String =
-    executeTextRequest(
-        method = "GET",
-        url = url,
-        headers = mapOf("Accept" to "application/json") + headers,
-    )
+    ApiKacheClient.noStore {
+        executeTextRequest(
+            method = "GET",
+            url = url,
+            headers = mapOf("Accept" to "application/json") + headers,
+        )
+    }
 
 actual suspend fun httpPostJsonWithHeaders(
     url: String,
     body: String,
     headers: Map<String, String>,
 ): String =
-    executeTextRequest(
-        method = "POST",
-        url = url,
-        headers = mapOf(
-            "Accept" to "application/json",
-            "Content-Type" to "application/json",
-        ) + headers,
-        body = body,
-    )
+    ApiKacheClient.noStore {
+        executeTextRequest(
+            method = "POST",
+            url = url,
+            headers = mapOf(
+                "Accept" to "application/json",
+                "Content-Type" to "application/json",
+            ) + headers,
+            body = body,
+        )
+    }
 
 actual suspend fun httpRequestRaw(
     method: String,
@@ -212,43 +229,45 @@ actual suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean,
 ): RawHttpResponse =
-    withContext(Dispatchers.IO) {
-        val normalizedMethod = method.uppercase()
-        val sanitizedHeaders = headers.withoutAcceptEncoding()
-        val builder = Request.Builder().url(url)
-        sanitizedHeaders.forEach { (key, value) ->
-            builder.header(key, value)
-        }
+    ApiKacheClient.noStore {
+        withContext(Dispatchers.IO) {
+            val normalizedMethod = method.uppercase()
+            val sanitizedHeaders = headers.withoutAcceptEncoding()
+            val builder = Request.Builder().url(url)
+            sanitizedHeaders.forEach { (key, value) ->
+                builder.header(key, value)
+            }
 
-        val request = if (requestAllowsBody(normalizedMethod)) {
-            val contentType = sanitizedHeaders.getHeaderIgnoreCase("Content-Type")
-                ?: if (normalizedMethod == "POST") "application/x-www-form-urlencoded" else "application/json"
-            val requestBody = body.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaType())
-            builder.method(normalizedMethod, requestBody)
-        } else {
-            builder.method(normalizedMethod, null)
-        }.build()
+            val request = if (requestAllowsBody(normalizedMethod)) {
+                val contentType = sanitizedHeaders.getHeaderIgnoreCase("Content-Type")
+                    ?: if (normalizedMethod == "POST") "application/x-www-form-urlencoded" else "application/json"
+                val requestBody = body.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaType())
+                builder.method(normalizedMethod, requestBody)
+            } else {
+                builder.method(normalizedMethod, null)
+            }.build()
 
-        val client = if (followRedirects) {
-            addonHttpClient
-        } else {
-            addonHttpClient.newBuilder()
-                .followRedirects(false)
-                .followSslRedirects(false)
-                .build()
-        }
+            val client = if (followRedirects) {
+                addonHttpClient
+            } else {
+                addonHttpClient.newBuilder()
+                    .followRedirects(false)
+                    .followSslRedirects(false)
+                    .build()
+            }
 
-        client.newCall(request).execute().use { response ->
-            RawHttpResponse(
-                status = response.code,
-                statusText = response.message,
-                url = response.request.url.toString(),
-                body = readResponseBodyLimited(response.body),
-                headers = response.headers.toMultimap().mapValues { (_, values) ->
-                    values.joinToString(",")
-                }.mapKeys { (name, _) ->
-                    name.lowercase()
-                },
-            )
+            client.newCall(request).execute().use { response ->
+                RawHttpResponse(
+                    status = response.code,
+                    statusText = response.message,
+                    url = response.request.url.toString(),
+                    body = readResponseBodyLimited(response.body),
+                    headers = response.headers.toMultimap().mapValues { (_, values) ->
+                        values.joinToString(",")
+                    }.mapKeys { (name, _) ->
+                        name.lowercase()
+                    },
+                )
+            }
         }
     }

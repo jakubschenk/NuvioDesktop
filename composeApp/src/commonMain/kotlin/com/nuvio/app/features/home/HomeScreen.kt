@@ -56,17 +56,17 @@ import com.nuvio.app.features.watching.domain.WatchingContentRef
 import com.nuvio.app.features.watching.domain.isReleasedBy
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.profiles.ProfileRepository
+import com.nuvio.app.features.streams.StreamsRepository
 import com.nuvio.app.features.home.components.HomeCollectionRowSection
 import com.nuvio.app.features.watchprogress.ContinueWatchingSectionStyle
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import com.nuvio.app.features.home.components.ContinueWatchingLayout
 import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWidth
 import com.nuvio.app.features.home.components.rememberContinueWatchingLayout
-import com.nuvio.app.features.streams.StreamsRepository
-import kotlinx.coroutines.delay
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
@@ -258,11 +258,11 @@ fun HomeScreen(
             upNextFromFurthestEpisode = continueWatchingPreferences.upNextFromFurthestEpisode,
         )
     }
-    val continueWatchingPreloadTargets = remember(continueWatchingItems) {
+    val continueWatchingPrefetchTargets = remember(continueWatchingItems) {
         continueWatchingItems
-            .take(3)
+            .take(2)
             .map { item ->
-                ContinueWatchingStreamPreloadTarget(
+                ContinueWatchingStreamPrefetchTarget(
                     type = item.parentMetaType,
                     videoId = item.videoId,
                     seasonNumber = item.seasonNumber,
@@ -302,8 +302,8 @@ fun HomeScreen(
             .map { it.transportUrl }
             .sorted()
     }
-    val preloadedContinueWatchingTargets = remember(activeProfileId, streamProviderKey) {
-        mutableSetOf<ContinueWatchingStreamPreloadTarget>()
+    val prefetchedContinueWatchingTargets = remember(activeProfileId, streamProviderKey) {
+        mutableSetOf<ContinueWatchingStreamPrefetchTarget>()
     }
 
     LaunchedEffect(catalogRefreshKey) {
@@ -312,27 +312,23 @@ fun HomeScreen(
         HomeRepository.refresh(addonsUiState.addons)
     }
 
-    LaunchedEffect(activeProfileId, continueWatchingPreloadTargets, streamProviderKey) {
-        if (continueWatchingPreloadTargets.isEmpty()) return@LaunchedEffect
-        val remainingSlots = (3 - preloadedContinueWatchingTargets.size).coerceAtLeast(0)
-        if (remainingSlots == 0) return@LaunchedEffect
+    LaunchedEffect(activeProfileId, continueWatchingPrefetchTargets, streamProviderKey) {
+        if (continueWatchingPrefetchTargets.isEmpty() || streamProviderKey.isEmpty()) return@LaunchedEffect
 
-        delay(450)
-        val targetsToPreload = continueWatchingPreloadTargets
-            .filterNot(preloadedContinueWatchingTargets::contains)
-            .take(remainingSlots)
-        targetsToPreload.forEachIndexed { index, item ->
-            if (index > 0) {
-                delay(350)
+        delay(500)
+        continueWatchingPrefetchTargets
+            .filterNot(prefetchedContinueWatchingTargets::contains)
+            .take(2)
+            .forEachIndexed { index, item ->
+                if (index > 0) delay(400)
+                prefetchedContinueWatchingTargets += item
+                StreamsRepository.prefetch(
+                    type = item.type,
+                    videoId = item.videoId,
+                    season = item.seasonNumber,
+                    episode = item.episodeNumber,
+                )
             }
-            preloadedContinueWatchingTargets += item
-            StreamsRepository.preload(
-                type = item.type,
-                videoId = item.videoId,
-                season = item.seasonNumber,
-                episode = item.episodeNumber,
-            )
-        }
     }
 
     LaunchedEffect(collections) {
@@ -776,7 +772,7 @@ private data class CompletedSeriesCandidate(
     val markedAtEpochMs: Long,
 )
 
-private data class ContinueWatchingStreamPreloadTarget(
+private data class ContinueWatchingStreamPrefetchTarget(
     val type: String,
     val videoId: String,
     val seasonNumber: Int?,
