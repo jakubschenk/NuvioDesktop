@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +42,9 @@ fun DetailActionButtons(
     isSaved: Boolean = false,
     isTablet: Boolean = false,
     showPlayButton: Boolean = true,
+    saveContainerColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
+    saveContentColor: Color = MaterialTheme.colorScheme.onSurface,
+    saveBorder: BorderStroke? = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     onPlayClick: () -> Unit = {},
     onPlayLongClick: (() -> Unit)? = null,
     onSaveClick: () -> Unit = {},
@@ -104,9 +108,9 @@ fun DetailActionButtons(
         Surface(
             modifier = rowButtonModifier.height(50.dp),
             shape = RoundedCornerShape(40.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0f),
-            contentColor = MaterialTheme.colorScheme.onSurface,
+            border = saveBorder,
+            color = saveContainerColor,
+            contentColor = saveContentColor,
         ) {
             Row(
                 modifier = Modifier
@@ -127,21 +131,21 @@ fun DetailActionButtons(
                         imageVector = Icons.Default.Check,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurface,
+                        tint = saveContentColor,
                     )
                 } else {
                     Icon(
                         painter = libraryAddPainter,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onSurface,
+                        tint = saveContentColor,
                     )
                 }
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = saveLabel,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = saveContentColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

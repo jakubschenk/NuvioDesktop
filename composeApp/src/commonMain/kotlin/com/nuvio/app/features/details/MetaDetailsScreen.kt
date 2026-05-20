@@ -788,8 +788,8 @@ fun MetaDetailsScreen(
                                             model = logoUrl,
                                             contentDescription = stringResource(Res.string.detail_logo_content_description, meta.name),
                                             modifier = Modifier
-                                                .fillMaxWidth(0.58f)
-                                                .heightIn(min = 92.dp, max = 156.dp),
+                                                .fillMaxWidth(0.66f)
+                                                .heightIn(min = 108.dp, max = 176.dp),
                                             alignment = Alignment.CenterStart,
                                             contentScale = ContentScale.Fit,
                                             useDesktopImagePainterWorkaround = false,
@@ -814,10 +814,21 @@ fun MetaDetailsScreen(
                                         showDescription = false,
                                     )
 
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    if (meta.genres.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Text(
+                                            text = meta.genres.take(4).joinToString("  /  "),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
 
                                     Row(
-                                        modifier = Modifier.widthIn(max = 560.dp),
+                                        modifier = Modifier
+                                            .padding(top = 16.dp)
+                                            .widthIn(max = 560.dp),
                                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
@@ -832,6 +843,9 @@ fun MetaDetailsScreen(
                                             isSaved = isSaved,
                                             isTablet = false,
                                             showPlayButton = trailer != null,
+                                            saveContainerColor = Color.Black.copy(alpha = 0.72f),
+                                            saveContentColor = Color.White.copy(alpha = 0.94f),
+                                            saveBorder = null,
                                             onPlayClick = {
                                                 trailer?.let { resolveTrailer(it) }
                                             },
@@ -853,24 +867,14 @@ fun MetaDetailsScreen(
                                         )
                                     }
 
-                                    if (meta.genres.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(24.dp))
-                                        Text(
-                                            text = meta.genres.take(4).joinToString("  /  "),
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
+                                    Spacer(modifier = Modifier.height(16.dp))
 
                                     if (!meta.description.isNullOrBlank()) {
-                                        Spacer(modifier = Modifier.height(26.dp))
                                         DetailSection(title = stringResource(Res.string.settings_meta_overview)) {
                                             Text(
                                                 text = meta.description,
                                                 modifier = Modifier.widthIn(max = 960.dp),
-                                                style = MaterialTheme.typography.bodyLarge,
+                                                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
                                                 color = MaterialTheme.colorScheme.onSurface,
                                                 maxLines = if (hasEpisodes) 2 else 3,
                                                 overflow = TextOverflow.Ellipsis,

@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -519,6 +520,10 @@ private fun EmbeddedStreamsLayout(
             resumePositionMs = resumePositionMs,
             resumeProgressFraction = resumeProgressFraction,
             horizontalPadding = 28.dp,
+            verticalPadding = 8.dp,
+            bottomSpacerExtra = 18.dp,
+            cardSpacing = 8.dp,
+            embeddedStyle = true,
             modifier = Modifier.weight(1f),
         )
     }
@@ -916,6 +921,10 @@ internal fun StreamList(
     resumeProgressFraction: Float?,
     modifier: Modifier = Modifier,
     horizontalPadding: Dp = 12.dp,
+    verticalPadding: Dp = 12.dp,
+    bottomSpacerExtra: Dp = 80.dp,
+    cardSpacing: Dp = 10.dp,
+    embeddedStyle: Boolean = false,
 ) {
     val filteredGroups = uiState.filteredGroups
     val hasGroups = filteredGroups.isNotEmpty()
@@ -926,7 +935,7 @@ internal fun StreamList(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(
             horizontal = horizontalPadding,
-            vertical = 12.dp,
+            vertical = verticalPadding,
         ),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
@@ -953,6 +962,8 @@ internal fun StreamList(
                         onStreamLongPress = onStreamLongPress,
                         resumePositionMs = resumePositionMs,
                         resumeProgressFraction = resumeProgressFraction,
+                        cardSpacing = cardSpacing,
+                        embeddedStyle = embeddedStyle,
                     )
                 }
                 if (anyLoading) {
@@ -961,7 +972,7 @@ internal fun StreamList(
                     }
                 }
                 item(contentType = "bottom_spacer") {
-                    Spacer(modifier = Modifier.height(nuvioSafeBottomPadding(80.dp)))
+                    Spacer(modifier = Modifier.height(nuvioSafeBottomPadding(bottomSpacerExtra)))
                 }
             }
         }
@@ -976,6 +987,8 @@ private fun LazyListScope.streamSection(
     onStreamLongPress: (StreamItem) -> Unit,
     resumePositionMs: Long?,
     resumeProgressFraction: Float?,
+    cardSpacing: Dp,
+    embeddedStyle: Boolean,
 ) {
     if (group.streams.isEmpty() && !group.isLoading) return
 
@@ -1022,6 +1035,7 @@ private fun LazyListScope.streamSection(
         ) { _, stream ->
             StreamCard(
                 stream = stream,
+                embeddedStyle = embeddedStyle,
                 onClick = {
                     if (stream.directPlaybackUrl != null || stream.isTorrentStream) {
                         onStreamSelected(stream, resumePositionMs, resumeProgressFraction)
@@ -1033,7 +1047,7 @@ private fun LazyListScope.streamSection(
                     }
                 },
             )
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(cardSpacing))
         }
     }
 }
@@ -1127,22 +1141,34 @@ private fun StreamCard(
     stream: StreamItem,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
+    embeddedStyle: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val isEnabled = stream.directPlaybackUrl != null || stream.isTorrentStream
     val cardShape = RoundedCornerShape(12.dp)
+    val cardColor = if (embeddedStyle) {
+        Color(0xFF35323F).copy(alpha = 0.68f)
+    } else {
+        Color.White.copy(alpha = 0.05f)
+    }
+    val cardBorderColor = if (embeddedStyle) {
+        Color.White.copy(alpha = 0.07f)
+    } else {
+        Color.Transparent
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 68.dp)
             .shadow(
-                elevation = 2.dp,
+                elevation = if (embeddedStyle) 0.dp else 2.dp,
                 shape = cardShape,
                 ambientColor = Color.Black.copy(alpha = 0.04f),
                 spotColor = Color.Black.copy(alpha = 0.04f),
             )
             .clip(cardShape)
-            .background(Color.White.copy(alpha = 0.05f))
+            .background(cardColor)
+            .border(1.dp, cardBorderColor, cardShape)
             .then(if (isEnabled) Modifier.desktopClickablePointer() else Modifier)
             .combinedClickable(
                 enabled = isEnabled,
