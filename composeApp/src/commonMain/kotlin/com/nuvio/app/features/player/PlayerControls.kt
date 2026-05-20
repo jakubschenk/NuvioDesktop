@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
@@ -76,11 +75,9 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.NuvioBackButton
@@ -92,9 +89,7 @@ import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 
 private val PlayerVolumeSliderTouchHeight = 34.dp
-private val PlayerVolumeTrackHeight = 4.dp
-private val PlayerVolumeThumbSize = 12.dp
-private val PlayerVolumeHoverThumbSize = 10.dp
+private const val PlayerVolumeSliderIdleScaleY = 0.72f
 private const val PlayerVolumeKeyboardStep = 0.05f
 
 @Composable
@@ -676,7 +671,10 @@ private fun PlayerVolumeSlider(
     var isFocused by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     val coercedVolume = volumeLevel.fraction.coerceIn(0f, 1f)
-    val density = LocalDensity.current
+    val sliderScaleY by animateFloatAsState(
+        targetValue = if (isHovered || isFocused || isDragging) 1f else PlayerVolumeSliderIdleScaleY,
+        label = "player_volume_slider_scale",
+    )
 
     fun volumeForX(x: Float, width: Float): Float {
         if (width <= 0f) return coercedVolume
@@ -765,36 +763,14 @@ private fun PlayerVolumeSlider(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            val thumbSize = if (isHovered || isFocused || isDragging) PlayerVolumeThumbSize else PlayerVolumeHoverThumbSize
-            val thumbOffsetPx = with(density) { (thumbSize / 2).roundToPx() }
-            Box(
+            Slider(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(PlayerVolumeTrackHeight)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color.White.copy(alpha = 0.26f)),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(coercedVolume)
-                        .height(PlayerVolumeTrackHeight)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(Color.White.copy(alpha = if (volumeLevel.isMuted) 0.48f else 0.92f)),
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .offset {
-                        IntOffset(
-                            x = (sliderWidthPx * coercedVolume).roundToInt() - thumbOffsetPx,
-                            y = 0,
-                        )
-                    }
-                    .size(thumbSize)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.98f)),
+                    .fillMaxSize()
+                    .graphicsLayer(scaleY = sliderScaleY),
+                value = coercedVolume,
+                onValueChange = {},
+                onValueChangeFinished = {},
+                valueRange = 0f..1f,
             )
         }
         Text(
