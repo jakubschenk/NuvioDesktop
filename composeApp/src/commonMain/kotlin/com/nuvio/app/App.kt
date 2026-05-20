@@ -2214,7 +2214,7 @@ private fun AppTabHost(
                         null
                     } else {
                         val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                        statusBarPadding + 10.dp + 16.dp + 38.dp + 22.dp
+                        statusBarPadding + 16.dp + 16.dp + 38.dp + 22.dp
                     }
 
                     DiscoverScreen(
@@ -2230,7 +2230,7 @@ private fun AppTabHost(
                         null
                     } else {
                         val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                        statusBarPadding + 10.dp + 16.dp + 38.dp + 22.dp
+                        statusBarPadding + 16.dp + 16.dp + 38.dp + 22.dp
                     }
 
                     LibraryScreen(
@@ -2388,7 +2388,7 @@ private fun TabletFloatingTopBar(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .padding(top = statusBarPadding + 10.dp, bottom = 10.dp),
+                .padding(top = statusBarPadding + 16.dp, bottom = 10.dp),
             contentAlignment = Alignment.TopCenter,
         ) {
             Surface(
@@ -2595,7 +2595,7 @@ private fun TabletFloatingTopBar(
             visible = showRecentSearchOverlay,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = statusBarPadding + 132.dp)
+                .padding(top = statusBarPadding + 138.dp)
                 .widthIn(max = 560.dp)
                 .zIndex(2f),
             enter = expandVertically(

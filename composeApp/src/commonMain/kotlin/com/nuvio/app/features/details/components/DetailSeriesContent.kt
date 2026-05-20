@@ -230,6 +230,7 @@ fun DetailSeriesContent(
                                 currentSeason = currentSeason,
                                 sizing = sizing,
                                 onSelect = { selectedSeasonOverride = it },
+                                modifier = Modifier.padding(end = 8.dp),
                             )
                             if (hasSeasonPosters && !forceTextSeasonSelector) {
                                 SeasonViewModeToggle(
@@ -366,9 +367,10 @@ private fun SeasonQuickSelectDropdown(
     currentSeason: Int,
     sizing: SeriesContentSizing,
     onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier = modifier) {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
@@ -490,7 +492,11 @@ private fun SeasonTextChipScrollRow(
         state = seasonListState,
         modifier = Modifier
             .fillMaxWidth()
-            .desktopHorizontalLazyRowGestures(seasonListState, scrollWithoutShift = true),
+            .desktopHorizontalLazyRowGestures(
+                listState = seasonListState,
+                scrollWithoutShift = true,
+                wheelScrollMultiplier = 3.4f,
+            ),
         horizontalArrangement = Arrangement.spacedBy(sizing.seasonChipGap),
     ) {
         items(
@@ -571,7 +577,11 @@ private fun SeasonPosterScrollRow(
         state = seasonListState,
         modifier = Modifier
             .fillMaxWidth()
-            .desktopHorizontalLazyRowGestures(seasonListState, scrollWithoutShift = true),
+            .desktopHorizontalLazyRowGestures(
+                listState = seasonListState,
+                scrollWithoutShift = true,
+                wheelScrollMultiplier = 3.4f,
+            ),
         horizontalArrangement = Arrangement.spacedBy(sizing.seasonChipGap),
     ) {
         items(

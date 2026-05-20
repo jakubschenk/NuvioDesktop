@@ -40,11 +40,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -560,8 +563,8 @@ private fun EmbeddedStreamsLayout(
             resumePositionMs = resumePositionMs,
             resumeProgressFraction = resumeProgressFraction,
             horizontalPadding = 28.dp,
-            verticalPadding = 8.dp,
-            bottomSpacerExtra = 18.dp,
+            verticalPadding = 0.dp,
+            bottomSpacerExtra = 0.dp,
             cardSpacing = 8.dp,
             embeddedStyle = true,
             modifier = Modifier.weight(1f),
@@ -894,25 +897,88 @@ internal fun ProviderFilterRow(
     val addonGroups = groups.filter { it.streams.isNotEmpty() || it.isLoading }
     if (addonGroups.isEmpty()) return
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = horizontalPadding, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // "All" chip
-        FilterChip(
-            label = stringResource(Res.string.collections_tab_all),
-            isSelected = selectedFilter == null,
-            onClick = { onFilterSelected(null) },
-        )
-        addonGroups.forEach { group ->
-            FilterChip(
-                label = group.addonName,
-                isSelected = selectedFilter == group.addonId,
-                onClick = { onFilterSelected(group.addonId) },
-            )
+    val allLabel = stringResource(Res.string.collections_tab_all)
+    val sourcesLabel = stringResource(Res.string.compose_player_sources)
+
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val dropdownThreshold = when {
+            maxWidth < 460.dp -> 2
+            maxWidth < 560.dp -> 3
+            else -> 4
+        }
+        val showDropdown = addonGroups.size > dropdownThreshold
+        var dropdownExpanded by remember { mutableStateOf(false) }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = horizontalPadding, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FilterChip(
+                    label = allLabel,
+                    isSelected = selectedFilter == null,
+                    onClick = { onFilterSelected(null) },
+                )
+                addonGroups.forEach { group ->
+                    FilterChip(
+                        label = group.addonName,
+                        isSelected = selectedFilter == group.addonId,
+                        onClick = { onFilterSelected(group.addonId) },
+                    )
+                }
+            }
+
+            if (showDropdown) {
+                Box {
+                    FilterChip(
+                        label = sourcesLabel,
+                        isSelected = selectedFilter != null,
+                        onClick = { dropdownExpanded = true },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.ExpandMore,
+                                contentDescription = null,
+                                tint = if (selectedFilter != null) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                                modifier = Modifier.size(16.dp),
+                            )
+                        },
+                    )
+                    DropdownMenu(
+                        expanded = dropdownExpanded,
+                        onDismissRequest = { dropdownExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(text = allLabel) },
+                            onClick = {
+                                dropdownExpanded = false
+                                onFilterSelected(null)
+                            },
+                        )
+                        addonGroups.forEach { group ->
+                            DropdownMenuItem(
+                                text = { Text(text = group.addonName) },
+                                onClick = {
+                                    dropdownExpanded = false
+                                    onFilterSelected(group.addonId)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -922,6 +988,7 @@ private fun FilterChip(
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit,
+    trailingIcon: (@Composable () -> Unit)? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -964,16 +1031,23 @@ private fun FilterChip(
             )
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontSize = 14.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                letterSpacing = 0.1.sp,
-            ),
-            color = contentColor,
-            maxLines = 1,
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 14.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                    letterSpacing = 0.1.sp,
+                ),
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            trailingIcon?.invoke()
+        }
     }
 }
 

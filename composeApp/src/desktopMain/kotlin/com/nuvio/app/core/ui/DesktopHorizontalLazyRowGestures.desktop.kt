@@ -17,6 +17,7 @@ import kotlin.math.abs
 actual fun Modifier.desktopHorizontalLazyRowGestures(
     listState: LazyListState,
     scrollWithoutShift: Boolean,
+    wheelScrollMultiplier: Float,
 ): Modifier {
     val wheelModifier = if (scrollWithoutShift) {
         this.onPointerEvent(PointerEventType.Scroll) { event ->
@@ -28,7 +29,7 @@ actual fun Modifier.desktopHorizontalLazyRowGestures(
             }
             if (dominantDelta == 0f) return@onPointerEvent
 
-            listState.dispatchRawDelta(dominantDelta)
+            listState.dispatchRawDelta(dominantDelta * wheelScrollMultiplier.coerceAtLeast(0.25f))
             event.changes.forEach { change -> change.consume() }
         }
     } else {

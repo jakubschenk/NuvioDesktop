@@ -38,14 +38,16 @@ fun DetailSectionTitle(
 ) {
     val titleModifier = if (fullWidth) modifier.fillMaxWidth() else modifier
     BoxWithConstraints(modifier = titleModifier) {
-        val titleSize = if (maxWidth >= 720.dp) 22.sp else 20.sp
+        val titleSize = if (maxWidth >= 720.dp) 15.sp else 14.sp
         Text(
-            text = title,
+            text = title.uppercase(),
             style = MaterialTheme.typography.titleLarge.copy(
                 fontSize = titleSize,
-                fontWeight = FontWeight.SemiBold,
+                lineHeight = if (maxWidth >= 720.dp) 16.sp else 15.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.6.sp,
             ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.88f),
         )
     }
 }

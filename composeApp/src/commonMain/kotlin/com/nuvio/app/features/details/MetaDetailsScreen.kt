@@ -862,18 +862,17 @@ fun MetaDetailsScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .zIndex(1f)
-                                    .padding(
-                                        start = 52.dp,
-                                        end = 8.dp,
-                                        top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 26.dp,
-                                        bottom = nuvioSafeBottomPadding(18.dp),
-                                    ),
+                                    .padding(start = 52.dp),
                                 horizontalArrangement = Arrangement.spacedBy(0.dp),
                             ) {
                                 Column(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .fillMaxHeight(),
+                                        .fillMaxHeight()
+                                        .padding(
+                                            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 26.dp,
+                                            bottom = nuvioSafeBottomPadding(18.dp),
+                                        ),
                                     horizontalAlignment = Alignment.Start,
                                 ) {
                                     NuvioBackButton(
@@ -1027,50 +1026,36 @@ fun MetaDetailsScreen(
                                 Box(
                                     modifier = Modifier
                                         .width(sourcePanelWidth)
-                                        .fillMaxHeight(),
+                                        .fillMaxHeight()
+                                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.92f)),
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .fillMaxWidth()
-                                            .then(
-                                                if (showPanelEpisodeSelector) {
-                                                    Modifier.fillMaxHeight()
-                                                } else {
-                                                    Modifier.fillMaxHeight(0.72f)
+                                    if (showPanelEpisodeSelector) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .verticalScroll(panelEpisodeScrollState)
+                                                .padding(horizontal = 28.dp, vertical = 28.dp),
+                                        ) {
+                                            DetailSeriesContent(
+                                                meta = meta,
+                                                showHeader = false,
+                                                preferredSeasonNumber = activeSourceTarget.seasonNumber ?: seriesAction?.seasonNumber,
+                                                preferredEpisodeNumber = activeSourceTarget.episodeNumber ?: seriesAction?.episodeNumber,
+                                                episodeCardStyle = MetaEpisodeCardStyle.List,
+                                                progressByVideoId = watchProgressUiState.byVideoId,
+                                                watchedKeys = watchedUiState.watchedKeys,
+                                                episodeRatings = episodeImdbRatings,
+                                                blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
+                                                selectedVideoId = activeSourceTarget.videoId,
+                                                forceTextSeasonSelector = true,
+                                                onEpisodeClick = { video ->
+                                                    selectedSourceTargetOverride = episodePlaybackTarget(video)
                                                 },
+                                                onEpisodeLongPress = { video -> selectedEpisodeForActions = video },
                                             )
-                                            .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp))
-                                            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.92f)),
-                                    ) {
-                                        if (showPanelEpisodeSelector) {
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .verticalScroll(panelEpisodeScrollState)
-                                                    .padding(horizontal = 28.dp, vertical = 28.dp),
-                                            ) {
-                                                DetailSeriesContent(
-                                                    meta = meta,
-                                                    showHeader = false,
-                                                    preferredSeasonNumber = activeSourceTarget.seasonNumber ?: seriesAction?.seasonNumber,
-                                                    preferredEpisodeNumber = activeSourceTarget.episodeNumber ?: seriesAction?.episodeNumber,
-                                                    episodeCardStyle = MetaEpisodeCardStyle.List,
-                                                    progressByVideoId = watchProgressUiState.byVideoId,
-                                                    watchedKeys = watchedUiState.watchedKeys,
-                                                    episodeRatings = episodeImdbRatings,
-                                                    blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
-                                                    selectedVideoId = activeSourceTarget.videoId,
-                                                    forceTextSeasonSelector = true,
-                                                    onEpisodeClick = { video ->
-                                                        selectedSourceTargetOverride = episodePlaybackTarget(video)
-                                                    },
-                                                    onEpisodeLongPress = { video -> selectedEpisodeForActions = video },
-                                                )
-                                            }
-                                        } else {
-                                            sourceContent()
                                         }
+                                    } else {
+                                        sourceContent()
                                     }
                                 }
                             }
