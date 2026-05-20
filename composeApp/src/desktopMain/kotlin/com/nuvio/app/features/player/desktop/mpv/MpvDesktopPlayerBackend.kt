@@ -84,6 +84,7 @@ internal class MpvDesktopPlayerBackend private constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val surfaceMode = MpvDesktopSurfaceMode.resolve()
     private val nativeSurfaceReady = CompletableDeferred<Unit>()
+    private val nativeCallLock = Any()
     private val stateFlow = MutableStateFlow(
         DesktopPlayerState(
             phase = DesktopPlayerPhase.Idle,
@@ -93,7 +94,9 @@ internal class MpvDesktopPlayerBackend private constructor(
     )
 
     @Volatile private var stopped = false
+    @Volatile private var closing = false
     @Volatile private var nativeClosed = false
+    @Volatile private var attachedNativeWindowPtr = 0L
     @Volatile private var currentRequest: DesktopPlayerRequest? = null
     @Volatile private var lastKnownPositionMs: Long = 0L
     @Volatile private var pendingSeekMs: Long = 0L
@@ -124,7 +127,7 @@ internal class MpvDesktopPlayerBackend private constructor(
     }
 
     override suspend fun load(request: DesktopPlayerRequest) {
-        if (nativeClosed) return
+        if (nativeClosed || closing) return
         if (request.sourceUrl.isBlank()) {
             fail(DesktopPlayerError.InvalidSource(backendName, "Blank source URL"))
             return
@@ -137,6 +140,7 @@ internal class MpvDesktopPlayerBackend private constructor(
         stateFlow.value = stateFlow.value.copy(phase = DesktopPlayerPhase.Preparing, error = null)
         runCatching {
             awaitNativeSurfaceIfNeeded()
+            if (nativeClosed || closing) return@runCatching
             val headers = request.sourceHeaders.toMutableMap()
             DesktopRuntimeLog.info(
                 "MPV load start session=${request.sessionKey} source=${request.sourceUrl.redactedMediaUrl()} " +
@@ -174,39 +178,51 @@ internal class MpvDesktopPlayerBackend private constructor(
 
     override fun setResizeMode(resizeMode: PlayerResizeMode) {
         if (!canReceiveCommands()) return
-        runCatching { mpvHandle.applyResizeMode(resizeMode) }
+        runCatching { withOpenMpvCall(false) { mpvHandle.applyResizeMode(resizeMode) } }
             .onSuccess { DesktopRuntimeLog.info("MPV resizeMode=$resizeMode applied") }
             .onFailure { DesktopRuntimeLog.error("MPV resizeMode=$resizeMode failed", it) }
     }
 
     override fun releaseSoft() {
-        if (stopped) return
+        if (stopped || closing || nativeClosed) return
         stopped = true
         DesktopRuntimeLog.info("MPV releaseSoft id=$id")
         emitFramePacingSummary("releaseSoft")
         releaseDisplayWakeLock("releaseSoft")
         resetExternalSubtitleState("releaseSoft")
-        runCatching { mpvHandle.setPropertyBoolean("mute", true) }
-        runCatching { mpvHandle.command("stop") }
+        runCatching {
+            withOpenMpvCall(Unit) {
+                mpvHandle.setPropertyBoolean("mute", true)
+                mpvHandle.command("stop")
+            }
+        }
             .onFailure { DesktopRuntimeLog.error("MPV stop failed id=$id", it) }
         stateFlow.value = stateFlow.value.copy(phase = DesktopPlayerPhase.Closed)
     }
 
     override fun close() {
-        if (nativeClosed) return
+        if (nativeClosed || closing) return
+        closing = true
+        stopped = true
         emitFramePacingSummary("close")
         releaseDisplayWakeLock("close")
-        resetExternalSubtitleState("close")
-        nativeClosed = true
+        externalSubtitleRequestCounter.incrementAndGet()
+        externalSubtitleActive = false
+        clearExternalSubtitleTempFiles("close")
         scope.cancel()
+        stateFlow.value = stateFlow.value.copy(phase = DesktopPlayerPhase.Closed)
         DesktopRuntimeLog.info("MPV close async id=$id")
         val thread = Thread({
             val startMs = System.currentTimeMillis()
-            runCatching { player.close() }
-                .onSuccess {
-                    DesktopRuntimeLog.info("MPV native close done id=$id elapsedMs=${System.currentTimeMillis() - startMs}")
-                }
-                .onFailure { DesktopRuntimeLog.error("MPV native close failed id=$id", it) }
+            synchronized(nativeCallLock) {
+                detachNativeSurfaceLocked("close")
+                runCatching { player.close() }
+                    .onSuccess {
+                        DesktopRuntimeLog.info("MPV native close done id=$id elapsedMs=${System.currentTimeMillis() - startMs}")
+                    }
+                    .onFailure { DesktopRuntimeLog.error("MPV native close failed id=$id", it) }
+                nativeClosed = true
+            }
         }, "mpv-close-$id").apply { isDaemon = true }
         DesktopPlayerRegistry.trackCloseThread(thread)
         thread.start()
@@ -221,6 +237,8 @@ internal class MpvDesktopPlayerBackend private constructor(
             onSurfaceReady = {
                 if (!nativeSurfaceReady.isCompleted) nativeSurfaceReady.complete(Unit)
             },
+            attachNativeSurface = ::attachNativeSurface,
+            detachNativeSurface = ::detachNativeSurface,
         )
     }
 
@@ -427,7 +445,61 @@ internal class MpvDesktopPlayerBackend private constructor(
     }
 
     private fun canReceiveCommands(): Boolean =
-        !stopped && !nativeClosed && player.getCurrentPlaybackState() != PlaybackState.FINISHED
+        !stopped && !closing && !nativeClosed && player.getCurrentPlaybackState() != PlaybackState.FINISHED
+
+    private inline fun <T> withOpenMpvCall(defaultValue: T, block: () -> T): T =
+        synchronized(nativeCallLock) {
+            if (nativeClosed || closing) {
+                defaultValue
+            } else {
+                block()
+            }
+        }
+
+    private fun attachNativeSurface(windowPtr: Long): Boolean =
+        synchronized(nativeCallLock) {
+            if (nativeClosed || closing) return false
+            if (attachedNativeWindowPtr == windowPtr) return true
+            if (attachedNativeWindowPtr != 0L) {
+                detachNativeSurfaceLocked("reattach")
+            }
+            runCatching { player.attachRenderSurface(windowPtr) }
+                .onSuccess { attached ->
+                    if (attached) {
+                        attachedNativeWindowPtr = windowPtr
+                    }
+                }
+                .onFailure {
+                    DesktopRuntimeLog.error("MPV native HWND surface attach failed hwnd=0x${windowPtr.toString(16)}", it)
+                }
+                .getOrDefault(false)
+        }
+
+    private fun detachNativeSurface(): Boolean =
+        synchronized(nativeCallLock) {
+            if (nativeClosed || closing) {
+                false
+            } else {
+                detachNativeSurfaceLocked("surface-dispose")
+            }
+        }
+
+    private fun detachNativeSurfaceLocked(reason: String): Boolean {
+        val previousWindowPtr = attachedNativeWindowPtr
+        if (previousWindowPtr == 0L) return false
+        attachedNativeWindowPtr = 0L
+        return runCatching { player.detachRenderSurface() }
+            .onSuccess {
+                DesktopRuntimeLog.info("MPV native HWND surface detached reason=$reason hwnd=0x${previousWindowPtr.toString(16)}")
+            }
+            .onFailure {
+                DesktopRuntimeLog.warn(
+                    "MPV native HWND surface detach failed reason=$reason " +
+                        "hwnd=0x${previousWindowPtr.toString(16)} message=${it.message}",
+                )
+            }
+            .getOrDefault(false)
+    }
 
     private fun durationMs(): Long? =
         player.mediaProperties.value?.durationMillis?.takeIf { it > 0L }
@@ -439,17 +511,18 @@ internal class MpvDesktopPlayerBackend private constructor(
         "${runtime.diagnostics}; surfaceMode=$surfaceMode"
 
     private fun resetExternalSubtitleState(reason: String) {
-        if (nativeClosed) return
+        if (nativeClosed || closing) return
         externalSubtitleRequestCounter.incrementAndGet()
         externalSubtitleActive = false
         clearExternalSubtitleTempFiles(reason)
         runCatching {
-            mpvHandle.setMpvRuntimeOption("sub-codepage", EmbeddedSubtitleCodepage)
-            mpvHandle.setMpvRuntimeOption("embeddedfonts", "yes")
-            mpvHandle.setMpvRuntimeOption("sub-ass-override", EmbeddedSubtitleAssOverride)
+            withOpenMpvCall(Unit) {
+                mpvHandle.setMpvRuntimeOption("sub-codepage", EmbeddedSubtitleCodepage)
+                mpvHandle.setMpvRuntimeOption("embeddedfonts", "yes")
+                mpvHandle.setMpvRuntimeOption("sub-ass-override", EmbeddedSubtitleAssOverride)
+            }
         }.onFailure { DesktopRuntimeLog.warn("MPV reset external subtitle state failed reason=$reason message=${it.message}") }
     }
-
     private inner class MpvController : PlayerEngineController {
         override fun release() = releaseSoft()
 
