@@ -101,9 +101,7 @@ private val PlayerToolbarButtonSize = 44.dp
 private val PlayerToolbarIconSize = 23.dp
 private val PlayerVolumeSliderWidth = 112.dp
 private val PlayerVolumeSliderTouchHeight = 34.dp
-private val PlayerVolumeTrackHeight = 4.dp
-private val PlayerVolumeThumbSize = 12.dp
-private val PlayerVolumeHoverThumbSize = 10.dp
+private const val PlayerVolumeSliderIdleScaleY = 0.72f
 private const val PlayerVolumeKeyboardStep = 0.05f
 
 private fun PlayerPlaybackSnapshot.displayPositionAt(
@@ -708,7 +706,10 @@ private fun PlayerVolumeControl(
     var isFocused by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     val coercedVolume = volumeLevel.coerceIn(0f, 1f)
-    val density = LocalDensity.current
+    val sliderScaleY by animateFloatAsState(
+        targetValue = if (isHovered || isFocused || isDragging) 1f else PlayerVolumeSliderIdleScaleY,
+        label = "player_volume_slider_scale",
+    )
 
     fun volumeForX(x: Float, width: Float): Float {
         if (width <= 0f) return coercedVolume
@@ -788,36 +789,15 @@ private fun PlayerVolumeControl(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            val thumbSize = if (isHovered || isFocused || isDragging) PlayerVolumeThumbSize else PlayerVolumeHoverThumbSize
-            val thumbOffsetPx = with(density) { (thumbSize / 2).roundToPx() }
-            Box(
+            Slider(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(PlayerVolumeTrackHeight)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color.White.copy(alpha = if (volumeEnabled) 0.26f else 0.12f)),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(coercedVolume)
-                        .height(PlayerVolumeTrackHeight)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(Color.White.copy(alpha = if (isMuted) 0.48f else 0.92f)),
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .offset {
-                        IntOffset(
-                            x = (sliderWidthPx * coercedVolume).roundToInt() - thumbOffsetPx,
-                            y = 0,
-                        )
-                    }
-                    .size(thumbSize)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = if (volumeEnabled) 0.98f else 0.4f)),
+                    .fillMaxSize()
+                    .graphicsLayer(scaleY = sliderScaleY),
+                value = coercedVolume,
+                onValueChange = {},
+                onValueChangeFinished = {},
+                valueRange = 0f..1f,
+                enabled = volumeEnabled,
             )
         }
     }
