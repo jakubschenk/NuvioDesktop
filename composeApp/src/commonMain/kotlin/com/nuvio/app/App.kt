@@ -143,6 +143,7 @@ import com.nuvio.app.features.catalog.CatalogScreen
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.downloads.DownloadsScreen
 import com.nuvio.app.features.details.MetaDetailsScreen
+import com.nuvio.app.features.details.MetaDetailsPlaybackTarget
 import com.nuvio.app.features.details.MetaPerson
 import com.nuvio.app.features.details.PersonDetailScreen
 import com.nuvio.app.features.details.TmdbEntityBrowseScreen
@@ -327,6 +328,27 @@ private fun NativeNavigationTab.toAppScreenTab(): AppScreenTab = when (this) {
     NativeNavigationTab.Settings -> AppScreenTab.Settings
 }
 
+private fun MetaDetailsPlaybackTarget.toManualStreamLaunch(): StreamLaunch =
+    StreamLaunch(
+        type = type,
+        videoId = videoId,
+        parentMetaId = parentMetaId,
+        parentMetaType = parentMetaType,
+        title = title,
+        logo = logo,
+        poster = poster,
+        background = background,
+        seasonNumber = seasonNumber,
+        episodeNumber = episodeNumber,
+        episodeTitle = episodeTitle,
+        episodeThumbnail = episodeThumbnail,
+        pauseDescription = pauseDescription,
+        resumePositionMs = resumePositionMs,
+        resumeProgressFraction = null,
+        manualSelection = true,
+        startFromBeginning = false,
+    )
+
 @Composable
 private fun StreamLaunchContent(
     launch: StreamLaunch,
@@ -342,6 +364,7 @@ private fun StreamLaunchContent(
     ) -> Unit = { _, _, _, _, _ -> },
     modifier: Modifier = Modifier,
     embedded: Boolean = false,
+    showEmbeddedBackButton: Boolean = true,
 ) {
     val shouldResolveEpisodeVideoId =
         launch.parentMetaId != null &&
@@ -566,6 +589,7 @@ private fun StreamLaunchContent(
         },
         onBack = onBack,
         embedded = embedded,
+        showEmbeddedBackButton = showEmbeddedBackButton,
         modifier = modifier,
     )
 }
@@ -1442,198 +1466,111 @@ private fun MainAppContent(
                     val directorRole = stringResource(Res.string.person_role_director)
                     val writerRole = stringResource(Res.string.person_role_writer)
                     val creatorRole = stringResource(Res.string.person_role_creator)
-                    var inlineStreamLaunch by remember(route.type, route.id) { mutableStateOf<StreamLaunch?>(null) }
-                    fun closeInlineStreams() {
-                        StreamsRepository.clear()
-                        inlineStreamLaunch = null
-                    }
-                    fun openInlineStreams(launch: StreamLaunch) {
-                        StreamsRepository.clear()
-                        inlineStreamLaunch = launch
-                    }
-                    val detailOnPlay: (String, String, String, String, String, String?, String?, String?, Int?, Int?, String?, String?, String?, Long?) -> Unit =
-                        { type, videoId, parentMetaId, parentMetaType, title, logo, poster, background, seasonNumber, episodeNumber, episodeTitle, episodeThumbnail, pauseDescription, resumePositionMs ->
-                            launchPlaybackWithDownloadPreference(
-                                type = type,
-                                videoId = videoId,
-                                parentMetaId = parentMetaId,
-                                parentMetaType = parentMetaType,
-                                title = title,
-                                logo = logo,
-                                poster = poster,
-                                background = background,
-                                seasonNumber = seasonNumber,
-                                episodeNumber = episodeNumber,
-                                episodeTitle = episodeTitle,
-                                episodeThumbnail = episodeThumbnail,
-                                pauseDescription = pauseDescription,
-                                resumePositionMs = resumePositionMs,
-                                resumeProgressFraction = null,
-                                manualSelection = false,
-                                startFromBeginning = false,
-                                openStreams = ::openInlineStreams,
-                            )
+                    var detailStreamLaunch by remember(route.type, route.id) { mutableStateOf<StreamLaunch?>(null) }
+                    DisposableEffect(route.type, route.id) {
+                        onDispose {
+                            StreamsRepository.clear()
                         }
-                    val detailOnPlayManually: (String, String, String, String, String, String?, String?, String?, Int?, Int?, String?, String?, String?, Long?) -> Unit =
-                        { type, videoId, parentMetaId, parentMetaType, title, logo, poster, background, seasonNumber, episodeNumber, episodeTitle, episodeThumbnail, pauseDescription, resumePositionMs ->
-                            launchPlaybackWithDownloadPreference(
-                                type = type,
-                                videoId = videoId,
-                                parentMetaId = parentMetaId,
-                                parentMetaType = parentMetaType,
-                                title = title,
-                                logo = logo,
-                                poster = poster,
-                                background = background,
-                                seasonNumber = seasonNumber,
-                                episodeNumber = episodeNumber,
-                                episodeTitle = episodeTitle,
-                                episodeThumbnail = episodeThumbnail,
-                                pauseDescription = pauseDescription,
-                                resumePositionMs = resumePositionMs,
-                                resumeProgressFraction = null,
-                                manualSelection = true,
-                                startFromBeginning = false,
-                                openStreams = ::openInlineStreams,
-                            )
-                        }
-
-                    PlatformBackHandler(
-                        enabled = inlineStreamLaunch != null,
-                        onBack = ::closeInlineStreams,
-                    )
+                    }
 
                     val detailAnimatedVisibilityScope = this
-                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                        val useSidePanel = maxWidth >= 980.dp
-                        val sidePanelWidth = if (maxWidth >= 1280.dp) 560.dp else 480.dp
-                        MetaDetailsScreen(
-                            type = route.type,
-                            id = route.id,
-                            onBack = {
-                                if (inlineStreamLaunch != null) {
-                                    closeInlineStreams()
-                                } else {
-                                    navController.popBackStack()
-                                }
-                            },
-                            onPlay = detailOnPlay,
-                            onPlayManually = detailOnPlayManually,
-                            onOpenMeta = { preview ->
-                                coroutineScope.launch {
-                                    closeInlineStreams()
-                                    val resolvedId = if (preview.id.startsWith("tmdb:")) {
-                                        val tmdbId = preview.id.removePrefix("tmdb:").toIntOrNull()
-                                        tmdbId?.let {
-                                            TmdbService.tmdbToImdb(
-                                                tmdbId = it,
-                                                mediaType = preview.type,
-                                            )
-                                        } ?: preview.id
-                                    } else {
-                                        preview.id
-                                    }
-                                    navController.navigate(
-                                        DetailRoute(
-                                            type = preview.type,
-                                            id = resolvedId,
-                                        ),
-                                    )
-                                }
-                            },
-                            onCastClick = { person, avatarTransitionKey ->
-                                val tmdbId = person.tmdbId
-                                if (tmdbId != null && tmdbId > 0) {
-                                    closeInlineStreams()
-                                    navController.navigate(
-                                        PersonDetailRoute(
-                                            personId = tmdbId,
-                                            personName = person.name,
-                                            personPhoto = person.photo,
-                                            castAvatarTransitionKey = avatarTransitionKey,
-                                            preferCrew = person.role?.let {
-                                                it.equals("Director", ignoreCase = true) ||
-                                                    it.equals(directorRole, ignoreCase = true) ||
-                                                    it.equals("Writer", ignoreCase = true) ||
-                                                    it.equals(writerRole, ignoreCase = true) ||
-                                                    it.equals("Creator", ignoreCase = true)
-                                                    || it.equals(creatorRole, ignoreCase = true)
-                                            } ?: false,
-                                        ),
-                                    )
-                                }
-                            },
-                            onCompanyClick = { company, entityKind ->
-                                val tmdbId = company.tmdbId
-                                if (tmdbId != null && tmdbId > 0) {
-                                    closeInlineStreams()
-                                    navController.navigate(
-                                        EntityBrowseRoute(
-                                            entityKind = entityKind,
-                                            entityId = tmdbId,
-                                            entityName = company.name,
-                                            sourceType = route.type,
-                                        ),
-                                    )
-                                }
-                            },
-                            sharedTransitionScope = this@SharedTransitionLayout,
-                            animatedVisibilityScope = detailAnimatedVisibilityScope,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-
-                        inlineStreamLaunch?.let { launch ->
-                            if (!useSidePanel) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .zIndex(3f)
-                                        .background(Color.Black.copy(alpha = 0.38f))
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = ::closeInlineStreams,
-                                        ),
-                                )
+                    MetaDetailsScreen(
+                        type = route.type,
+                        id = route.id,
+                        onBack = {
+                            navController.popBackStack()
+                        },
+                        onPlay = onPlay,
+                        onPlayManually = null,
+                        onPrimarySourceTargetChanged = { target ->
+                            val nextLaunch = target?.toManualStreamLaunch()
+                            if (detailStreamLaunch != nextLaunch) {
+                                StreamsRepository.clear()
+                                detailStreamLaunch = nextLaunch
                             }
-                            Surface(
-                                modifier = if (useSidePanel) {
-                                    Modifier
-                                        .align(Alignment.CenterEnd)
-                                        .fillMaxHeight()
-                                        .width(sidePanelWidth)
-                                        .zIndex(4f)
-                                } else {
-                                    Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .fillMaxWidth()
-                                        .fillMaxHeight(0.72f)
-                                        .zIndex(4f)
-                                },
-                                shape = if (useSidePanel) {
-                                    RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp)
-                                } else {
-                                    RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-                                },
-                                color = MaterialTheme.colorScheme.background,
-                                shadowElevation = 18.dp,
-                            ) {
+                        },
+                        sourceContent = {
+                            detailStreamLaunch?.let { launch ->
                                 StreamLaunchContent(
                                     launch = launch,
                                     playerSettings = playerSettingsUiState,
-                                    onBack = ::closeInlineStreams,
+                                    onBack = { },
                                     onPlayerLaunch = { playerLaunch, _ ->
-                                        closeInlineStreams()
+                                        StreamsRepository.cancelLoading()
                                         val playerLaunchId = PlayerLaunchStore.put(playerLaunch)
                                         navController.navigate(PlayerRoute(launchId = playerLaunchId))
                                     },
                                     onPrefetchEpisodeMetadata = ::prefetchPlaybackEpisodeMetadata,
                                     embedded = true,
+                                    showEmbeddedBackButton = false,
                                     modifier = Modifier.fillMaxSize(),
                                 )
+                            } ?: Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                             }
-                        }
-                    }
+                        },
+                        onOpenMeta = { preview ->
+                            coroutineScope.launch {
+                                val resolvedId = if (preview.id.startsWith("tmdb:")) {
+                                    val tmdbId = preview.id.removePrefix("tmdb:").toIntOrNull()
+                                    tmdbId?.let {
+                                        TmdbService.tmdbToImdb(
+                                            tmdbId = it,
+                                            mediaType = preview.type,
+                                        )
+                                    } ?: preview.id
+                                } else {
+                                    preview.id
+                                }
+                                navController.navigate(
+                                    DetailRoute(
+                                        type = preview.type,
+                                        id = resolvedId,
+                                    ),
+                                )
+                            }
+                        },
+                        onCastClick = { person, avatarTransitionKey ->
+                            val tmdbId = person.tmdbId
+                            if (tmdbId != null && tmdbId > 0) {
+                                navController.navigate(
+                                    PersonDetailRoute(
+                                        personId = tmdbId,
+                                        personName = person.name,
+                                        personPhoto = person.photo,
+                                        castAvatarTransitionKey = avatarTransitionKey,
+                                        preferCrew = person.role?.let {
+                                            it.equals("Director", ignoreCase = true) ||
+                                                it.equals(directorRole, ignoreCase = true) ||
+                                                it.equals("Writer", ignoreCase = true) ||
+                                                it.equals(writerRole, ignoreCase = true) ||
+                                                it.equals("Creator", ignoreCase = true)
+                                                || it.equals(creatorRole, ignoreCase = true)
+                                        } ?: false,
+                                    ),
+                                )
+                            }
+                        },
+                        onCompanyClick = { company, entityKind ->
+                            val tmdbId = company.tmdbId
+                            if (tmdbId != null && tmdbId > 0) {
+                                navController.navigate(
+                                    EntityBrowseRoute(
+                                        entityKind = entityKind,
+                                        entityId = tmdbId,
+                                        entityName = company.name,
+                                        sourceType = route.type,
+                                    ),
+                                )
+                            }
+                        },
+                        sharedTransitionScope = this@SharedTransitionLayout,
+                        animatedVisibilityScope = detailAnimatedVisibilityScope,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
                 composable<PersonDetailRoute> { backStackEntry ->
                     val route = backStackEntry.toRoute<PersonDetailRoute>()

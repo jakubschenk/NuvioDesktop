@@ -126,6 +126,7 @@ fun StreamsScreen(
     ) -> Unit = { _, _, _, _ -> },
     onBack: () -> Unit,
     embedded: Boolean = false,
+    showEmbeddedBackButton: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val uiState by StreamsRepository.uiState.collectAsStateWithLifecycle()
@@ -236,6 +237,7 @@ fun StreamsScreen(
                 onStreamLongPress = { stream -> streamActionsTarget = stream },
                 onBack = onBack,
                 onRefresh = reloadStreams,
+                showBackButton = showEmbeddedBackButton,
                 modifier = Modifier.fillMaxSize(),
             )
         } else if (isTabletLayout) {
@@ -419,6 +421,7 @@ private fun EmbeddedStreamsLayout(
     onStreamLongPress: (StreamItem) -> Unit,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    showBackButton: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val sourceTitle = if (isEpisode && seasonNumber != null && episodeNumber != null) {
@@ -445,12 +448,14 @@ private fun EmbeddedStreamsLayout(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            NuvioBackButton(
-                onClick = onBack,
-                modifier = Modifier.size(40.dp),
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            )
+            if (showBackButton) {
+                NuvioBackButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(40.dp),
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                )
+            }
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp),

@@ -88,6 +88,23 @@ data class MetaVideo(
     val streams: List<StreamItem> = emptyList(),
 )
 
+data class MetaDetailsPlaybackTarget(
+    val type: String,
+    val videoId: String,
+    val parentMetaId: String,
+    val parentMetaType: String,
+    val title: String,
+    val logo: String?,
+    val poster: String?,
+    val background: String?,
+    val seasonNumber: Int?,
+    val episodeNumber: Int?,
+    val episodeTitle: String?,
+    val episodeThumbnail: String?,
+    val pauseDescription: String?,
+    val resumePositionMs: Long?,
+)
+
 data class MetaDetailsUiState(
     val isLoading: Boolean = false,
     val meta: MetaDetails? = null,
