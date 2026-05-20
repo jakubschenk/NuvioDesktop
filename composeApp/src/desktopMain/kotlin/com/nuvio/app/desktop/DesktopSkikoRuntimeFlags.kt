@@ -4,7 +4,7 @@ import java.util.Locale
 
 internal object DesktopSkikoRuntimeFlags {
     private const val DefaultRenderApi = "OPENGL"
-    private const val PreferredWindowsRenderApi = "OPENGL"
+    private const val PreferredWindowsRenderApi = "ANGLE"
 
     fun configure(): String {
         val applied = mutableListOf<String>()
@@ -26,6 +26,14 @@ internal object DesktopSkikoRuntimeFlags {
             ?: System.getProperty("compose.interop.blending")?.let(::normalizeBoolean)
         if (interopBlending != null) {
             setProperty("compose.interop.blending", interopBlending, applied)
+        }
+
+        val composeLayersType = firstEnv("NUVIO_COMPOSE_LAYERS_TYPE", "COMPOSE_LAYERS_TYPE")
+            ?.normalizeComposeLayersType()
+            ?: System.getProperty("compose.layers.type")?.normalizeComposeLayersType()
+            ?: if (mpvSurface == "native-window") "WINDOW" else null
+        if (composeLayersType != null) {
+            setProperty("compose.layers.type", composeLayersType, applied)
         }
 
         setPropertyFromEnv(
@@ -121,6 +129,14 @@ internal object DesktopSkikoRuntimeFlags {
             "native", "native-window", "hwnd", "window" -> "native-window"
             "opengl", "open-gl", "gl", "libmpv" -> "opengl"
             else -> trim().lowercase(Locale.US)
+        }
+
+    private fun String.normalizeComposeLayersType(): String =
+        when (trim().uppercase(Locale.US).replace('-', '_')) {
+            "WINDOW", "ON_WINDOW", "WINDOWED" -> "WINDOW"
+            "CANVAS", "SAME_CANVAS", "ON_SAME_CANVAS" -> "SAME_CANVAS"
+            "COMPONENT", "ON_COMPONENT" -> "COMPONENT"
+            else -> trim().uppercase(Locale.US)
         }
 
     private fun defaultRenderApi(): String =

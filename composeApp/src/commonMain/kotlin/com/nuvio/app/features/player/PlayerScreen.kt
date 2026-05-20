@@ -1741,9 +1741,8 @@ fun PlayerScreen(
             ),
         )
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
+        val playerInteractionModifier = Modifier
+            .fillMaxSize()
                 .onPointerEvent(PointerEventType.Scroll) { event ->
                     if (blockingPanelOpen || playerControlsLocked) return@onPointerEvent
                     val scrollY = event.changes.firstOrNull()?.scrollDelta?.y ?: return@onPointerEvent
@@ -1899,7 +1898,6 @@ fun PlayerScreen(
                 }
                 .focusRequester(playerFocusRequester)
                 .focusable()
-                .onSizeChanged { layoutSize = it }
                 .pointerInput(hoverDrivenChrome) {
                     if (!hoverDrivenChrome) return@pointerInput
                     awaitEachGesture {
@@ -2058,7 +2056,12 @@ fun PlayerScreen(
                             clearLiveGestureFeedbackState.value()
                         }
                     }
-                },
+                }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .onSizeChanged { layoutSize = it },
         ) {
             PlatformPlayerSurface(
                 sourceUrl = activeSourceUrl,
@@ -2112,6 +2115,10 @@ fun PlayerScreen(
                 },
             )
 
+            PlayerOverlayLayer(
+                layoutSize = layoutSize,
+                modifier = playerInteractionModifier,
+            ) {
             AnimatedVisibility(
                 visible = pausedOverlayVisible && !controlsVisible && !playerControlsLocked,
                 enter = fadeIn(animationSpec = tween(durationMillis = 220)),
@@ -2455,6 +2462,8 @@ fun PlayerScreen(
             }
         }
     }
+}
+
 }
 
 private fun <T> findPreferredTrackIndex(
