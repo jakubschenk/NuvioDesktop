@@ -87,10 +87,21 @@ private class MpvNativeWindowPanel(
         isDoubleBuffered = false
         isFocusable = false
         background = AwtColor.BLACK
+        foreground = AwtColor.BLACK
         canvas.background = AwtColor.BLACK
         canvas.foreground = AwtColor.BLACK
         canvas.isFocusable = false
         add(canvas, BorderLayout.CENTER)
+    }
+
+    override fun update(graphics: Graphics) {
+        paint(graphics)
+    }
+
+    override fun paintComponent(graphics: Graphics) {
+        super.paintComponent(graphics)
+        graphics.color = AwtColor.BLACK
+        graphics.fillRect(0, 0, width, height)
     }
 
     override fun addNotify() {

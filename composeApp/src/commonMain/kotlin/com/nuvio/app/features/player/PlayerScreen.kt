@@ -2268,6 +2268,7 @@ fun PlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color.Black)
                 .onSizeChanged { layoutSize = it },
         ) {
             PlatformPlayerSurface(

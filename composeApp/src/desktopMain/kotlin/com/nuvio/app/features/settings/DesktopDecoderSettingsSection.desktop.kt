@@ -228,8 +228,8 @@ internal actual fun DesktopDecoderSettingsSection(isTablet: Boolean) {
                     "set NUVIO_PLAYER_OVERLAY_RENDERER=skia only for renderer troubleshooting.\n\n" +
                     "Hardware decoding (hwdec) is separate from GPU rendering: you can use " +
                     "D3D11VA or NVDEC for video decoding while the selected renderer handles " +
-                    "presentation. Launch with NUVIO_SKIKO_RENDER_API=D3D11 to force the " +
-                    "ANGLE/D3D11 path, DIRECT3D for Skiko D3D12, or OPENGL for the legacy " +
+                    "presentation. The Windows default is ANGLE/D3D11; launch with " +
+                    "NUVIO_SKIKO_RENDER_API=DIRECT3D for Skiko D3D12, or OPENGL for the legacy " +
                     "libmpv/OpenGL path. Set NUVIO_SKIKO_VSYNC_ENABLED=false only when " +
                     "comparing renderer frame pacing.",
                 modifier = Modifier.padding(16.dp),

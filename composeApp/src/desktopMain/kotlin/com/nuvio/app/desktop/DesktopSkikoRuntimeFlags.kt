@@ -4,6 +4,7 @@ import java.util.Locale
 
 internal object DesktopSkikoRuntimeFlags {
     private const val DefaultRenderApi = "OPENGL"
+    // Skiko's ANGLE backend requests EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE on Windows.
     private const val PreferredWindowsRenderApi = "ANGLE"
     private const val DefaultWindowsGpuResourceCacheLimit = "256M"
 
@@ -15,6 +16,7 @@ internal object DesktopSkikoRuntimeFlags {
             ?: System.getProperty("skiko.renderApi")?.normalizeRenderApi()
             ?: defaultRenderApi()
         setProperty("skiko.renderApi", renderApi, applied)
+        setNoEraseBackgroundFlags(applied)
         if (renderApi == "ANGLE") {
             val explicitAngleEnabled = firstEnv("NUVIO_SKIKO_ANGLE_ENABLED")
                 ?.let(::normalizeBoolean)
@@ -95,6 +97,20 @@ internal object DesktopSkikoRuntimeFlags {
         )
 
         return applied.joinToString(separator = " ")
+    }
+
+    private fun setNoEraseBackgroundFlags(applied: MutableList<String>) {
+        val skikoNoErase = firstEnv("NUVIO_SKIKO_NO_ERASE_BACKGROUND")
+            ?.let(::normalizeBoolean)
+            ?: System.getProperty("skiko.rendering.noerasebackground")?.let(::normalizeBoolean)
+            ?: "true"
+        setProperty("skiko.rendering.noerasebackground", skikoNoErase, applied)
+
+        val awtNoErase = firstEnv("NUVIO_AWT_NO_ERASE_BACKGROUND")
+            ?.let(::normalizeBoolean)
+            ?: System.getProperty("sun.awt.noerasebackground")?.let(::normalizeBoolean)
+            ?: "true"
+        setProperty("sun.awt.noerasebackground", awtNoErase, applied)
     }
 
     private fun setPropertyFromEnv(
