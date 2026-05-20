@@ -60,6 +60,7 @@ import java.awt.image.BufferedImage
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JWindow
+import javax.swing.Timer
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -70,6 +71,8 @@ import java.awt.Color as AwtColor
 private val isMacOS: Boolean by lazy {
     System.getProperty("os.name")?.lowercase()?.contains("mac") == true
 }
+
+private const val DefaultPlayerOverlayRepaintHz = 120
 
 @Composable
 actual fun PlatformPlayerSurface(
@@ -1420,7 +1423,7 @@ private class DesktopPlayerOverlayWindow(
     private var pendingBounds: IntRect? = null
 
     private val updateQueued = AtomicBoolean(false)
-    private val renderConfig = desktopPlayerOverlayRenderConfig()
+    private val renderConfig = desktopPlayerOverlayRenderConfig(owner)
 
     val panel: ComposePanel = ComposePanel(
         renderSettings = renderConfig.renderSettings,
@@ -1440,8 +1443,21 @@ private class DesktopPlayerOverlayWindow(
         isAutoRequestFocus = false
     }
 
+    private val repaintTimer: Timer? = renderConfig.repaintHz?.let { repaintHz ->
+        Timer((1000.0 / repaintHz).roundToInt().coerceAtLeast(1)) {
+            if (!disposed && window.isVisible && panel.isShowing) {
+                panel.repaint()
+            }
+        }.apply {
+            isRepeats = true
+            setCoalesce(true)
+        }
+    }
+
     init {
-        DesktopRuntimeLog.info("playerOverlay renderer=${renderConfig.name}")
+        DesktopRuntimeLog.info(
+            "playerOverlay renderer=${renderConfig.name} repaintHz=${renderConfig.repaintHz?.toString() ?: "off"}",
+        )
     }
 
     fun updateBounds(boundsInWindow: IntRect?) {
@@ -1492,7 +1508,10 @@ private class DesktopPlayerOverlayWindow(
         }
         if (!window.isVisible) {
             window.isVisible = true
+            window.toFront()
+            DesktopRuntimeLog.info("playerOverlay visible bounds=${width}x$height at $x,$y")
         }
+        startRepaintPump()
     }
 
     fun hide() {
@@ -1508,8 +1527,10 @@ private class DesktopPlayerOverlayWindow(
     }
 
     private fun hideOnEventQueue() {
+        stopRepaintPump()
         if (window.isVisible) {
             window.isVisible = false
+            DesktopRuntimeLog.info("playerOverlay hidden")
         }
     }
 
@@ -1517,7 +1538,7 @@ private class DesktopPlayerOverlayWindow(
         if (disposed) return
         disposed = true
         pendingBounds = null
-        EventQueue.invokeLater {
+        val disposeOnEventQueue = {
             runCatching {
                 hideOnEventQueue()
                 panel.isVisible = false
@@ -1534,12 +1555,34 @@ private class DesktopPlayerOverlayWindow(
             }.onFailure {
                 DesktopRuntimeLog.error("playerOverlay window dispose failed", it)
             }
+            DesktopRuntimeLog.info("playerOverlay disposed")
         }
+        if (EventQueue.isDispatchThread()) {
+            disposeOnEventQueue()
+        } else {
+            runCatching {
+                EventQueue.invokeAndWait { disposeOnEventQueue() }
+            }.onFailure {
+                DesktopRuntimeLog.error("playerOverlay synchronous dispose failed", it)
+                EventQueue.invokeLater { disposeOnEventQueue() }
+            }
+        }
+    }
+
+    private fun startRepaintPump() {
+        val timer = repaintTimer ?: return
+        if (!timer.isRunning) {
+            timer.start()
+        }
+    }
+
+    private fun stopRepaintPump() {
+        repaintTimer?.stop()
     }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
-private fun desktopPlayerOverlayRenderConfig(): DesktopPlayerOverlayRenderConfig {
+private fun desktopPlayerOverlayRenderConfig(owner: Window): DesktopPlayerOverlayRenderConfig {
     val renderer = System.getenv("NUVIO_PLAYER_OVERLAY_RENDERER")
         ?.trim()
         ?.lowercase(Locale.US)
@@ -1548,11 +1591,13 @@ private fun desktopPlayerOverlayRenderConfig(): DesktopPlayerOverlayRenderConfig
         "skia", "skia-surface", "angle" -> DesktopPlayerOverlayRenderConfig(
             name = "skia",
             renderSettings = RenderSettings.SkiaSurface(),
+            repaintHz = null,
         )
 
         else -> DesktopPlayerOverlayRenderConfig(
             name = "swing",
             renderSettings = RenderSettings.SwingGraphics(),
+            repaintHz = desktopPlayerOverlayRepaintHz(owner),
         )
     }
 }
@@ -1561,7 +1606,27 @@ private fun desktopPlayerOverlayRenderConfig(): DesktopPlayerOverlayRenderConfig
 private data class DesktopPlayerOverlayRenderConfig(
     val name: String,
     val renderSettings: RenderSettings,
+    val repaintHz: Int?,
 )
+
+private fun desktopPlayerOverlayRepaintHz(owner: Window): Int? {
+    val configured = System.getenv("NUVIO_PLAYER_OVERLAY_REPAINT_HZ")
+        ?.trim()
+        ?.takeIf(String::isNotBlank)
+    if (configured != null) {
+        return when (configured.lowercase(Locale.US)) {
+            "0", "off", "false", "no", "disabled" -> null
+            else -> configured.toIntOrNull()?.coerceIn(30, 240)
+        }
+    }
+    val displayRefreshRate = owner
+        .graphicsConfiguration
+        ?.device
+        ?.displayMode
+        ?.refreshRate
+        ?.takeIf { it > 0 }
+    return (displayRefreshRate ?: DefaultPlayerOverlayRepaintHz).coerceIn(30, 240)
+}
 
 private val OverlayHitTestAwtColor = AwtColor(0, 0, 0, 1)
 private val OverlayHitTestColor = Color.Black.copy(alpha = 1f / 255f)

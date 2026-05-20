@@ -50,15 +50,11 @@ internal fun DesktopPlayerSurfaceHost(
         DesktopPlayerRegistry.register(
             id = registryId,
             stop = { backend.releaseSoft() },
-            close = {
-                backend.releaseSoft()
-                backend.close()
-            },
+            close = { backend.close() },
         )
         onDispose {
             DesktopRuntimeLog.info("DesktopPlayerSurfaceHost dispose backend=${backend.backendName}")
             DesktopPlayerRegistry.unregister(registryId)
-            backend.releaseSoft()
             backend.close()
         }
     }
