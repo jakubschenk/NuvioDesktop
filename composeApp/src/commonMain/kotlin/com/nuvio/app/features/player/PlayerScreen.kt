@@ -108,8 +108,6 @@ private const val PlayerChromeFrameIntervalMs = 8L
 private const val PlayerKeyboardVolumeStep = 0.05f
 private const val PlayerScrollVolumeStep = 0.05f
 private const val PlayerScrollVolumePixelThreshold = 4f
-private const val PlayerScrollVolumePixelUnit = 60f
-private const val PlayerScrollVolumeMaxSteps = 3
 /** Hard ceiling for next-episode stream search to prevent hanging forever. */
 private const val NEXT_EPISODE_HARD_TIMEOUT_MS = 120_000L
 private const val PlayerNextEpisodeStreamPollIntervalMs = 100L
@@ -162,24 +160,9 @@ private class PlayerVolumeScrollAccumulator {
         val magnitude = abs(pendingScrollY)
         if (magnitude < PlayerScrollVolumePixelThreshold) return 0f
 
-        val steps = when {
-            magnitude >= PlayerScrollVolumePixelUnit ->
-                (magnitude / PlayerScrollVolumePixelUnit).toInt().coerceIn(1, PlayerScrollVolumeMaxSteps)
-            else -> 1
-        }
-        val consumed = if (magnitude >= PlayerScrollVolumePixelUnit) {
-            steps * PlayerScrollVolumePixelUnit
-        } else {
-            magnitude
-        }
-        if (pendingScrollY < 0f) {
-            pendingScrollY += consumed
-        } else {
-            pendingScrollY -= consumed
-        }
-
-        val direction = if (scrollY < 0f) 1f else -1f
-        return direction * PlayerScrollVolumeStep * steps
+        val direction = if (pendingScrollY < 0f) 1f else -1f
+        pendingScrollY = 0f
+        return direction * PlayerScrollVolumeStep
     }
 }
 
