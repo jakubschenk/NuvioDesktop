@@ -1216,6 +1216,7 @@ private fun DesktopOwnedPlayerOverlayWindow(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .background(OverlayHitTestColor)
                         .then(latestModifier),
                     content = latestContent,
                 )
@@ -1262,16 +1263,18 @@ private class DesktopPlayerOverlayWindow(
     private val owner: Window,
 ) {
     val panel: ComposePanel = ComposePanel(
-        renderSettings = RenderSettings.SwingGraphics(),
+        renderSettings = desktopPlayerOverlayRenderSettings(),
     ).apply {
         isOpaque = false
-        background = TransparentAwtColor
+        background = OverlayHitTestAwtColor
         isFocusable = true
     }
 
     private val window = JWindow(owner).apply {
         type = Window.Type.POPUP
-        background = TransparentAwtColor
+        background = OverlayHitTestAwtColor
+        rootPane.isOpaque = false
+        rootPane.background = OverlayHitTestAwtColor
         contentPane = panel
         focusableWindowState = true
         isAutoRequestFocus = false
@@ -1306,6 +1309,7 @@ private class DesktopPlayerOverlayWindow(
         }
         if (!window.isVisible) {
             window.isVisible = true
+            window.toFront()
         }
     }
 
@@ -1322,7 +1326,15 @@ private class DesktopPlayerOverlayWindow(
     }
 }
 
-private val TransparentAwtColor = AwtColor(0, 0, 0, 0)
+@OptIn(ExperimentalComposeUiApi::class)
+private fun desktopPlayerOverlayRenderSettings(): RenderSettings =
+    when (System.getenv("NUVIO_PLAYER_OVERLAY_RENDERER")?.trim()?.lowercase(Locale.US)) {
+        "swing", "swing-graphics", "swing_graphics", "gdi" -> RenderSettings.SwingGraphics()
+        else -> RenderSettings.SkiaSurface()
+    }
+
+private val OverlayHitTestAwtColor = AwtColor(0, 0, 0, 1)
+private val OverlayHitTestColor = Color.Black.copy(alpha = 1f / 255f)
 
 private fun usesOwnedPlayerOverlayWindow(): Boolean {
     if (!isWindowsDesktopPlayerOverlay()) return false
