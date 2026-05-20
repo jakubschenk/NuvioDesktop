@@ -63,7 +63,7 @@ fun DetailCastSection(
 
             LazyRow(
                 state = listState,
-                modifier = Modifier.desktopHorizontalLazyRowGestures(listState),
+                modifier = Modifier.desktopHorizontalLazyRowGestures(listState, scrollWithoutShift = true),
                 horizontalArrangement = Arrangement.spacedBy(sizing.avatarGap),
             ) {
                 itemsIndexed(

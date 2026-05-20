@@ -45,7 +45,7 @@ fun DetailSectionTitle(
                 fontSize = titleSize,
                 fontWeight = FontWeight.SemiBold,
             ),
-            color = MaterialTheme.colorScheme.onBackground,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

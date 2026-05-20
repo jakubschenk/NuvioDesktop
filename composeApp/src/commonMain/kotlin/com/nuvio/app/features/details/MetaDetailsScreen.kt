@@ -124,6 +124,9 @@ import org.jetbrains.compose.resources.stringResource
 fun MetaDetailsScreen(
     type: String,
     id: String,
+    initialSelectedVideoId: String? = null,
+    initialSelectedSeasonNumber: Int? = null,
+    initialSelectedEpisodeNumber: Int? = null,
     onBack: () -> Unit,
     onPlay: ((type: String, videoId: String, parentMetaId: String, parentMetaType: String, title: String, logo: String?, poster: String?, background: String?, seasonNumber: Int?, episodeNumber: Int?, episodeTitle: String?, episodeThumbnail: String?, pauseDescription: String?, resumePositionMs: Long?) -> Unit)? = null,
     onPlayManually: ((type: String, videoId: String, parentMetaId: String, parentMetaType: String, title: String, logo: String?, poster: String?, background: String?, seasonNumber: Int?, episodeNumber: Int?, episodeTitle: String?, episodeThumbnail: String?, pauseDescription: String?, resumePositionMs: Long?) -> Unit)? = null,
@@ -614,6 +617,63 @@ fun MetaDetailsScreen(
                         target.resumePositionMs,
                     )
                 }
+                val routeSelectedVideo = remember(
+                    meta.id,
+                    meta.videos,
+                    initialSelectedVideoId,
+                    initialSelectedSeasonNumber,
+                    initialSelectedEpisodeNumber,
+                ) {
+                    if (
+                        initialSelectedVideoId.isNullOrBlank() &&
+                        initialSelectedSeasonNumber == null &&
+                        initialSelectedEpisodeNumber == null
+                    ) {
+                        null
+                    } else {
+                        meta.videos.firstOrNull { video ->
+                            val playbackVideoId = buildPlaybackVideoId(
+                                parentMetaId = meta.id,
+                                seasonNumber = video.season,
+                                episodeNumber = video.episode,
+                                fallbackVideoId = video.id,
+                            )
+                            val matchesVideoId = !initialSelectedVideoId.isNullOrBlank() &&
+                                (video.id == initialSelectedVideoId || playbackVideoId == initialSelectedVideoId)
+                            val matchesSeasonEpisode =
+                                initialSelectedSeasonNumber != null &&
+                                    initialSelectedEpisodeNumber != null &&
+                                    video.season == initialSelectedSeasonNumber &&
+                                    video.episode == initialSelectedEpisodeNumber
+                            matchesVideoId || matchesSeasonEpisode
+                        }
+                    }
+                }
+                val routeSelectedSourceTarget = routeSelectedVideo?.let(episodePlaybackTarget)
+                val latestWatchedVideoForSelection = remember(
+                    meta.id,
+                    meta.type,
+                    meta.videos,
+                    watchProgressUiState.entries,
+                    watchedUiState.items,
+                ) {
+                    latestCompletedSeriesEpisode(
+                        parentMetaId = meta.id,
+                        parentMetaType = meta.type,
+                        progressEntries = watchProgressUiState.entries,
+                        watchedItems = watchedUiState.items,
+                    )?.let { completedEpisode ->
+                        meta.videos.firstOrNull { video ->
+                            video.season == completedEpisode.seasonNumber &&
+                                video.episode == completedEpisode.episodeNumber
+                        }
+                    }
+                }
+                val latestWatchedSourceTarget = latestWatchedVideoForSelection?.let(episodePlaybackTarget)
+                val initialSeriesSourceTarget = routeSelectedSourceTarget
+                    ?: latestWatchedSourceTarget.takeIf {
+                        (meta.type == "series" || hasEpisodes) && seriesAction?.resumePositionMs == null
+                    }
                 val primarySourceTarget = remember(
                     meta,
                     hasEpisodes,
@@ -621,8 +681,11 @@ fun MetaDetailsScreen(
                     seriesAction,
                     seriesStreamVideoId,
                     seriesPauseDescription,
+                    initialSeriesSourceTarget,
                 ) {
-                    if ((meta.type == "series" || hasEpisodes) && seriesAction != null) {
+                    if (initialSeriesSourceTarget != null) {
+                        initialSeriesSourceTarget
+                    } else if ((meta.type == "series" || hasEpisodes) && seriesAction != null) {
                         MetaDetailsPlaybackTarget(
                             type = meta.type,
                             videoId = seriesStreamVideoId ?: seriesAction.videoId,
@@ -658,7 +721,14 @@ fun MetaDetailsScreen(
                         )
                     }
                 }
-                var selectedSourceTargetOverride by remember(meta.id) { mutableStateOf<MetaDetailsPlaybackTarget?>(null) }
+                var selectedSourceTargetOverride by remember(
+                    meta.id,
+                    initialSelectedVideoId,
+                    initialSelectedSeasonNumber,
+                    initialSelectedEpisodeNumber,
+                ) {
+                    mutableStateOf<MetaDetailsPlaybackTarget?>(null)
+                }
                 val activeSourceTarget = selectedSourceTargetOverride ?: primarySourceTarget
                 LaunchedEffect(activeSourceTarget) {
                     onPrimarySourceTargetChanged?.invoke(activeSourceTarget)
@@ -926,7 +996,7 @@ fun MetaDetailsScreen(
                                         .width(sourcePanelWidth)
                                         .fillMaxHeight()
                                         .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp))
-                                        .background(Color(0xFF15121F).copy(alpha = 0.90f)),
+                                        .background(Color(0xFF131318).copy(alpha = 0.84f)),
                                 ) {
                                     if (showPanelEpisodeSelector) {
                                         Column(

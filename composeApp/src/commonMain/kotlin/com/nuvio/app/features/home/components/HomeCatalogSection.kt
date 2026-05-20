@@ -10,9 +10,11 @@ import androidx.compose.ui.unit.Dp
 import com.nuvio.app.core.ui.NuvioShelfSection
 import com.nuvio.app.core.ui.PosterCardStyleUiState
 import com.nuvio.app.core.ui.NuvioViewAllPillSize
+import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.MetaPreview
+import com.nuvio.app.features.home.PosterShape
 import com.nuvio.app.features.home.stableKey
 import com.nuvio.app.features.watching.application.WatchingState
 
@@ -30,18 +32,21 @@ fun HomeCatalogRowSection(
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
 ) {
     if (sectionPadding != null) {
-        HomeCatalogRowSectionContent(
-            section = section,
-            entries = entries,
-            watchedKeys = watchedKeys,
-            modifier = modifier.fillMaxWidth(),
-            sectionPadding = sectionPadding,
-            posterCardStyle = posterCardStyle,
-            showHeaderAccent = showHeaderAccent,
-            onViewAllClick = onViewAllClick,
-            onPosterClick = onPosterClick,
-            onPosterLongClick = onPosterLongClick,
-        )
+        BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+            HomeCatalogRowSectionContent(
+                section = section,
+                entries = entries,
+                watchedKeys = watchedKeys,
+                modifier = Modifier.fillMaxWidth(),
+                sectionPadding = sectionPadding,
+                availableWidth = maxWidth,
+                posterCardStyle = posterCardStyle,
+                showHeaderAccent = showHeaderAccent,
+                onViewAllClick = onViewAllClick,
+                onPosterClick = onPosterClick,
+                onPosterLongClick = onPosterLongClick,
+            )
+        }
     } else {
         BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
             HomeCatalogRowSectionContent(
@@ -50,6 +55,7 @@ fun HomeCatalogRowSection(
                 watchedKeys = watchedKeys,
                 modifier = Modifier.fillMaxWidth(),
                 sectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value),
+                availableWidth = maxWidth,
                 posterCardStyle = posterCardStyle,
                 showHeaderAccent = showHeaderAccent,
                 onViewAllClick = onViewAllClick,
@@ -67,6 +73,7 @@ private fun HomeCatalogRowSectionContent(
     watchedKeys: Set<String>,
     modifier: Modifier,
     sectionPadding: Dp,
+    availableWidth: Dp,
     posterCardStyle: PosterCardStyleUiState?,
     showHeaderAccent: Boolean,
     onViewAllClick: (() -> Unit)?,
@@ -74,6 +81,14 @@ private fun HomeCatalogRowSectionContent(
     onPosterLongClick: ((MetaPreview) -> Unit)?,
 ) {
     val resolvedPosterCardStyle = posterCardStyle ?: rememberPosterCardStyleUiState()
+    val maxVisibleItems = remember(availableWidth, sectionPadding, entries, resolvedPosterCardStyle) {
+        maxHomeCatalogItemsForViewport(
+            availableWidth = availableWidth,
+            sectionPadding = sectionPadding,
+            entries = entries,
+            posterCardStyle = resolvedPosterCardStyle,
+        )
+    }
 
     NuvioShelfSection(
         title = section.title,
@@ -84,6 +99,7 @@ private fun HomeCatalogRowSectionContent(
         showHeaderAccent = showHeaderAccent,
         onViewAllClick = onViewAllClick,
         viewAllPillSize = NuvioViewAllPillSize.Compact,
+        maxItems = maxVisibleItems,
         key = { item -> item.stableKey() },
         contentType = { item -> item.posterShape },
     ) { item ->
@@ -99,4 +115,29 @@ private fun HomeCatalogRowSectionContent(
             onLongClick = onPosterLongClick?.let { { it(item) } },
         )
     }
+}
+
+private fun maxHomeCatalogItemsForViewport(
+    availableWidth: Dp,
+    sectionPadding: Dp,
+    entries: List<MetaPreview>,
+    posterCardStyle: PosterCardStyleUiState,
+): Int {
+    if (entries.isEmpty()) return 0
+    val contentWidth = (availableWidth.value - sectionPadding.value * 2f).coerceAtLeast(0f)
+    val shape = if (posterCardStyle.catalogLandscapeModeEnabled) {
+        PosterShape.Landscape
+    } else {
+        entries.first().posterShape
+    }
+    val cardWidth = when (shape) {
+        PosterShape.Poster,
+        PosterShape.Square -> posterCardStyle.widthDp.toFloat()
+        PosterShape.Landscape -> landscapePosterWidth(posterCardStyle.widthDp).value
+    }
+    val spacing = 10f
+    return ((contentWidth + spacing) / (cardWidth + spacing))
+        .toInt()
+        .coerceAtLeast(1)
+        .coerceAtMost(entries.size)
 }

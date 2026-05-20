@@ -163,7 +163,7 @@ fun DetailTrailersSection(
                 state = listState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .desktopHorizontalLazyRowGestures(listState),
+                    .desktopHorizontalLazyRowGestures(listState, scrollWithoutShift = true),
                 horizontalArrangement = Arrangement.spacedBy(sizing.cardSpacing),
             ) {
                 itemsIndexed(

@@ -68,11 +68,14 @@ fun <T> NuvioShelfSection(
     showHeaderAccent: Boolean = true,
     onViewAllClick: (() -> Unit)? = null,
     viewAllPillSize: NuvioViewAllPillSize = NuvioViewAllPillSize.Default,
+    scrollWithoutShift: Boolean = false,
+    maxItems: Int? = null,
     key: ((T) -> Any)? = null,
     contentType: ((T) -> Any?)? = null,
     itemContent: @Composable (T) -> Unit,
 ) {
     val rowState = rememberLazyListState()
+    val renderedEntries = maxItems?.let { entries.take(it.coerceAtLeast(0)) } ?: entries
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -90,13 +93,13 @@ fun <T> NuvioShelfSection(
             state = rowState,
             modifier = Modifier
                 .fillMaxWidth()
-                .desktopHorizontalLazyRowGestures(rowState),
+                .desktopHorizontalLazyRowGestures(rowState, scrollWithoutShift = scrollWithoutShift),
             contentPadding = rowContentPadding,
             horizontalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {
             if (key != null) {
                 items(
-                    items = entries.withDuplicateSafeLazyKeys(key),
+                    items = renderedEntries.withDuplicateSafeLazyKeys(key),
                     key = { entry -> entry.lazyKey },
                     contentType = { entry -> contentType?.invoke(entry.value) },
                 ) { keyedEntry ->
@@ -104,7 +107,7 @@ fun <T> NuvioShelfSection(
                 }
             } else {
                 items(
-                    items = entries,
+                    items = renderedEntries,
                     contentType = { entry -> contentType?.invoke(entry) },
                 ) { entry ->
                     itemContent(entry)

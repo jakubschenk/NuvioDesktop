@@ -14,8 +14,28 @@ import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.abs
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
-actual fun Modifier.desktopHorizontalLazyRowGestures(listState: LazyListState): Modifier =
-    this
+actual fun Modifier.desktopHorizontalLazyRowGestures(
+    listState: LazyListState,
+    scrollWithoutShift: Boolean,
+): Modifier {
+    val wheelModifier = if (scrollWithoutShift) {
+        this.onPointerEvent(PointerEventType.Scroll) { event ->
+            val scrollDelta = event.changes.firstOrNull()?.scrollDelta ?: return@onPointerEvent
+            val dominantDelta = if (abs(scrollDelta.x) > abs(scrollDelta.y)) {
+                scrollDelta.x
+            } else {
+                scrollDelta.y
+            }
+            if (dominantDelta == 0f) return@onPointerEvent
+
+            listState.dispatchRawDelta(dominantDelta)
+            event.changes.forEach { change -> change.consume() }
+        }
+    } else {
+        this
+    }
+
+    return wheelModifier
         .pointerInput(listState) {
             awaitEachGesture {
                 val down = awaitFirstDown(pass = PointerEventPass.Initial)
@@ -51,3 +71,4 @@ actual fun Modifier.desktopHorizontalLazyRowGestures(listState: LazyListState): 
                 }
             }
         }
+}

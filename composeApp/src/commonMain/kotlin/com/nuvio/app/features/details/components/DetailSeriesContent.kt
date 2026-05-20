@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,7 +37,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -175,6 +182,13 @@ fun DetailSeriesContent(
         ?.takeIf { it in groupedEpisodes }
         ?: defaultSeason
 
+    LaunchedEffect(meta.id, preferredSeasonNumber, groupedEpisodes) {
+        val preferredSeason = preferredSeasonNumber?.takeIf { it in groupedEpisodes }
+        if (preferredSeason != null && preferredSeason != selectedSeasonOverride) {
+            selectedSeasonOverride = preferredSeason
+        }
+    }
+
     var seasonViewMode by remember {
         mutableStateOf(SeasonViewModeStorage.load() ?: SeasonViewMode.Posters)
     }
@@ -207,18 +221,29 @@ fun DetailSeriesContent(
                                 fontSize = sizing.seasonHeaderSize,
                                 fontWeight = FontWeight.SemiBold,
                             ),
-                            color = MaterialTheme.colorScheme.onBackground,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        if (hasSeasonPosters && !forceTextSeasonSelector) {
-                            SeasonViewModeToggle(
-                                mode = seasonViewMode,
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SeasonQuickSelectDropdown(
+                                seasons = seasons,
+                                currentSeason = currentSeason,
                                 sizing = sizing,
-                                onClick = {
-                                    val next = seasonViewMode.toggled()
-                                    seasonViewMode = next
-                                    SeasonViewModeStorage.save(next)
-                                },
+                                onSelect = { selectedSeasonOverride = it },
                             )
+                            if (hasSeasonPosters && !forceTextSeasonSelector) {
+                                SeasonViewModeToggle(
+                                    mode = seasonViewMode,
+                                    sizing = sizing,
+                                    onClick = {
+                                        val next = seasonViewMode.toggled()
+                                        seasonViewMode = next
+                                        SeasonViewModeStorage.save(next)
+                                    },
+                                )
+                            }
                         }
                     }
 
@@ -338,6 +363,71 @@ fun DetailSeriesContent(
 }
 
 @Composable
+private fun SeasonQuickSelectDropdown(
+    seasons: List<Int>,
+    currentSeason: Int,
+    sizing: SeriesContentSizing,
+    onSelect: (Int) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Surface(
+            modifier = Modifier
+                .desktopClickablePointer()
+                .clickable { expanded = true },
+            shape = RoundedCornerShape(999.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
+            border = BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.26f),
+            ),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = seasonLabel(currentSeason),
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = sizing.seasonToggleTextSize,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+                Icon(
+                    imageVector = Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            seasons.forEach { season ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = seasonLabel(season),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelect(season)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun SeasonViewModeToggle(
     mode: SeasonViewMode,
     sizing: SeriesContentSizing,
@@ -409,7 +499,7 @@ private fun SeasonTextChipScrollRow(
         state = seasonListState,
         modifier = Modifier
             .fillMaxWidth()
-            .desktopHorizontalLazyRowGestures(seasonListState),
+            .desktopHorizontalLazyRowGestures(seasonListState, scrollWithoutShift = true),
         horizontalArrangement = Arrangement.spacedBy(sizing.seasonChipGap),
     ) {
         items(
@@ -423,11 +513,21 @@ private fun SeasonTextChipScrollRow(
                     .clip(RoundedCornerShape(sizing.seasonChipRadius))
                     .background(
                         if (isSelected) {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
                         } else {
-                            Color.Transparent
+                            Color.White.copy(alpha = 0.045f)
                         },
                     )
+                    .border(
+                        width = 1.dp,
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
+                        } else {
+                            Color.White.copy(alpha = 0.08f)
+                        },
+                        shape = RoundedCornerShape(sizing.seasonChipRadius),
+                    )
+                    .desktopClickablePointer()
                     .clickable { onSelect(season) }
                     .padding(
                         horizontal = sizing.seasonChipHorizontalPadding,
@@ -442,7 +542,7 @@ private fun SeasonTextChipScrollRow(
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                     ),
                     color = if (isSelected) {
-                        MaterialTheme.colorScheme.onBackground
+                        MaterialTheme.colorScheme.onSurface
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
@@ -480,7 +580,7 @@ private fun SeasonPosterScrollRow(
         state = seasonListState,
         modifier = Modifier
             .fillMaxWidth()
-            .desktopHorizontalLazyRowGestures(seasonListState),
+            .desktopHorizontalLazyRowGestures(seasonListState, scrollWithoutShift = true),
         horizontalArrangement = Arrangement.spacedBy(sizing.seasonChipGap),
     ) {
         items(
@@ -523,11 +623,11 @@ private fun SeasonPosterButton(
                 .fillMaxWidth()
                 .height(sizing.seasonPosterHeight)
                 .clip(RoundedCornerShape(sizing.seasonPosterRadius))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                .background(Color.White.copy(alpha = 0.055f))
                 .border(
                     width = if (isSelected) 2.dp else 1.dp,
                     color = if (isSelected) {
-                        MaterialTheme.colorScheme.primary
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.78f)
                     } else {
                         Color.White.copy(alpha = 0.1f)
                     },
@@ -568,7 +668,7 @@ private fun SeasonPosterButton(
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
             ),
             color = if (isSelected) {
-                MaterialTheme.colorScheme.onBackground
+                MaterialTheme.colorScheme.onSurface
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
@@ -621,7 +721,7 @@ private fun EpisodeHorizontalRow(
         state = listState,
         modifier = Modifier
             .fillMaxWidth()
-            .desktopHorizontalLazyRowGestures(listState),
+            .desktopHorizontalLazyRowGestures(listState, scrollWithoutShift = true),
         contentPadding = PaddingValues(horizontal = rowMetrics.rowHorizontalPadding, vertical = rowMetrics.rowVerticalPadding),
         horizontalArrangement = Arrangement.spacedBy(rowMetrics.itemSpacing),
     ) {

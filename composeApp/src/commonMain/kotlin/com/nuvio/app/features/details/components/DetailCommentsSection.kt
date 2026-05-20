@@ -86,7 +86,7 @@ fun DetailCommentsSection(
                     state = listState,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .desktopHorizontalLazyRowGestures(listState),
+                        .desktopHorizontalLazyRowGestures(listState, scrollWithoutShift = true),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(
@@ -130,7 +130,7 @@ fun DetailCommentsSection(
                     state = listState,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .desktopHorizontalLazyRowGestures(listState),
+                        .desktopHorizontalLazyRowGestures(listState, scrollWithoutShift = true),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(
