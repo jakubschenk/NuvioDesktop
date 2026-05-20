@@ -105,13 +105,14 @@ private fun CastItem(
 ) {
     val avatarCacheKey = sharedTransitionKey
     val platformContext = LocalPlatformContext.current
-    val avatarRequest = if (!person.photo.isNullOrBlank() && !avatarCacheKey.isNullOrBlank()) {
-        remember(platformContext, person.photo, avatarCacheKey) {
+    val photoUrl = remember(person.photo) { person.photo.resolvedCastPhotoUrl() }
+    val avatarRequest = if (!photoUrl.isNullOrBlank() && !avatarCacheKey.isNullOrBlank()) {
+        remember(platformContext, photoUrl, avatarCacheKey) {
             ImageRequest.Builder(platformContext)
-                .data(person.photo)
+                .data(photoUrl)
                 .memoryCacheKey(avatarCacheKey)
                 .placeholderMemoryCacheKey(avatarCacheKey)
-                .diskCacheKey(person.photo)
+                .diskCacheKey(photoUrl)
                 .build()
         }
     } else {
@@ -161,9 +162,9 @@ private fun CastItem(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            if (person.photo != null) {
+            if (photoUrl != null) {
                 AsyncImage(
-                    model = avatarRequest ?: person.photo,
+                    model = avatarRequest ?: photoUrl,
                     contentDescription = person.name,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.Crop,
@@ -201,6 +202,17 @@ private fun CastItem(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+private fun String?.resolvedCastPhotoUrl(): String? {
+    val value = this?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    return when {
+        value.startsWith("http://", ignoreCase = true) ||
+            value.startsWith("https://", ignoreCase = true) -> value
+        value.startsWith("//") -> "https:$value"
+        value.startsWith("/") -> "https://image.tmdb.org/t/p/w500$value"
+        else -> value
     }
 }
 

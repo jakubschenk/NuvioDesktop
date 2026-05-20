@@ -649,7 +649,40 @@ fun MetaDetailsScreen(
                         }
                     }
                 }
+                val hasRouteSelection = !initialSelectedVideoId.isNullOrBlank() ||
+                    initialSelectedSeasonNumber != null ||
+                    initialSelectedEpisodeNumber != null
                 val routeSelectedSourceTarget = routeSelectedVideo?.let(episodePlaybackTarget)
+                    ?: if (hasRouteSelection) {
+                        val routeVideoId = initialSelectedVideoId
+                            ?.takeIf { it.isNotBlank() }
+                            ?: buildPlaybackVideoId(
+                                parentMetaId = meta.id,
+                                seasonNumber = initialSelectedSeasonNumber,
+                                episodeNumber = initialSelectedEpisodeNumber,
+                                fallbackVideoId = null,
+                            )
+                        val savedProgress = watchProgressUiState.byVideoId[routeVideoId]
+                            ?.takeUnless { it.isCompleted }
+                        MetaDetailsPlaybackTarget(
+                            type = meta.type,
+                            videoId = routeVideoId,
+                            parentMetaId = meta.id,
+                            parentMetaType = meta.type,
+                            title = meta.name,
+                            logo = meta.logo,
+                            poster = meta.poster,
+                            background = meta.background,
+                            seasonNumber = initialSelectedSeasonNumber,
+                            episodeNumber = initialSelectedEpisodeNumber,
+                            episodeTitle = routeSelectedVideo?.title,
+                            episodeThumbnail = routeSelectedVideo?.thumbnail,
+                            pauseDescription = routeSelectedVideo?.overview ?: meta.description,
+                            resumePositionMs = savedProgress?.lastPositionMs,
+                        )
+                    } else {
+                        null
+                    }
                 val latestWatchedVideoForSelection = remember(
                     meta.id,
                     meta.type,
@@ -835,7 +868,7 @@ fun MetaDetailsScreen(
                                         top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 26.dp,
                                         bottom = nuvioSafeBottomPadding(18.dp),
                                     ),
-                                horizontalArrangement = Arrangement.spacedBy(22.dp),
+                                horizontalArrangement = Arrangement.spacedBy(0.dp),
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -994,37 +1027,50 @@ fun MetaDetailsScreen(
                                 Box(
                                     modifier = Modifier
                                         .width(sourcePanelWidth)
-                                        .fillMaxHeight()
-                                        .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp))
-                                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.92f)),
+                                        .fillMaxHeight(),
                                 ) {
-                                    if (showPanelEpisodeSelector) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .verticalScroll(panelEpisodeScrollState)
-                                                .padding(horizontal = 28.dp, vertical = 28.dp),
-                                        ) {
-                                            DetailSeriesContent(
-                                                meta = meta,
-                                                showHeader = false,
-                                                preferredSeasonNumber = activeSourceTarget.seasonNumber ?: seriesAction?.seasonNumber,
-                                                preferredEpisodeNumber = activeSourceTarget.episodeNumber ?: seriesAction?.episodeNumber,
-                                                episodeCardStyle = MetaEpisodeCardStyle.List,
-                                                progressByVideoId = watchProgressUiState.byVideoId,
-                                                watchedKeys = watchedUiState.watchedKeys,
-                                                episodeRatings = episodeImdbRatings,
-                                                blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
-                                                selectedVideoId = activeSourceTarget.videoId,
-                                                forceTextSeasonSelector = true,
-                                                onEpisodeClick = { video ->
-                                                    selectedSourceTargetOverride = episodePlaybackTarget(video)
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .fillMaxWidth()
+                                            .then(
+                                                if (showPanelEpisodeSelector) {
+                                                    Modifier.fillMaxHeight()
+                                                } else {
+                                                    Modifier.fillMaxHeight(0.72f)
                                                 },
-                                                onEpisodeLongPress = { video -> selectedEpisodeForActions = video },
                                             )
+                                            .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp))
+                                            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.92f)),
+                                    ) {
+                                        if (showPanelEpisodeSelector) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .verticalScroll(panelEpisodeScrollState)
+                                                    .padding(horizontal = 28.dp, vertical = 28.dp),
+                                            ) {
+                                                DetailSeriesContent(
+                                                    meta = meta,
+                                                    showHeader = false,
+                                                    preferredSeasonNumber = activeSourceTarget.seasonNumber ?: seriesAction?.seasonNumber,
+                                                    preferredEpisodeNumber = activeSourceTarget.episodeNumber ?: seriesAction?.episodeNumber,
+                                                    episodeCardStyle = MetaEpisodeCardStyle.List,
+                                                    progressByVideoId = watchProgressUiState.byVideoId,
+                                                    watchedKeys = watchedUiState.watchedKeys,
+                                                    episodeRatings = episodeImdbRatings,
+                                                    blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
+                                                    selectedVideoId = activeSourceTarget.videoId,
+                                                    forceTextSeasonSelector = true,
+                                                    onEpisodeClick = { video ->
+                                                        selectedSourceTargetOverride = episodePlaybackTarget(video)
+                                                    },
+                                                    onEpisodeLongPress = { video -> selectedEpisodeForActions = video },
+                                                )
+                                            }
+                                        } else {
+                                            sourceContent()
                                         }
-                                    } else {
-                                        sourceContent()
                                     }
                                 }
                             }

@@ -184,6 +184,7 @@ internal fun PlayerControlsShell(
     onSourcesClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     onSubmitIntroClick: (() -> Unit)? = null,
+    metadataTrailingContent: (@Composable RowScope.() -> Unit)? = null,
     onScrubChange: (Long) -> Unit,
     onScrubFinished: (Long) -> Unit,
     horizontalSafePadding: androidx.compose.ui.unit.Dp,
@@ -279,6 +280,7 @@ internal fun PlayerControlsShell(
                 onSourcesClick = onSourcesClick,
                 onEpisodesClick = onEpisodesClick,
                 onSubmitIntroClick = onSubmitIntroClick,
+                metadataTrailingContent = metadataTrailingContent,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
@@ -399,6 +401,7 @@ private fun ProgressControls(
     onSourcesClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     onSubmitIntroClick: (() -> Unit)? = null,
+    metadataTrailingContent: (@Composable RowScope.() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val durationMs = playbackSnapshot.durationMs.coerceAtLeast(1L)
@@ -415,6 +418,7 @@ private fun ProgressControls(
             episodeNumber = episodeNumber,
             episodeTitle = episodeTitle,
             metrics = metrics,
+            trailingContent = metadataTrailingContent,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 10.dp),
@@ -556,6 +560,7 @@ private fun PlayerBottomMetadata(
     episodeNumber: Int?,
     episodeTitle: String?,
     metrics: PlayerLayoutMetrics,
+    trailingContent: (@Composable RowScope.() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -592,30 +597,46 @@ private fun PlayerBottomMetadata(
             )
         }
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = streamTitle,
-                style = MaterialTheme.nuvioTypeScale.labelSm.copy(
-                    fontSize = metrics.metadataSize,
-                    lineHeight = metrics.metadataSize * 1.2f,
-                ),
-                color = Color.White.copy(alpha = 0.68f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = providerName,
-                style = MaterialTheme.nuvioTypeScale.labelSm.copy(
-                    fontSize = metrics.metadataSize,
-                    lineHeight = metrics.metadataSize * 1.2f,
-                    fontStyle = FontStyle.Italic,
-                ),
-                color = Color.White.copy(alpha = 0.68f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = streamTitle,
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = MaterialTheme.nuvioTypeScale.labelSm.copy(
+                        fontSize = metrics.metadataSize,
+                        lineHeight = metrics.metadataSize * 1.2f,
+                    ),
+                    color = Color.White.copy(alpha = 0.68f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = providerName,
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = MaterialTheme.nuvioTypeScale.labelSm.copy(
+                        fontSize = metrics.metadataSize,
+                        lineHeight = metrics.metadataSize * 1.2f,
+                        fontStyle = FontStyle.Italic,
+                    ),
+                    color = Color.White.copy(alpha = 0.68f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            trailingContent?.let { content ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    content = content,
+                )
+            }
         }
     }
 }

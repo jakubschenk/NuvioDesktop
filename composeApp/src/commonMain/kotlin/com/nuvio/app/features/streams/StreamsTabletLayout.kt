@@ -62,6 +62,11 @@ internal fun TabletStreamsLayout(
     uiState: StreamsUiState,
     resumePositionMs: Long?,
     resumeProgressFraction: Float?,
+    resumeCandidatePositionMs: Long?,
+    resumeCandidateProgressFraction: Float?,
+    hasResumeCandidate: Boolean,
+    resumeFromProgress: Boolean,
+    onResumeFromProgressChange: (Boolean) -> Unit,
     onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
     onStreamLongPress: (StreamItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -178,10 +183,12 @@ internal fun TabletStreamsLayout(
                             .fillMaxSize()
                             .padding(16.dp),
                     ) {
-                        if ((resumePositionMs != null && resumePositionMs > 0L) || (resumeProgressFraction != null && resumeProgressFraction > 0f)) {
+                        if (hasResumeCandidate) {
                             ResumeBanner(
-                                positionMs = resumePositionMs,
-                                progressFraction = resumeProgressFraction,
+                                positionMs = resumeCandidatePositionMs,
+                                progressFraction = resumeCandidateProgressFraction,
+                                resumeFromProgress = resumeFromProgress,
+                                onResumeFromProgressChange = onResumeFromProgressChange,
                                 modifier = Modifier.padding(bottom = 8.dp),
                             )
                         }

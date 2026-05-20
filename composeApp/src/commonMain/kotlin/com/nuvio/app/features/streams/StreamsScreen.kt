@@ -160,15 +160,15 @@ fun StreamsScreen(
         ?.progressPercent
         ?.takeIf { it > 0f }
         ?.let { explicitPercent -> (explicitPercent / 100f).coerceIn(0f, 1f) }
-    val effectiveResumeProgressFraction = if (startFromBeginning) {
+    val candidateResumeProgressFraction = if (startFromBeginning) {
         null
     } else {
         resumeProgressFraction
-        ?.takeIf { it > 0f }
-        ?.coerceIn(0f, 1f)
-        ?: storedProgressFraction
+            ?.takeIf { it > 0f }
+            ?.coerceIn(0f, 1f)
+            ?: storedProgressFraction
     }
-    val effectiveResumePositionMs = if (effectiveResumeProgressFraction != null) {
+    val candidateResumePositionMs = if (candidateResumeProgressFraction != null) {
         null
     } else {
         if (startFromBeginning) {
@@ -176,6 +176,22 @@ fun StreamsScreen(
         } else {
             (resumePositionMs ?: storedProgress?.takeIf { it.isResumable }?.lastPositionMs)?.takeIf { it > 0L }
         }
+    }
+    val hasResumeCandidate = (candidateResumePositionMs != null && candidateResumePositionMs > 0L) ||
+        (candidateResumeProgressFraction != null && candidateResumeProgressFraction > 0f)
+    var resumeFromProgress by remember(
+        videoId,
+        candidateResumePositionMs,
+        candidateResumeProgressFraction,
+        startFromBeginning,
+    ) {
+        mutableStateOf(!startFromBeginning && hasResumeCandidate)
+    }
+    val effectiveResumeProgressFraction = if (resumeFromProgress) candidateResumeProgressFraction else null
+    val effectiveResumePositionMs = if (resumeFromProgress && candidateResumeProgressFraction == null) {
+        candidateResumePositionMs
+    } else {
+        null
     }
 
     LaunchedEffect(type, videoId, seasonNumber, episodeNumber, manualSelection) {
@@ -229,6 +245,11 @@ fun StreamsScreen(
                 uiState = uiState,
                 resumePositionMs = effectiveResumePositionMs,
                 resumeProgressFraction = effectiveResumeProgressFraction,
+                resumeCandidatePositionMs = candidateResumePositionMs,
+                resumeCandidateProgressFraction = candidateResumeProgressFraction,
+                hasResumeCandidate = hasResumeCandidate,
+                resumeFromProgress = resumeFromProgress,
+                onResumeFromProgressChange = { resumeFromProgress = it },
                 onStreamSelected = { stream, positionMs, progressFraction ->
                     if (stream.isTorrentStream) {
                         NuvioToastController.show(torrentUnsupportedText)
@@ -256,6 +277,11 @@ fun StreamsScreen(
                 uiState = uiState,
                 resumePositionMs = effectiveResumePositionMs,
                 resumeProgressFraction = effectiveResumeProgressFraction,
+                resumeCandidatePositionMs = candidateResumePositionMs,
+                resumeCandidateProgressFraction = candidateResumeProgressFraction,
+                hasResumeCandidate = hasResumeCandidate,
+                resumeFromProgress = resumeFromProgress,
+                onResumeFromProgressChange = { resumeFromProgress = it },
                 onStreamSelected = { stream, positionMs, progressFraction ->
                     if (stream.isTorrentStream) {
                         NuvioToastController.show(torrentUnsupportedText)
@@ -277,6 +303,11 @@ fun StreamsScreen(
                 uiState = uiState,
                 resumePositionMs = effectiveResumePositionMs,
                 resumeProgressFraction = effectiveResumeProgressFraction,
+                resumeCandidatePositionMs = candidateResumePositionMs,
+                resumeCandidateProgressFraction = candidateResumeProgressFraction,
+                hasResumeCandidate = hasResumeCandidate,
+                resumeFromProgress = resumeFromProgress,
+                onResumeFromProgressChange = { resumeFromProgress = it },
                 onStreamSelected = { stream, positionMs, progressFraction ->
                     if (stream.isTorrentStream) {
                         NuvioToastController.show(torrentUnsupportedText)
@@ -419,6 +450,11 @@ private fun EmbeddedStreamsLayout(
     uiState: StreamsUiState,
     resumePositionMs: Long?,
     resumeProgressFraction: Float?,
+    resumeCandidatePositionMs: Long?,
+    resumeCandidateProgressFraction: Float?,
+    hasResumeCandidate: Boolean,
+    resumeFromProgress: Boolean,
+    onResumeFromProgressChange: (Boolean) -> Unit,
     onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
     onStreamLongPress: (StreamItem) -> Unit,
     onBack: () -> Unit,
@@ -498,11 +534,15 @@ private fun EmbeddedStreamsLayout(
             }
         }
 
-        if ((resumePositionMs != null && resumePositionMs > 0L) || (resumeProgressFraction != null && resumeProgressFraction > 0f)) {
+        if (hasResumeCandidate) {
             ResumeBanner(
-                positionMs = resumePositionMs,
-                progressFraction = resumeProgressFraction,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
+                positionMs = resumeCandidatePositionMs,
+                progressFraction = resumeCandidateProgressFraction,
+                resumeFromProgress = resumeFromProgress,
+                onResumeFromProgressChange = onResumeFromProgressChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 28.dp, vertical = 2.dp),
             )
         }
 
@@ -541,6 +581,11 @@ private fun MobileStreamsLayout(
     uiState: StreamsUiState,
     resumePositionMs: Long?,
     resumeProgressFraction: Float?,
+    resumeCandidatePositionMs: Long?,
+    resumeCandidateProgressFraction: Float?,
+    hasResumeCandidate: Boolean,
+    resumeFromProgress: Boolean,
+    onResumeFromProgressChange: (Boolean) -> Unit,
     onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
     onStreamLongPress: (StreamItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -604,10 +649,12 @@ private fun MobileStreamsLayout(
                 }
 
                 Column(modifier = Modifier.fillMaxSize()) {
-                    if ((resumePositionMs != null && resumePositionMs > 0L) || (resumeProgressFraction != null && resumeProgressFraction > 0f)) {
+                    if (hasResumeCandidate) {
                         ResumeBanner(
-                            positionMs = resumePositionMs,
-                            progressFraction = resumeProgressFraction,
+                            positionMs = resumeCandidatePositionMs,
+                            progressFraction = resumeCandidateProgressFraction,
+                            resumeFromProgress = resumeFromProgress,
+                            onResumeFromProgressChange = onResumeFromProgressChange,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                         )
                     }
@@ -635,6 +682,8 @@ private fun MobileStreamsLayout(
 internal fun ResumeBanner(
     positionMs: Long?,
     progressFraction: Float? = null,
+    resumeFromProgress: Boolean = true,
+    onResumeFromProgressChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val resumeText = when {
@@ -649,18 +698,38 @@ internal fun ResumeBanner(
         else -> null
     } ?: return
 
-    Box(
+    Row(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
             .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = resumeText,
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilterChip(
+                label = stringResource(Res.string.action_resume),
+                isSelected = resumeFromProgress,
+                onClick = { onResumeFromProgressChange(true) },
+            )
+            FilterChip(
+                label = stringResource(Res.string.cw_action_start_from_beginning),
+                isSelected = !resumeFromProgress,
+                onClick = { onResumeFromProgressChange(false) },
+            )
+        }
     }
 }
 

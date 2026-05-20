@@ -452,7 +452,13 @@ private fun StreamLaunchContent(
         replacePicker: Boolean,
     ) {
         if (playerSettings.streamReuseLastLinkEnabled) {
-            val cacheKey = StreamLinkCacheRepository.contentKey(launch.type, effectiveVideoId)
+            val cacheKey = StreamLinkCacheRepository.contentKey(
+                type = launch.type,
+                videoId = effectiveVideoId,
+                parentMetaId = launch.parentMetaId,
+                season = launch.seasonNumber,
+                episode = launch.episodeNumber,
+            )
             StreamLinkCacheRepository.save(
                 contentKey = cacheKey,
                 url = sourceUrl,
@@ -504,8 +510,17 @@ private fun StreamLaunchContent(
         reuseHandled = true
         if (launch.manualSelection) return@LaunchedEffect
         if (!playerSettings.streamReuseLastLinkEnabled) return@LaunchedEffect
-        val cacheKey = StreamLinkCacheRepository.contentKey(launch.type, effectiveVideoId)
-        val maxAgeMs = playerSettings.streamReuseLastLinkCacheHours * 60L * 60L * 1000L
+        val cacheKey = StreamLinkCacheRepository.contentKey(
+            type = launch.type,
+            videoId = effectiveVideoId,
+            parentMetaId = launch.parentMetaId,
+            season = launch.seasonNumber,
+            episode = launch.episodeNumber,
+        )
+        val maxAgeMs = maxOf(
+            3L * 60L * 1000L,
+            playerSettings.streamReuseLastLinkCacheHours * 60L * 60L * 1000L,
+        )
         val cached = StreamLinkCacheRepository.getValid(cacheKey, maxAgeMs)
         if (cached != null) {
             reuseNavigated = true

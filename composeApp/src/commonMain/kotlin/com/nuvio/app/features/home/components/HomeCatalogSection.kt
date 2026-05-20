@@ -110,7 +110,6 @@ private fun HomeCatalogRowSectionContent(
         showHeaderAccent = showHeaderAccent,
         onViewAllClick = onViewAllClick,
         viewAllPillSize = NuvioViewAllPillSize.Compact,
-        maxItems = viewportSizing.maxItems,
         key = { item -> item.stableKey() },
         contentType = { item -> item.posterShape },
     ) { item ->

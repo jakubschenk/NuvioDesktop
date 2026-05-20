@@ -889,8 +889,11 @@ fun PlayerScreen(
             flushWatchProgress()
             if (playerSettingsUiState.streamReuseLastLinkEnabled && activeVideoId != null) {
                 val cacheKey = StreamLinkCacheRepository.contentKey(
-                    contentType ?: parentMetaType,
-                    activeVideoId!!,
+                    type = contentType ?: parentMetaType,
+                    videoId = activeVideoId!!,
+                    parentMetaId = parentMetaId,
+                    season = activeSeasonNumber,
+                    episode = activeEpisodeNumber,
                 )
                 StreamLinkCacheRepository.save(
                     contentKey = cacheKey,
@@ -949,8 +952,11 @@ fun PlayerScreen(
             val epResumePositionMs = epEntry?.lastPositionMs?.takeIf { it > 0L } ?: 0L
             if (playerSettingsUiState.streamReuseLastLinkEnabled) {
                 val cacheKey = StreamLinkCacheRepository.contentKey(
-                    contentType ?: parentMetaType,
-                    epVideoId,
+                    type = contentType ?: parentMetaType,
+                    videoId = epVideoId,
+                    parentMetaId = parentMetaId,
+                    season = episode.season,
+                    episode = episode.episode,
                 )
                 StreamLinkCacheRepository.save(
                     contentKey = cacheKey,
@@ -2123,8 +2129,11 @@ fun PlayerScreen(
                         val currentVideoId = activeVideoId
                         if (currentVideoId != null) {
                             val cacheKey = StreamLinkCacheRepository.contentKey(
-                                contentType ?: parentMetaType,
-                                currentVideoId,
+                                type = contentType ?: parentMetaType,
+                                videoId = currentVideoId,
+                                parentMetaId = parentMetaId,
+                                season = activeSeasonNumber,
+                                episode = activeEpisodeNumber,
                             )
                             StreamLinkCacheRepository.remove(cacheKey)
                         }
@@ -2199,6 +2208,19 @@ fun PlayerScreen(
                     onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
                     onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
                     onSubmitIntroClick = if (isSeries && playerSettingsUiState.introSubmitEnabled && playerSettingsUiState.introDbApiKey.isNotBlank()) { { showSubmitIntroModal = true } } else null,
+                    metadataTrailingContent = {
+                        SkipIntroButton(
+                            interval = activeSkipInterval,
+                            dismissed = skipIntervalDismissed,
+                            controlsVisible = controlsVisible,
+                            onSkip = {
+                                val interval = activeSkipInterval ?: return@SkipIntroButton
+                                playerController?.seekTo((interval.endTime * 1000).toLong())
+                                skipIntervalDismissed = true
+                            },
+                            onDismiss = { skipIntervalDismissed = true },
+                        )
+                    },
                     onScrubChange = { positionMs -> scrubbingPositionMs = positionMs },
                     onScrubFinished = { positionMs ->
                         scrubbingPositionMs = null
@@ -2258,24 +2280,6 @@ fun PlayerScreen(
                         )
                     }
                 }
-            }
-
-            // Skip intro/recap/outro button
-            if (!playerControlsLocked) {
-                SkipIntroButton(
-                    interval = activeSkipInterval,
-                    dismissed = skipIntervalDismissed,
-                    controlsVisible = controlsVisible,
-                    onSkip = {
-                        val interval = activeSkipInterval ?: return@SkipIntroButton
-                        playerController?.seekTo((interval.endTime * 1000).toLong())
-                        skipIntervalDismissed = true
-                    },
-                    onDismiss = { skipIntervalDismissed = true },
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = sliderEdgePadding, bottom = overlayBottomPadding),
-                )
             }
 
             // Next episode card

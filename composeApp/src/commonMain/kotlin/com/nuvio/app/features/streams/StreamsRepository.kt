@@ -18,7 +18,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +32,8 @@ import org.jetbrains.compose.resources.getString
 import kotlinx.coroutines.launch
 
 object StreamsRepository {
+    private const val SourceCacheTtlMs = 3L * 60L * 1000L
+
     private val log = Logger.withTag("StreamsRepo")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _uiState = MutableStateFlow(StreamsUiState())
@@ -36,6 +41,7 @@ object StreamsRepository {
 
     private var activeJob: Job? = null
     private var activeRequestKey: String? = null
+    private val sourceCache = mutableMapOf<String, SourceCacheEntry>()
 
     fun requestToken(
         type: String,
@@ -68,13 +74,54 @@ object StreamsRepository {
         )
     }
 
-    private fun load(type: String, videoId: String, season: Int?, episode: Int?, manualSelection: Boolean, forceRefresh: Boolean) {
-        val pluginUiState = if (AppFeaturePolicy.pluginsEnabled) {
-            PluginRepository.initialize()
-            PluginRepository.uiState.value
+    fun preload(type: String, videoId: String, season: Int? = null, episode: Int? = null) {
+        if (videoId.isBlank()) return
+        val pluginUiState = currentPluginUiState()
+        val installedAddons = AddonRepository.uiState.value.addons
+        val pluginScrapers = if (AppFeaturePolicy.pluginsEnabled) {
+            PluginRepository.getEnabledScrapersForType(type)
         } else {
-            PluginsUiState(pluginsEnabled = false)
+            emptyList()
         }
+        val pluginProviderGroups = pluginScrapers.toPluginProviderGroups(
+            repositories = pluginUiState.repositories,
+            groupByRepository = pluginUiState.groupStreamsByRepository,
+        )
+        val streamAddons = streamAddonTargets(
+            installedAddons = installedAddons,
+            type = type,
+            videoId = videoId,
+        )
+        if (streamAddons.isEmpty() && pluginProviderGroups.isEmpty()) return
+
+        val cacheKey = sourceCacheKey(
+            type = type,
+            videoId = videoId,
+            season = season,
+            episode = episode,
+            groupByRepository = pluginUiState.groupStreamsByRepository,
+            streamAddons = streamAddons,
+            pluginProviderGroups = pluginProviderGroups,
+        )
+        if (getFreshSourceCache(cacheKey) != null) return
+
+        scope.launch {
+            if (getFreshSourceCache(cacheKey) != null) return@launch
+            log.d { "Preloading streams for type=$type id=$videoId" }
+            val groups = fetchGroupsForCache(
+                type = type,
+                videoId = videoId,
+                season = season,
+                episode = episode,
+                streamAddons = streamAddons,
+                pluginProviderGroups = pluginProviderGroups,
+            )
+            saveSourceCache(cacheKey, groups)
+        }
+    }
+
+    private fun load(type: String, videoId: String, season: Int?, episode: Int?, manualSelection: Boolean, forceRefresh: Boolean) {
+        val pluginUiState = currentPluginUiState()
         val requestToken = requestToken(
             type = type,
             videoId = videoId,
@@ -151,23 +198,11 @@ object StreamsRepository {
             return
         }
 
-        val streamAddons = installedAddons
-            .mapNotNull { addon ->
-                val manifest = addon.manifest ?: return@mapNotNull null
-                val supportsRequestedStream = manifest.resources.any { resource ->
-                    resource.name == "stream" &&
-                        resource.types.contains(type) &&
-                        (resource.idPrefixes.isEmpty() ||
-                            resource.idPrefixes.any { videoId.startsWith(it) })
-                }
-                if (!supportsRequestedStream) return@mapNotNull null
-
-                InstalledStreamAddonTarget(
-                    addonName = addon.displayTitle.ifBlank { manifest.name },
-                    addonId = addon.streamAddonInstanceId(manifest.id),
-                    manifest = manifest,
-                )
-            }
+        val streamAddons = streamAddonTargets(
+            installedAddons = installedAddons,
+            type = type,
+            videoId = videoId,
+        )
 
         log.d { "Found ${streamAddons.size} addons for stream type=$type id=$videoId" }
 
@@ -178,6 +213,49 @@ object StreamsRepository {
                 emptyStateReason = StreamsEmptyStateReason.NoCompatibleAddons,
             )
             return
+        }
+
+        val cacheKey = sourceCacheKey(
+            type = type,
+            videoId = videoId,
+            season = season,
+            episode = episode,
+            groupByRepository = pluginUiState.groupStreamsByRepository,
+            streamAddons = streamAddons,
+            pluginProviderGroups = pluginProviderGroups,
+        )
+        val installedAddonNames = installedAddons
+            .map { it.displayTitle }
+            .toSet()
+        if (!forceRefresh) {
+            val cached = getFreshSourceCache(cacheKey)
+            if (cached != null) {
+                val autoPlayStream = if (isAutoPlayEnabled) {
+                    StreamAutoPlaySelector.selectAutoPlayStream(
+                        streams = cached.groups.flatMap { it.streams },
+                        mode = autoPlayMode,
+                        regexPattern = playerSettings.streamAutoPlayRegex,
+                        source = playerSettings.streamAutoPlaySource,
+                        installedAddonNames = installedAddonNames,
+                        selectedAddons = playerSettings.streamAutoPlaySelectedAddons,
+                        selectedPlugins = playerSettings.streamAutoPlaySelectedPlugins,
+                    )
+                } else {
+                    null
+                }
+                _uiState.value = StreamsUiState(
+                    requestToken = requestToken,
+                    groups = cached.groups,
+                    activeAddonIds = cached.activeAddonIds,
+                    isAnyLoading = false,
+                    emptyStateReason = cached.emptyStateReason,
+                    autoPlayStream = autoPlayStream,
+                    isDirectAutoPlayFlow = false,
+                    showDirectAutoPlayOverlay = false,
+                )
+                log.d { "Using cached streams for type=$type id=$videoId" }
+                return
+            }
         }
 
         // Initialise loading placeholders
@@ -214,9 +292,6 @@ object StreamsRepository {
             val pluginFirstErrorByAddonId = mutableMapOf<String, String>()
             val totalTasks = streamAddons.size + pluginRemainingByAddonId.values.sum()
 
-            val installedAddonNames = installedAddons
-                .map { it.displayTitle }
-                .toSet()
             var autoSelectTriggered = false
             var timeoutElapsed = false
 
@@ -405,6 +480,8 @@ object StreamsRepository {
             }
 
             completions.close()
+            val completedState = _uiState.value
+            saveSourceCache(cacheKey, completedState.groups)
 
             if (isAutoPlayEnabled && !autoSelectTriggered) {
                 autoSelectTriggered = true
@@ -430,6 +507,186 @@ object StreamsRepository {
             }
             timeoutJob?.cancel()
         }
+    }
+
+    private fun currentPluginUiState(): PluginsUiState =
+        if (AppFeaturePolicy.pluginsEnabled) {
+            PluginRepository.initialize()
+            PluginRepository.uiState.value
+        } else {
+            PluginsUiState(pluginsEnabled = false)
+        }
+
+    private fun streamAddonTargets(
+        installedAddons: List<com.nuvio.app.features.addons.ManagedAddon>,
+        type: String,
+        videoId: String,
+    ): List<InstalledStreamAddonTarget> =
+        installedAddons.mapNotNull { addon ->
+            val manifest = addon.manifest ?: return@mapNotNull null
+            val supportsRequestedStream = manifest.resources.any { resource ->
+                resource.name == "stream" &&
+                    resource.types.contains(type) &&
+                    (resource.idPrefixes.isEmpty() ||
+                        resource.idPrefixes.any { videoId.startsWith(it) })
+            }
+            if (!supportsRequestedStream) return@mapNotNull null
+
+            InstalledStreamAddonTarget(
+                addonName = addon.displayTitle.ifBlank { manifest.name },
+                addonId = addon.streamAddonInstanceId(manifest.id),
+                manifest = manifest,
+            )
+        }
+
+    private fun sourceCacheKey(
+        type: String,
+        videoId: String,
+        season: Int?,
+        episode: Int?,
+        groupByRepository: Boolean,
+        streamAddons: List<InstalledStreamAddonTarget>,
+        pluginProviderGroups: List<PluginProviderGroup>,
+    ): String = buildString {
+        append(type.lowercase())
+        append('|')
+        append(videoId.trim())
+        append('|')
+        append(season ?: -1)
+        append('|')
+        append(episode ?: -1)
+        append("|grouped=")
+        append(groupByRepository)
+        append("|addons=")
+        append(streamAddons.joinToString(separator = ",") { it.addonId })
+        append("|plugins=")
+        append(
+            pluginProviderGroups.joinToString(separator = ",") { group ->
+                "${group.addonId}[${group.scrapers.joinToString(separator = "+") { it.id }}]"
+            },
+        )
+    }
+
+    private fun getFreshSourceCache(cacheKey: String): SourceCacheEntry? {
+        val cached = sourceCache[cacheKey] ?: return null
+        val ageMs = epochMs() - cached.cachedAtMs
+        if (cached.cachedAtMs <= 0L || ageMs > SourceCacheTtlMs) {
+            sourceCache.remove(cacheKey)
+            return null
+        }
+        return cached
+    }
+
+    private fun saveSourceCache(cacheKey: String, groups: List<AddonStreamGroup>) {
+        sourceCache[cacheKey] = SourceCacheEntry(
+            groups = groups.map { it.copy(isLoading = false) },
+            activeAddonIds = groups.map { it.addonId }.toSet(),
+            emptyStateReason = groups.toEmptyStateReason(anyLoading = false),
+            cachedAtMs = epochMs(),
+        )
+    }
+
+    private suspend fun fetchGroupsForCache(
+        type: String,
+        videoId: String,
+        season: Int?,
+        episode: Int?,
+        streamAddons: List<InstalledStreamAddonTarget>,
+        pluginProviderGroups: List<PluginProviderGroup>,
+    ): List<AddonStreamGroup> = coroutineScope {
+        val addonJobs = streamAddons.map { addon ->
+            async {
+                val url = buildAddonResourceUrl(
+                    manifestUrl = addon.manifest.transportUrl,
+                    resource = "stream",
+                    type = type,
+                    id = videoId,
+                )
+                val displayName = addon.addonName
+                runCatching {
+                    val payload = httpGetText(url)
+                    StreamParser.parse(
+                        payload = payload,
+                        addonName = displayName,
+                        addonId = addon.addonId,
+                    )
+                }.fold(
+                    onSuccess = { streams ->
+                        AddonStreamGroup(
+                            addonName = displayName,
+                            addonId = addon.addonId,
+                            streams = streams,
+                            isLoading = false,
+                        )
+                    },
+                    onFailure = { err ->
+                        log.w(err) { "Failed to preload streams from ${displayName}" }
+                        AddonStreamGroup(
+                            addonName = displayName,
+                            addonId = addon.addonId,
+                            streams = emptyList(),
+                            isLoading = false,
+                            error = err.message,
+                        )
+                    },
+                )
+            }
+        }
+
+        val pluginJobs = pluginProviderGroups.map { providerGroup ->
+            async {
+                val scraperResults = providerGroup.scrapers.map { scraper ->
+                    async {
+                        PluginRepository.executeScraper(
+                            scraper = scraper,
+                            tmdbId = pluginContentId(
+                                videoId = videoId,
+                                season = season,
+                                episode = episode,
+                            ),
+                            mediaType = type,
+                            season = season,
+                            episode = episode,
+                        ).fold(
+                            onSuccess = { results ->
+                                PreloadedPluginScraperResult(
+                                    streams = results.map { result ->
+                                        result.toStreamItem(
+                                            scraper = scraper,
+                                            addonName = providerGroup.addonName,
+                                            addonId = providerGroup.addonId,
+                                            includeScraperNameInSubtitle = false,
+                                        )
+                                    },
+                                    error = null,
+                                )
+                            },
+                            onFailure = { error ->
+                                PreloadedPluginScraperResult(
+                                    streams = emptyList(),
+                                    error = error.message ?: getString(
+                                        Res.string.streams_failed_to_load_scraper,
+                                        scraper.name,
+                                    ),
+                                )
+                            },
+                        )
+                    }
+                }.awaitAll()
+                val streams = scraperResults
+                    .flatMap { it.streams }
+                    .sortedForGroupedDisplay()
+                AddonStreamGroup(
+                    addonName = providerGroup.addonName,
+                    addonId = providerGroup.addonId,
+                    streams = streams,
+                    isLoading = false,
+                    error = if (streams.isEmpty()) scraperResults.firstOrNull { !it.error.isNullOrBlank() }?.error else null,
+                )
+            }
+        }
+
+        addonJobs.awaitAll() + pluginJobs.awaitAll()
     }
 
     fun selectFilter(addonId: String?) {
@@ -481,6 +738,18 @@ private data class InstalledStreamAddonTarget(
     val addonName: String,
     val addonId: String,
     val manifest: com.nuvio.app.features.addons.AddonManifest,
+)
+
+private data class SourceCacheEntry(
+    val groups: List<AddonStreamGroup>,
+    val activeAddonIds: Set<String>,
+    val emptyStateReason: StreamsEmptyStateReason?,
+    val cachedAtMs: Long,
+)
+
+private data class PreloadedPluginScraperResult(
+    val streams: List<StreamItem>,
+    val error: String?,
 )
 
 private fun com.nuvio.app.features.addons.ManagedAddon.streamAddonInstanceId(manifestId: String): String =

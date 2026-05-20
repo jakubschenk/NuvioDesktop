@@ -65,6 +65,7 @@ import kotlinx.coroutines.sync.withPermit
 import com.nuvio.app.features.home.components.ContinueWatchingLayout
 import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWidth
 import com.nuvio.app.features.home.components.rememberContinueWatchingLayout
+import com.nuvio.app.features.streams.StreamsRepository
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
@@ -256,6 +257,9 @@ fun HomeScreen(
             upNextFromFurthestEpisode = continueWatchingPreferences.upNextFromFurthestEpisode,
         )
     }
+    val continueWatchingPreloadTargets = remember(continueWatchingItems) {
+        continueWatchingItems.take(3)
+    }
     val availableManifests = remember(addonsUiState.addons) {
         addonsUiState.addons.mapNotNull { addon -> addon.manifest }
     }
@@ -281,10 +285,29 @@ fun HomeScreen(
             .sorted()
     }
 
+    val streamProviderKey = remember(availableManifests) {
+        availableManifests
+            .filter { manifest -> manifest.resources.any { resource -> resource.name == "stream" } }
+            .map { it.transportUrl }
+            .sorted()
+    }
+
     LaunchedEffect(catalogRefreshKey) {
         if (catalogRefreshKey.isEmpty()) return@LaunchedEffect
         HomeCatalogSettingsRepository.syncCatalogs(addonsUiState.addons)
         HomeRepository.refresh(addonsUiState.addons)
+    }
+
+    LaunchedEffect(continueWatchingPreloadTargets, streamProviderKey) {
+        if (continueWatchingPreloadTargets.isEmpty()) return@LaunchedEffect
+        continueWatchingPreloadTargets.forEach { item ->
+            StreamsRepository.preload(
+                type = item.parentMetaType,
+                videoId = item.videoId,
+                season = item.seasonNumber,
+                episode = item.episodeNumber,
+            )
+        }
     }
 
     LaunchedEffect(collections) {
