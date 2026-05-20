@@ -194,6 +194,7 @@ fun DetailSeriesContent(
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val sizing = seriesContentSizing(maxWidth.value)
         val containerWidthDp = maxWidth.value
+        val seasonPickerUsesCarouselSpacing = episodeCardStyle == MetaEpisodeCardStyle.Horizontal
 
         Column(
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -211,7 +212,7 @@ fun DetailSeriesContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(end = 24.dp),
+                            .padding(end = if (seasonPickerUsesCarouselSpacing) 24.dp else 0.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -237,7 +238,7 @@ fun DetailSeriesContent(
                                 currentSeason = currentSeason,
                                 sizing = sizing,
                                 onSelect = { selectedSeasonOverride = it },
-                                modifier = Modifier.padding(end = 12.dp),
+                                modifier = Modifier.padding(end = if (seasonPickerUsesCarouselSpacing) 12.dp else 0.dp),
                             )
                             if (hasSeasonPosters && !forceTextSeasonSelector) {
                                 SeasonViewModeToggle(

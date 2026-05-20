@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -198,14 +199,52 @@ internal fun OpeningOverlay(
                             scaleY = contentScale
                         },
                 )
-            } else {
-                CircularProgressIndicator(
-                    color = Color(0xFFE50914),
-                    strokeWidth = 3.dp,
-                    modifier = Modifier.size(54.dp),
-                )
             }
+
+            if (logo != null || !title.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+            CircularProgressIndicator(
+                color = Color(0xFFE50914),
+                strokeWidth = 3.dp,
+                modifier = Modifier
+                    .size(42.dp)
+                    .graphicsLayer { alpha = contentAlpha },
+            )
         }
+    }
+}
+
+@Composable
+internal fun BufferingOverlay(
+    artwork: String?,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.42f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (artwork != null) {
+            AsyncImage(
+                model = artwork,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = 0.42f },
+                contentScale = ContentScale.Crop,
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.64f)),
+            )
+        }
+        CircularProgressIndicator(
+            color = Color(0xFFE50914),
+            strokeWidth = 3.dp,
+            modifier = Modifier.size(46.dp),
+        )
     }
 }
 

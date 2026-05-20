@@ -42,6 +42,7 @@ object StreamsRepository {
     private var activeJob: Job? = null
     private var activeRequestKey: String? = null
     private val sourceCache = mutableMapOf<String, SourceCacheEntry>()
+    private val rememberedSelectedFilterByRequestToken = mutableMapOf<String, String?>()
 
     fun requestToken(
         type: String,
@@ -173,6 +174,7 @@ object StreamsRepository {
                 requestToken = requestToken,
                 groups = listOf(group),
                 activeAddonIds = setOf("embedded"),
+                selectedFilter = rememberedFilterForRequest(requestToken, listOf(group)),
                 isAnyLoading = false,
             )
             return
@@ -247,6 +249,7 @@ object StreamsRepository {
                     requestToken = requestToken,
                     groups = cached.groups,
                     activeAddonIds = cached.activeAddonIds,
+                    selectedFilter = rememberedFilterForRequest(requestToken, cached.groups),
                     isAnyLoading = false,
                     emptyStateReason = cached.emptyStateReason,
                     autoPlayStream = autoPlayStream,
@@ -278,6 +281,7 @@ object StreamsRepository {
             requestToken = requestToken,
             groups = initialGroups,
             activeAddonIds = initialGroups.map { it.addonId }.toSet(),
+            selectedFilter = rememberedFilterForRequest(requestToken, initialGroups),
             isAnyLoading = true,
             emptyStateReason = null,
             isDirectAutoPlayFlow = isDirectAutoPlayFlow,
@@ -690,7 +694,16 @@ object StreamsRepository {
     }
 
     fun selectFilter(addonId: String?) {
+        rememberFilterForCurrentRequest(addonId)
         _uiState.update { it.copy(selectedFilter = addonId) }
+    }
+
+    fun rememberFilterForCurrentRequest(addonId: String?) {
+        val requestToken = _uiState.value.requestToken ?: return
+        rememberedSelectedFilterByRequestToken[requestToken] = addonId
+        if (rememberedSelectedFilterByRequestToken.size > 40) {
+            rememberedSelectedFilterByRequestToken.keys.firstOrNull()?.let(rememberedSelectedFilterByRequestToken::remove)
+        }
     }
 
     fun consumeAutoPlay() {
@@ -731,6 +744,14 @@ object StreamsRepository {
         activeJob = null
         activeRequestKey = null
         _uiState.value = StreamsUiState()
+    }
+
+    private fun rememberedFilterForRequest(
+        requestToken: String,
+        groups: List<AddonStreamGroup>,
+    ): String? {
+        val remembered = rememberedSelectedFilterByRequestToken[requestToken] ?: return null
+        return remembered.takeIf { addonId -> groups.any { it.addonId == addonId } }
     }
 }
 

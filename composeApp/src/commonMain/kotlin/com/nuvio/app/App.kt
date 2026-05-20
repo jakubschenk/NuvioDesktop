@@ -451,6 +451,7 @@ private fun StreamLaunchContent(
         resumeProgressFraction: Float?,
         replacePicker: Boolean,
     ) {
+        StreamsRepository.rememberFilterForCurrentRequest(stream.addonId)
         if (playerSettings.streamReuseLastLinkEnabled) {
             val cacheKey = StreamLinkCacheRepository.contentKey(
                 type = launch.type,
@@ -1752,7 +1753,11 @@ private fun MainAppContent(
                         LaunchedEffect(route.launchId) {
                             navController.popBackStack()
                         }
-                        Box(modifier = Modifier.fillMaxSize())
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black),
+                        )
                         return@composable
                     }
                     LaunchedEffect(launch.videoId) {
@@ -1788,7 +1793,9 @@ private fun MainAppContent(
                             PlayerLaunchStore.remove(route.launchId)
                             navController.popBackStack()
                         },
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black),
                     )
                 }
                 composable<CatalogRoute> { backStackEntry ->

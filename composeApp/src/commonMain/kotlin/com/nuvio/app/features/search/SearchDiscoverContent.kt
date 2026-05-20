@@ -19,24 +19,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,11 +49,9 @@ import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
 import com.nuvio.app.core.ui.NuvioAnimatedWatchedBadge
 import com.nuvio.app.core.ui.NuvioImageFilterQuality
 import com.nuvio.app.core.ui.NuvioScreenHeader
-import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
-import com.nuvio.app.core.ui.NuvioBottomSheetDivider
-import com.nuvio.app.core.ui.NuvioModalBottomSheet
-import com.nuvio.app.core.ui.dismissNuvioBottomSheet
-import com.nuvio.app.core.ui.nuvioSafeBottomPadding
+import com.nuvio.app.core.ui.NuvioDropdownMenu
+import com.nuvio.app.core.ui.NuvioDropdownMenuItem
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.features.home.MetaPreview
@@ -66,7 +59,6 @@ import com.nuvio.app.features.home.PosterShape
 import com.nuvio.app.features.home.components.HomeEmptyStateCard
 import com.nuvio.app.features.home.stableKey
 import com.nuvio.app.features.watching.application.WatchingState
-import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
@@ -258,7 +250,6 @@ private fun DiscoverFilterRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DiscoverDropdownChip(
     title: String,
@@ -268,120 +259,68 @@ private fun DiscoverDropdownChip(
     enabled: Boolean,
     onSelected: (DiscoverOptionItem) -> Unit,
 ) {
-    var isSheetVisible by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val coroutineScope = rememberCoroutineScope()
+    var expanded by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .then(
-                if (enabled) {
-                    Modifier.clickable { isSheetVisible = true }
-                } else {
-                    Modifier
-                },
-            )
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Icon(
-            imageVector = Icons.Rounded.KeyboardArrowDown,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
-        )
-    }
-
-    if (isSheetVisible) {
-        DiscoverOptionsSheet(
-            title = title,
-            options = options,
-            selectedKey = selectedKey,
-            sheetState = sheetState,
-            onDismiss = {
-                coroutineScope.launch {
-                    dismissNuvioBottomSheet(
-                        sheetState = sheetState,
-                        onDismiss = { isSheetVisible = false },
-                    )
-                }
-            },
-            onSelected = { option ->
-                onSelected(option)
-                coroutineScope.launch {
-                    dismissNuvioBottomSheet(
-                        sheetState = sheetState,
-                        onDismiss = { isSheetVisible = false },
-                    )
-                }
-            },
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DiscoverOptionsSheet(
-    title: String,
-    options: List<DiscoverOptionItem>,
-    selectedKey: String?,
-    sheetState: SheetState,
-    onDismiss: () -> Unit,
-    onSelected: (DiscoverOptionItem) -> Unit,
-) {
-    NuvioModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-    ) {
-        Column(
+    Box {
+        Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = nuvioSafeBottomPadding(16.dp)),
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .then(
+                    if (enabled) {
+                        Modifier
+                            .desktopClickablePointer()
+                            .clickable { expanded = true }
+                    } else {
+                        Modifier
+                    },
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = title,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            NuvioBottomSheetDivider()
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 420.dp),
-            ) {
-                itemsIndexed(
-                    items = options,
-                    key = { _, option -> option.key },
-                ) { index, option ->
-                    NuvioBottomSheetActionRow(
-                        title = option.label,
-                        onClick = { onSelected(option) },
-                        trailingContent = {
-                            if (option.key == selectedKey) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                        },
-                    )
-                    if (index < options.lastIndex) {
-                        NuvioBottomSheetDivider()
-                    }
-                }
+            Icon(
+                imageVector = Icons.Rounded.KeyboardArrowDown,
+                contentDescription = title,
+                modifier = Modifier.size(18.dp),
+                tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
+            )
+        }
+
+        NuvioDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 420.dp),
+        ) {
+            options.forEach { option ->
+                val selected = option.key == selectedKey
+                NuvioDropdownMenuItem(
+                    text = option.label,
+                    selected = selected,
+                    onClick = {
+                        expanded = false
+                        onSelected(option)
+                    },
+                    trailingIcon = if (selected) {
+                        {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
             }
         }
     }

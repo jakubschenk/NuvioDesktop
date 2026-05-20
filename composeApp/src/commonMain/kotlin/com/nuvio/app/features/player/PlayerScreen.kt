@@ -2166,6 +2166,20 @@ fun PlayerScreen(
             }
 
             AnimatedVisibility(
+                visible = playerSettingsUiState.showLoadingOverlay &&
+                    initialLoadCompleted &&
+                    playbackSnapshot.isLoading &&
+                    errorMessage == null,
+                enter = fadeIn(animationSpec = tween(durationMillis = 140)),
+                exit = fadeOut(animationSpec = tween(durationMillis = 120)),
+            ) {
+                BufferingOverlay(
+                    artwork = backdropArtwork,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            AnimatedVisibility(
                 visible = controlsVisible && !playerControlsLocked,
                 enter = fadeIn(),
                 exit = fadeOut(),
