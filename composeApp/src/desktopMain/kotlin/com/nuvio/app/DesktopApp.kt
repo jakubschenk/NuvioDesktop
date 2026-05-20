@@ -32,6 +32,7 @@ import com.nuvio.app.desktop.DesktopWindowStateStore
 import com.nuvio.app.desktop.WindowsNativeBootstrap
 import com.nuvio.app.desktop.WindowsUrlProtocolRegistrar
 import com.nuvio.app.features.notifications.WindowsToastHelper
+import com.nuvio.app.features.addons.ApiRequestTraceLog
 import com.nuvio.app.features.settings.LayoutSettingsRepository
 import com.nuvio.app.features.trakt.TraktAuthRepository
 import io.ktor.http.Url
@@ -89,6 +90,10 @@ fun main(args: Array<String>) {
     )
     WindowsNativeBootstrap.configureProcessDpiAwareness()
     DesktopRuntimeLog.installGlobalExceptionHandlers()
+    ApiRequestTraceLog.append(
+        "${System.currentTimeMillis()} APP_START pid=${DesktopRuntimeLog.processPid()} " +
+            "user.dir=${System.getProperty("user.dir")} buildCommit=${System.getProperty("nuvio.git.commit") ?: "unknown"}",
+    )
     DesktopRuntimeLog.info("Toast: portable=${WindowsToastHelper.isPortableBuild} systemSupported=${WindowsToastHelper.systemToastsSupported}")
     val pid = DesktopRuntimeLog.processPid()
     DesktopRuntimeLog.info("app startup pid=$pid")

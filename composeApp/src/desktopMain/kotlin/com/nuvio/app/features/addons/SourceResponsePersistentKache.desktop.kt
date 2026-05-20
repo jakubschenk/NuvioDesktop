@@ -24,31 +24,37 @@ internal actual object ApiRequestTraceLog {
     actual fun append(line: String) {
         synchronized(logLock) {
             runCatching {
-                val file = traceLogFile()
-                if (file.exists() && file.fileSize() > maxLogBytes) {
-                    file.writeText("", StandardCharsets.UTF_8)
+                traceLogFiles().forEach { file ->
+                    if (file.exists() && file.fileSize() > maxLogBytes) {
+                        file.writeText("", StandardCharsets.UTF_8)
+                    }
+                    java.nio.file.Files.writeString(
+                        file,
+                        line + System.lineSeparator(),
+                        StandardCharsets.UTF_8,
+                        java.nio.file.StandardOpenOption.CREATE,
+                        java.nio.file.StandardOpenOption.APPEND,
+                    )
                 }
-                java.nio.file.Files.writeString(
-                    file,
-                    line + System.lineSeparator(),
-                    StandardCharsets.UTF_8,
-                    java.nio.file.StandardOpenOption.CREATE,
-                    java.nio.file.StandardOpenOption.APPEND,
-                )
             }
         }
     }
 
-    private fun traceLogFile(): Path =
-        Paths.get(
-            System.getProperty("user.home"),
-            "Library",
-            "Application Support",
-            "Nuvio",
-            "logs",
-            "network-requests.log",
-        ).apply {
-            parent.createDirectories()
+    private fun traceLogFiles(): List<Path> =
+        listOfNotNull(
+            System.getenv("LOCALAPPDATA")?.let { localAppData ->
+                Paths.get(localAppData, "Nuvio", "logs", "network-requests.log")
+            },
+            Paths.get(
+                System.getProperty("user.home"),
+                "Library",
+                "Application Support",
+                "Nuvio",
+                "logs",
+                "network-requests.log",
+            ),
+        ).distinct().onEach { file ->
+            file.parent.createDirectories()
         }
 }
 
