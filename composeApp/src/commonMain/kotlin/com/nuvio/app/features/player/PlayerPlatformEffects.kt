@@ -1,6 +1,8 @@
 package com.nuvio.app.features.player
 
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.IntSize
 
 interface PlayerGestureController {
@@ -62,6 +64,13 @@ expect fun ManageFullscreenKeyboardShortcuts(isHomeRouteActive: Boolean)
 expect fun BindPlayerKeyboardShortcuts(
     enabled: Boolean,
     handlers: PlayerKeyboardShortcutHandlers,
+)
+
+@Composable
+expect fun PlayerOverlayLayer(
+    layoutSize: IntSize,
+    modifier: Modifier,
+    content: @Composable BoxScope.() -> Unit,
 )
 
 expect val usesNativePlayerChrome: Boolean

@@ -1,9 +1,12 @@
 package com.nuvio.app.features.player
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.IntSize
 import platform.Foundation.NSNotificationCenter
 import platform.MediaPlayer.MPVolumeView
@@ -85,6 +88,18 @@ actual fun BindPlayerKeyboardShortcuts(
     enabled: Boolean,
     handlers: PlayerKeyboardShortcutHandlers,
 ) = Unit
+
+@Composable
+actual fun PlayerOverlayLayer(
+    layoutSize: IntSize,
+    modifier: Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    Box(
+        modifier = modifier,
+        content = content,
+    )
+}
 
 actual val usesNativePlayerChrome: Boolean = false
 

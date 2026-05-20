@@ -2,6 +2,8 @@
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -12,10 +14,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.nuvio.app.desktop.DesktopBorderlessFullscreenController
 import com.nuvio.app.LocalDesktopWindow
 import com.nuvio.app.core.storage.ProfileScopedKey
@@ -32,6 +39,7 @@ import com.nuvio.app.core.sync.encodeSyncStringSet
 import com.nuvio.app.desktop.DesktopPreferences
 import com.nuvio.app.desktop.DesktopRuntimeLog
 import com.nuvio.app.features.player.desktop.DesktopPlayerSurfaceHost
+import com.nuvio.app.features.player.desktop.mpv.MpvDesktopSurfaceMode
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.streams.AddonStreamGroup
 import com.nuvio.app.features.streams.StreamItem
@@ -1287,6 +1295,66 @@ actual fun BindPlayerKeyboardShortcuts(
         }
     }
 }
+
+@Composable
+actual fun PlayerOverlayLayer(
+    layoutSize: IntSize,
+    modifier: Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    if (!usesWindowBackedPlayerOverlayLayer() || layoutSize.width <= 0 || layoutSize.height <= 0) {
+        Box(
+            modifier = modifier,
+            content = content,
+        )
+        return
+    }
+
+    val density = LocalDensity.current
+    Popup(
+        alignment = Alignment.TopStart,
+        offset = IntOffset.Zero,
+        properties = PopupProperties(
+            focusable = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            clippingEnabled = false,
+            usePlatformDefaultWidth = false,
+            usePlatformInsets = false,
+        ),
+        onDismissRequest = null,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(
+                    width = with(density) { layoutSize.width.toDp() },
+                    height = with(density) { layoutSize.height.toDp() },
+                )
+                .then(modifier),
+            content = content,
+        )
+    }
+}
+
+private fun usesWindowBackedPlayerOverlayLayer(): Boolean {
+    if (!isWindowsDesktopPlayerOverlay()) return false
+    if (System.getProperty("compose.interop.blending").equals("true", ignoreCase = true)) return false
+    return MpvDesktopSurfaceMode.resolve() == MpvDesktopSurfaceMode.NativeWindow
+}
+
+private fun isWindowsDesktopPlayerOverlay(): Boolean =
+    System.getProperty("os.name")
+        ?.lowercase(Locale.US)
+        ?.contains("windows") == true
+
+private val PressRepeatKeybindActions = setOf(
+    "seek_forward_10s",
+    "seek_forward_10s_alt",
+    "seek_backward_10s",
+    "seek_backward_10s_alt",
+    "volume_up",
+    "volume_down",
+)
 
 private fun ComposeWindow.toggleDesktopFullscreen() {
     DesktopBorderlessFullscreenController.toggle(this)

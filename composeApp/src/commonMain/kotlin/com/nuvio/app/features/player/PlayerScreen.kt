@@ -40,6 +40,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -1965,26 +1967,34 @@ fun PlayerScreen(
             ),
         )
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .onPreviewKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyUp) {
-                        when (event.key) {
-                            Key.F -> { toggleFullscreen(); true }
-                            Key.Spacebar -> { togglePlayback(); true }
-                            Key.DirectionRight -> { seekBy(10_000L); true }
-                            Key.DirectionLeft -> { seekBy(-10_000L); true }
-                            else -> false
-                        }
-                    } else {
-                        false
-                    }
+        val playerInteractionModifier = Modifier
+            .fillMaxSize()
+            .onPointerEvent(PointerEventType.Scroll) { event ->
+                if (blockingPanelOpen || playerControlsLocked) return@onPointerEvent
+                val scrollY = event.changes.firstOrNull()?.scrollDelta?.y ?: return@onPointerEvent
+                when {
+                    scrollY < 0f -> adjustVolume(0.05f)
+                    scrollY > 0f -> adjustVolume(-0.05f)
+                    else -> return@onPointerEvent
                 }
-                .focusRequester(playerFocusRequester)
-                .focusable()
-                .onSizeChanged { layoutSize = it }
-                .pointerInput(hoverDrivenChrome) {
+                event.changes.forEach { change -> change.consume() }
+            }
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyUp) {
+                    when (event.key) {
+                        Key.F -> { toggleFullscreen(); true }
+                        Key.Spacebar -> { togglePlayback(); true }
+                        Key.DirectionRight -> { seekBy(10_000L); true }
+                        Key.DirectionLeft -> { seekBy(-10_000L); true }
+                        else -> false
+                    }
+                } else {
+                    false
+                }
+            }
+            .focusRequester(playerFocusRequester)
+            .focusable()
+            .pointerInput(hoverDrivenChrome) {
                     if (!hoverDrivenChrome) return@pointerInput
                     awaitEachGesture {
                         var lastPosition: Offset? = null
@@ -2146,7 +2156,12 @@ fun PlayerScreen(
                             clearLiveGestureFeedbackState.value()
                         }
                     }
-                },
+                }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .onSizeChanged { layoutSize = it },
         ) {
             PlatformPlayerSurface(
                 sourceUrl = activeSourceUrl,
@@ -2203,6 +2218,10 @@ fun PlayerScreen(
                 },
             )
 
+            PlayerOverlayLayer(
+                layoutSize = layoutSize,
+                modifier = playerInteractionModifier,
+            ) {
             AnimatedVisibility(
                 visible = pausedOverlayVisible && !controlsVisible && !playerControlsLocked,
                 enter = fadeIn(animationSpec = tween(durationMillis = 220)),
