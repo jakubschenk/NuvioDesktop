@@ -86,7 +86,6 @@ import kotlin.math.roundToInt
 private val PlayerVolumeSliderTouchHeight = 34.dp
 private const val PlayerVolumeSliderIdleScaleY = 0.72f
 private const val PlayerVolumeKeyboardStep = 0.05f
-private const val PlayerVolumeSliderSteps = 19
 
 @Composable
 internal fun PlayerControlsShell(
@@ -672,9 +671,7 @@ private fun PlayerVolumeSlider(
     )
 
     fun commitVolume(value: Float) {
-        val snapped = ((value.coerceIn(0f, 1f) / PlayerVolumeKeyboardStep).roundToInt() * PlayerVolumeKeyboardStep)
-            .coerceIn(0f, 1f)
-        onVolumeChangeState.value(snapped)
+        onVolumeChangeState.value(value.coerceIn(0f, 1f))
     }
 
     Row(
@@ -745,7 +742,6 @@ private fun PlayerVolumeSlider(
                 },
                 onValueChangeFinished = { isDragging = false },
                 valueRange = 0f..1f,
-                steps = PlayerVolumeSliderSteps,
             )
         }
         Text(
