@@ -191,8 +191,8 @@ actual suspend fun httpGetText(url: String): String =
         )
     }
 
-actual suspend fun httpGetSourceText(url: String): String =
-    ApiKacheClient.getSourceText(url) {
+actual suspend fun httpGetSourceText(url: String, forceRefresh: Boolean): String =
+    ApiKacheClient.getSourceText(url, forceRefresh = forceRefresh) {
         executeTextRequest(
             label = "source-get",
             method = "GET",

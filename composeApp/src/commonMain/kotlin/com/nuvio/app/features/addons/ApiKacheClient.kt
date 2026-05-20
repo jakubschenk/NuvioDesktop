@@ -9,6 +9,7 @@ import kotlin.time.Duration.Companion.minutes
 internal data class ApiKacheEntry(
     val cachedAtMs: Long,
     val body: String,
+    val cacheable: Boolean = true,
 )
 
 internal expect object ApiKacheClock {
@@ -55,6 +56,7 @@ internal object ApiKacheClient {
 
     suspend fun getSourceText(
         url: String,
+        forceRefresh: Boolean,
         fetch: suspend () -> String,
     ): String =
         cachedText(
@@ -63,6 +65,8 @@ internal object ApiKacheClient {
             cacheKey = "SOURCE|GET|$url",
             ttlMs = SourceResponseTtlMs,
             persistentSourceCache = true,
+            forceRefresh = forceRefresh,
+            cacheableResponse = ::sourceResponseIsCacheable,
             fetch = fetch,
         )
 
@@ -101,17 +105,30 @@ internal object ApiKacheClient {
         cacheKey: String,
         ttlMs: Long,
         persistentSourceCache: Boolean,
+        forceRefresh: Boolean = false,
+        cacheableResponse: (String) -> Boolean = { true },
         fetch: suspend () -> String,
     ): String {
-        val memoryEntry = freshMemoryEntry(cacheKey, ttlMs)
-        if (memoryEntry != null) {
-            trace("CACHE_HIT_MEMORY label=$label ttlMs=$ttlMs ${url.redactedUrlForLog()}")
-            return memoryEntry.body
+        if (forceRefresh) {
+            textCache.remove(cacheKey)
+            if (persistentSourceCache) {
+                SourceResponsePersistentKache.remove(cacheKey)
+            }
+            trace("CACHE_BYPASS label=$label ttlMs=$ttlMs ${url.redactedUrlForLog()}")
+        } else {
+            val memoryEntry = freshMemoryEntry(cacheKey, ttlMs, cacheableResponse)
+            if (memoryEntry != null) {
+                trace("CACHE_HIT_MEMORY label=$label ttlMs=$ttlMs ${url.redactedUrlForLog()}")
+                return memoryEntry.body
+            }
         }
 
-        if (persistentSourceCache) {
+        if (!forceRefresh && persistentSourceCache) {
             val diskEntry = SourceResponsePersistentKache.read(cacheKey)
-            if (diskEntry != null && diskEntry.isFresh(ttlMs)) {
+            if (diskEntry != null && !cacheableResponse(diskEntry.body)) {
+                trace("CACHE_REJECT_DISK label=$label ttlMs=$ttlMs ${url.redactedUrlForLog()}")
+                SourceResponsePersistentKache.remove(cacheKey)
+            } else if (diskEntry != null && diskEntry.isFresh(ttlMs)) {
                 textCache.put(cacheKey, diskEntry)
                 log.d { "Source response disk cache hit" }
                 trace("CACHE_HIT_DISK label=$label ttlMs=$ttlMs ${url.redactedUrlForLog()}")
@@ -125,14 +142,23 @@ internal object ApiKacheClient {
 
         trace("CACHE_MISS label=$label ttlMs=$ttlMs ${url.redactedUrlForLog()}")
         val entry = textCache.getOrPut(cacheKey) {
+            val body = fetch()
             ApiKacheEntry(
                 cachedAtMs = ApiKacheClock.nowEpochMs(),
-                body = fetch(),
+                body = body,
+                cacheable = cacheableResponse(body),
             )
         } ?: ApiKacheEntry(
             cachedAtMs = ApiKacheClock.nowEpochMs(),
             body = fetch(),
+            cacheable = false,
         )
+
+        if (!entry.cacheable || !cacheableResponse(entry.body)) {
+            textCache.remove(cacheKey)
+            trace("CACHE_REJECT_RESPONSE label=$label ttlMs=$ttlMs ${url.redactedUrlForLog()}")
+            return entry.body
+        }
 
         if (!entry.isFresh(ttlMs)) {
             textCache.remove(cacheKey)
@@ -142,6 +168,8 @@ internal object ApiKacheClient {
                 cacheKey = cacheKey,
                 ttlMs = ttlMs,
                 persistentSourceCache = persistentSourceCache,
+                forceRefresh = forceRefresh,
+                cacheableResponse = cacheableResponse,
                 fetch = fetch,
             )
         }
@@ -153,8 +181,16 @@ internal object ApiKacheClient {
         return entry.body
     }
 
-    private suspend fun freshMemoryEntry(cacheKey: String, ttlMs: Long): ApiKacheEntry? {
+    private suspend fun freshMemoryEntry(
+        cacheKey: String,
+        ttlMs: Long,
+        cacheableResponse: (String) -> Boolean,
+    ): ApiKacheEntry? {
         val entry = textCache.get(cacheKey) ?: return null
+        if (!entry.cacheable || !cacheableResponse(entry.body)) {
+            textCache.remove(cacheKey)
+            return null
+        }
         if (entry.isFresh(ttlMs)) {
             return entry
         }
@@ -169,6 +205,16 @@ internal object ApiKacheClient {
         ApiRequestTraceLog.append("${ApiKacheClock.nowEpochMs()} $message")
     }
 
+    private fun sourceResponseIsCacheable(body: String): Boolean {
+        val lowerBody = body.lowercase()
+        if ("rate limit" in lowerBody || "too many requests" in lowerBody || "429" in lowerBody) {
+            return false
+        }
+        return !emptyStreamsRegex.containsMatchIn(body)
+    }
+
     private fun Throwable.safeMessage(): String =
         "${this::class.simpleName}:${message?.take(180).orEmpty()}"
+
+    private val emptyStreamsRegex = Regex("\"streams\"\\s*:\\s*\\[\\s*]")
 }

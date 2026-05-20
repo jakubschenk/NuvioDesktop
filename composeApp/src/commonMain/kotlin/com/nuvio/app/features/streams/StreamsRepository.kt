@@ -373,7 +373,7 @@ object StreamsRepository {
 
                     val displayName = addon.addonName
                     val group = runCatching {
-                        val payload = httpGetSourceText(url)
+                        val payload = httpGetSourceText(url, forceRefresh = forceRefresh)
                         StreamParser.parse(
                             payload = payload,
                             addonName = displayName,
@@ -603,6 +603,10 @@ object StreamsRepository {
     }
 
     private fun saveSourceCache(cacheKey: String, groups: List<AddonStreamGroup>) {
+        if (groups.none { it.streams.isNotEmpty() }) {
+            log.d { "Skipping empty source cache entry" }
+            return
+        }
         sourceCache[cacheKey] = SourceCacheEntry(
             groups = groups.map { it.copy(isLoading = false) },
             activeAddonIds = groups.map { it.addonId }.toSet(),

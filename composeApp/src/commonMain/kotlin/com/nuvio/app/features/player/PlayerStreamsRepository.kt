@@ -266,7 +266,7 @@ object PlayerStreamsRepository {
 
                     val displayName = addon.addonName
                     runCatching {
-                        val payload = httpGetSourceText(url)
+                        val payload = httpGetSourceText(url, forceRefresh = forceRefresh)
                         StreamParser.parse(payload, displayName, addon.addonId)
                     }.fold(
                         onSuccess = { streams ->
@@ -364,6 +364,10 @@ object PlayerStreamsRepository {
     }
 
     private fun saveStreamCache(cacheKey: String, groups: List<AddonStreamGroup>) {
+        if (groups.none { it.streams.isNotEmpty() }) {
+            log.d { "Skipping empty player stream cache entry" }
+            return
+        }
         val cachedGroups = groups.map { it.copy(isLoading = false) }
         streamCache[cacheKey] = PlayerStreamsCacheEntry(
             groups = cachedGroups,
