@@ -207,13 +207,24 @@ private fun CastItem(
 
 private fun String?.resolvedCastPhotoUrl(): String? {
     val value = this?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val trimmedRelativePath = value.trimStart('/')
     return when {
         value.startsWith("http://", ignoreCase = true) ||
             value.startsWith("https://", ignoreCase = true) -> value
         value.startsWith("//") -> "https:$value"
         value.startsWith("/") -> "https://image.tmdb.org/t/p/w500$value"
+        value.isLikelyTmdbImagePath() -> "https://image.tmdb.org/t/p/w500/$trimmedRelativePath"
         else -> value
     }
+}
+
+private fun String.isLikelyTmdbImagePath(): Boolean {
+    if (contains("://") || startsWith("data:", ignoreCase = true)) return false
+    val lowercase = substringBefore('?').lowercase()
+    return lowercase.endsWith(".jpg") ||
+        lowercase.endsWith(".jpeg") ||
+        lowercase.endsWith(".png") ||
+        lowercase.endsWith(".webp")
 }
 
 private data class CastSectionSizing(

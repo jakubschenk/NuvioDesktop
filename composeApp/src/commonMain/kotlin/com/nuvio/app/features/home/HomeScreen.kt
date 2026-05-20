@@ -302,6 +302,9 @@ fun HomeScreen(
             .map { it.transportUrl }
             .sorted()
     }
+    val preloadedContinueWatchingTargets = remember(activeProfileId, streamProviderKey) {
+        mutableSetOf<ContinueWatchingStreamPreloadTarget>()
+    }
 
     LaunchedEffect(catalogRefreshKey) {
         if (catalogRefreshKey.isEmpty()) return@LaunchedEffect
@@ -309,12 +312,20 @@ fun HomeScreen(
         HomeRepository.refresh(addonsUiState.addons)
     }
 
-    LaunchedEffect(continueWatchingPreloadTargets, streamProviderKey) {
+    LaunchedEffect(activeProfileId, continueWatchingPreloadTargets, streamProviderKey) {
         if (continueWatchingPreloadTargets.isEmpty()) return@LaunchedEffect
-        continueWatchingPreloadTargets.forEachIndexed { index, item ->
+        val remainingSlots = (3 - preloadedContinueWatchingTargets.size).coerceAtLeast(0)
+        if (remainingSlots == 0) return@LaunchedEffect
+
+        delay(450)
+        val targetsToPreload = continueWatchingPreloadTargets
+            .filterNot(preloadedContinueWatchingTargets::contains)
+            .take(remainingSlots)
+        targetsToPreload.forEachIndexed { index, item ->
             if (index > 0) {
                 delay(350)
             }
+            preloadedContinueWatchingTargets += item
             StreamsRepository.preload(
                 type = item.type,
                 videoId = item.videoId,
@@ -653,6 +664,7 @@ fun HomeScreen(
                                         sectionPadding = homeSectionPadding,
                                         posterCardStyle = posterCardStyle,
                                         showHeaderAccent = showCatalogHeaderAccent,
+                                        limitItemsToViewport = true,
                                         onViewAllClick = viewAllClick,
                                         watchedKeys = watchedUiState.watchedKeys,
                                         onPosterClick = onPosterClick,

@@ -13,6 +13,9 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.abs
 
+private const val LineWheelDeltaThreshold = 8f
+private const val LineWheelDeltaPx = 52f
+
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 actual fun Modifier.desktopHorizontalLazyRowGestures(
     listState: LazyListState,
@@ -29,7 +32,12 @@ actual fun Modifier.desktopHorizontalLazyRowGestures(
             }
             if (dominantDelta == 0f) return@onPointerEvent
 
-            listState.dispatchRawDelta(dominantDelta * wheelScrollMultiplier.coerceAtLeast(0.25f))
+            val normalizedDelta = if (abs(dominantDelta) <= LineWheelDeltaThreshold) {
+                dominantDelta * LineWheelDeltaPx
+            } else {
+                dominantDelta
+            }
+            listState.dispatchRawDelta(normalizedDelta * wheelScrollMultiplier.coerceAtLeast(0.25f))
             event.changes.forEach { change -> change.consume() }
         }
     } else {
