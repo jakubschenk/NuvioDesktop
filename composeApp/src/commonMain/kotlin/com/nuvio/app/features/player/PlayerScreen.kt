@@ -94,7 +94,7 @@ private const val PlayerScrollVolumeStep = 0.025f
 private const val PlayerScrollVolumeApplyIntervalMs = 40L
 private const val PlayerScrollVolumePixelThreshold = 8f
 private const val PlayerScrollVolumePixelUnit = 120f
-private const val PlayerScrollVolumeMaxQueuedDelta = 0.06f
+private const val PlayerScrollVolumeMaxQueuedDelta = 0.1f
 private const val PlayerNextEpisodeStreamPollIntervalMs = 100L
 private val PlayerSliderOverlayGap = 12.dp
 private val PlayerMetadataBlockHeight = 88.dp
@@ -137,7 +137,7 @@ private fun playerVolumeDeltaForScroll(scrollY: Float): Float {
     val scrollUnits = if (magnitude > PlayerScrollVolumePixelThreshold) {
         (magnitude / PlayerScrollVolumePixelUnit).coerceAtMost(1f)
     } else {
-        magnitude.coerceIn(0.05f, 1f)
+        (magnitude / PlayerScrollVolumePixelThreshold).coerceIn(0.35f, 1f)
     }
     val direction = if (scrollY < 0f) 1f else -1f
     return direction * PlayerScrollVolumeStep * scrollUnits
@@ -274,7 +274,10 @@ fun PlayerScreen(
         var playerController by remember { mutableStateOf<PlayerEngineController?>(null) }
         var playerControllerSourceUrl by remember { mutableStateOf<String?>(null) }
         var playerAudioLevel by remember(activeSourceUrl) { mutableStateOf<PlayerAudioLevel?>(null) }
-        val volumeScrollAccumulator = remember { PlayerVolumeScrollAccumulator() }
+        var rememberedPlayerAudioLevel by remember { mutableStateOf(PlayerAudioLevel(fraction = 1f, isMuted = false)) }
+        var pendingPlayerVolumeTarget by remember(activeSourceUrl) { mutableStateOf<Float?>(null) }
+        val visiblePlayerAudioLevel = playerAudioLevel ?: rememberedPlayerAudioLevel
+        val volumeScrollAccumulator = remember(activeSourceUrl) { PlayerVolumeScrollAccumulator() }
         var errorMessage by remember { mutableStateOf<String?>(null) }
         val keepScreenAwake = errorMessage == null &&
             (playbackSnapshot.isPlaying || (shouldPlay && playbackSnapshot.isLoading))
@@ -729,25 +732,57 @@ fun PlayerScreen(
             )
         }
 
+        fun normalizedAudioLevel(level: PlayerAudioLevel): PlayerAudioLevel {
+            val fraction = level.fraction.coerceIn(0f, 1f)
+            return PlayerAudioLevel(
+                fraction = fraction,
+                isMuted = level.isMuted || fraction <= 0f,
+            )
+        }
+
+        fun syncPlayerAudioLevel(level: PlayerAudioLevel?) {
+            val normalized = level?.let(::normalizedAudioLevel) ?: return
+            playerAudioLevel = normalized
+            rememberedPlayerAudioLevel = normalized
+        }
+
+        fun optimisticAudioLevelForVolume(level: Float): PlayerAudioLevel {
+            val fraction = level.coerceIn(0f, 1f)
+            return PlayerAudioLevel(
+                fraction = fraction,
+                isMuted = fraction <= 0f,
+            )
+        }
+
         fun applyVolumeFeedback(level: PlayerAudioLevel) {
-            playerAudioLevel = level
-            showVolumeFeedback(level)
+            val normalized = normalizedAudioLevel(level)
+            syncPlayerAudioLevel(normalized)
+            showVolumeFeedback(normalized)
         }
 
         fun toggleMute() {
-            playerController?.toggleMute()?.let(::applyVolumeFeedback)
+            val optimistic = visiblePlayerAudioLevel.copy(isMuted = !visiblePlayerAudioLevel.isMuted)
+            applyVolumeFeedback(optimistic)
+            playerController?.toggleMute()?.let(::syncPlayerAudioLevel)
             revealPlayerChrome()
         }
 
         fun setPlayerVolume(level: Float) {
-            playerController?.setVolume(level.coerceIn(0f, 1f))?.let(::applyVolumeFeedback)
+            val target = level.coerceIn(0f, 1f)
+            pendingPlayerVolumeTarget = target
+            applyVolumeFeedback(optimisticAudioLevelForVolume(target))
+            playerController?.setVolume(target)?.let { resolved ->
+                pendingPlayerVolumeTarget = null
+                syncPlayerAudioLevel(resolved)
+            }
             revealPlayerChrome()
         }
 
         fun adjustPlayerVolume(delta: Float) {
             val current = playerAudioLevel
-                ?: playerController?.currentVolume()?.also { playerAudioLevel = it }
-            val base = current?.fraction ?: 0.5f
+                ?: playerController?.currentVolume()?.also(::syncPlayerAudioLevel)
+                ?: rememberedPlayerAudioLevel
+            val base = current.fraction
             setPlayerVolume(base + delta)
         }
 
@@ -783,6 +818,20 @@ fun PlayerScreen(
                 flushVolumeScrollDelta()
             }
             return true
+        }
+
+        LaunchedEffect(activeSourceUrl, playerController, pendingPlayerVolumeTarget) {
+            val controller = playerController ?: return@LaunchedEffect
+            val target = pendingPlayerVolumeTarget ?: return@LaunchedEffect
+            repeat(24) {
+                val resolved = controller.setVolume(target)
+                if (resolved != null) {
+                    pendingPlayerVolumeTarget = null
+                    syncPlayerAudioLevel(resolved)
+                    return@LaunchedEffect
+                }
+                delay(75L)
+            }
         }
 
         fun togglePlayback() {
@@ -2074,7 +2123,15 @@ fun PlayerScreen(
                 onControllerReady = { controller ->
                     playerController = controller
                     playerControllerSourceUrl = activeSourceUrl
-                    playerAudioLevel = controller.currentVolume()
+                    val pendingVolumeTarget = pendingPlayerVolumeTarget
+                    if (pendingVolumeTarget != null) {
+                        controller.setVolume(pendingVolumeTarget)?.let { resolved ->
+                            pendingPlayerVolumeTarget = null
+                            syncPlayerAudioLevel(resolved)
+                        }
+                    } else {
+                        syncPlayerAudioLevel(controller.currentVolume())
+                    }
                 },
                 onSnapshot = { snapshot ->
                     playbackSnapshot = snapshot
@@ -2176,8 +2233,8 @@ fun PlayerScreen(
                     },
                     onVolumeClick = ::toggleMute,
                     onVolumeChange = ::setPlayerVolume,
-                    volumeLevel = playerAudioLevel?.fraction ?: 1f,
-                    isVolumeMuted = playerAudioLevel?.isMuted == true,
+                    volumeLevel = visiblePlayerAudioLevel.fraction,
+                    isVolumeMuted = visiblePlayerAudioLevel.isMuted,
                     onNextEpisodeClick = if (isSeries) { ::openNextEpisodeOrEpisodes } else null,
                     onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
                     onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
