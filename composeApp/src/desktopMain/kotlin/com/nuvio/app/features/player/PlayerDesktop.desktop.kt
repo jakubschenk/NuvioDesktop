@@ -1545,14 +1545,14 @@ private fun desktopPlayerOverlayRenderConfig(): DesktopPlayerOverlayRenderConfig
         ?.lowercase(Locale.US)
         ?.replace('_', '-')
     return when (renderer) {
-        "swing", "swing-graphics", "gdi" -> DesktopPlayerOverlayRenderConfig(
-            name = "swing",
-            renderSettings = RenderSettings.SwingGraphics(),
+        "skia", "skia-surface", "angle" -> DesktopPlayerOverlayRenderConfig(
+            name = "skia",
+            renderSettings = RenderSettings.SkiaSurface(),
         )
 
         else -> DesktopPlayerOverlayRenderConfig(
-            name = "skia",
-            renderSettings = RenderSettings.SkiaSurface(),
+            name = "swing",
+            renderSettings = RenderSettings.SwingGraphics(),
         )
     }
 }
