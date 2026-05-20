@@ -27,6 +27,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import kotlinx.coroutines.launch
@@ -42,6 +44,8 @@ object StreamsRepository {
     private var activeJob: Job? = null
     private var activeRequestKey: String? = null
     private val sourceCache = mutableMapOf<String, SourceCacheEntry>()
+    private val preloadCacheKeysInFlight = mutableSetOf<String>()
+    private val preloadMutex = Mutex()
     private val rememberedSelectedFilterByRequestToken = mutableMapOf<String, String?>()
 
     fun requestToken(
@@ -107,17 +111,34 @@ object StreamsRepository {
         if (getFreshSourceCache(cacheKey) != null) return
 
         scope.launch {
-            if (getFreshSourceCache(cacheKey) != null) return@launch
-            log.d { "Preloading streams for type=$type id=$videoId" }
-            val groups = fetchGroupsForCache(
-                type = type,
-                videoId = videoId,
-                season = season,
-                episode = episode,
-                streamAddons = streamAddons,
-                pluginProviderGroups = pluginProviderGroups,
-            )
-            saveSourceCache(cacheKey, groups)
+            val shouldStart = preloadMutex.withLock {
+                if (getFreshSourceCache(cacheKey) != null || cacheKey in preloadCacheKeysInFlight) {
+                    false
+                } else {
+                    preloadCacheKeysInFlight.add(cacheKey)
+                    true
+                }
+            }
+            if (!shouldStart) return@launch
+
+            try {
+                log.d { "Preloading streams for type=$type id=$videoId" }
+                val groups = fetchGroupsForCache(
+                    type = type,
+                    videoId = videoId,
+                    season = season,
+                    episode = episode,
+                    streamAddons = streamAddons,
+                    pluginProviderGroups = pluginProviderGroups,
+                )
+                preloadMutex.withLock {
+                    saveSourceCache(cacheKey, groups)
+                }
+            } finally {
+                preloadMutex.withLock {
+                    preloadCacheKeysInFlight.remove(cacheKey)
+                }
+            }
         }
     }
 

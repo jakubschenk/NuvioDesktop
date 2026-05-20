@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.size.Precision
@@ -315,13 +316,14 @@ private fun NuvioViewAllPill(
     val colorScheme = MaterialTheme.colorScheme
     val isAmoled = colorScheme.background == androidx.compose.ui.graphics.Color.Black && colorScheme.surface == androidx.compose.ui.graphics.Color(0xFF050505)
     val horizontalPadding = if (size == NuvioViewAllPillSize.Compact) 12.dp else 18.dp
-    val verticalPadding = if (size == NuvioViewAllPillSize.Compact) 7.dp else 12.dp
+    val pillHeight = if (size == NuvioViewAllPillSize.Compact) 30.dp else 42.dp
     val textStyle = if (size == NuvioViewAllPillSize.Compact) {
-        MaterialTheme.typography.labelLarge
+        MaterialTheme.typography.labelLarge.copy(lineHeight = 14.sp)
     } else {
-        MaterialTheme.typography.titleMedium
+        MaterialTheme.typography.titleMedium.copy(lineHeight = 18.sp)
     }
     val iconSpacing = if (size == NuvioViewAllPillSize.Compact) 2.dp else 4.dp
+    val iconSize = if (size == NuvioViewAllPillSize.Compact) 16.dp else 20.dp
 
     Row(
         modifier = Modifier
@@ -338,22 +340,28 @@ private fun NuvioViewAllPill(
                     Modifier
                 }
             )
-            .padding(horizontal = horizontalPadding, vertical = verticalPadding),
+            .height(pillHeight)
+            .padding(horizontal = horizontalPadding),
         horizontalArrangement = Arrangement.spacedBy(iconSpacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = stringResource(Res.string.home_view_all),
-            style = textStyle,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        Box(
+            modifier = Modifier.height(iconSize),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stringResource(Res.string.home_view_all),
+                style = textStyle,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
         Icon(
             imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
-                .width(if (size == NuvioViewAllPillSize.Compact) 16.dp else 20.dp)
-                .height(if (size == NuvioViewAllPillSize.Compact) 16.dp else 20.dp),
+                .width(iconSize)
+                .height(iconSize),
         )
     }
 }

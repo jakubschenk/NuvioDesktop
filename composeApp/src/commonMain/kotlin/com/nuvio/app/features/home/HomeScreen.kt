@@ -66,6 +66,7 @@ import com.nuvio.app.features.home.components.ContinueWatchingLayout
 import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWidth
 import com.nuvio.app.features.home.components.rememberContinueWatchingLayout
 import com.nuvio.app.features.streams.StreamsRepository
+import kotlinx.coroutines.delay
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
@@ -258,7 +259,17 @@ fun HomeScreen(
         )
     }
     val continueWatchingPreloadTargets = remember(continueWatchingItems) {
-        continueWatchingItems.take(3)
+        continueWatchingItems
+            .take(3)
+            .map { item ->
+                ContinueWatchingStreamPreloadTarget(
+                    type = item.parentMetaType,
+                    videoId = item.videoId,
+                    seasonNumber = item.seasonNumber,
+                    episodeNumber = item.episodeNumber,
+                )
+            }
+            .distinct()
     }
     val availableManifests = remember(addonsUiState.addons) {
         addonsUiState.addons.mapNotNull { addon -> addon.manifest }
@@ -300,9 +311,12 @@ fun HomeScreen(
 
     LaunchedEffect(continueWatchingPreloadTargets, streamProviderKey) {
         if (continueWatchingPreloadTargets.isEmpty()) return@LaunchedEffect
-        continueWatchingPreloadTargets.forEach { item ->
+        continueWatchingPreloadTargets.forEachIndexed { index, item ->
+            if (index > 0) {
+                delay(350)
+            }
             StreamsRepository.preload(
-                type = item.parentMetaType,
+                type = item.type,
                 videoId = item.videoId,
                 season = item.seasonNumber,
                 episode = item.episodeNumber,
@@ -748,6 +762,13 @@ private data class CompletedSeriesCandidate(
     val seasonNumber: Int,
     val episodeNumber: Int,
     val markedAtEpochMs: Long,
+)
+
+private data class ContinueWatchingStreamPreloadTarget(
+    val type: String,
+    val videoId: String,
+    val seasonNumber: Int?,
+    val episodeNumber: Int?,
 )
 
 private data class HomeContinueWatchingCandidate(

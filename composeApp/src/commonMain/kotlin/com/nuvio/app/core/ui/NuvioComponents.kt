@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -38,12 +39,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -278,7 +277,7 @@ fun NuvioDropdownMenu(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
-            .padding(vertical = 2.dp),
+            .padding(vertical = 1.dp),
         shape = RoundedCornerShape(14.dp),
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
         tonalElevation = 6.dp,
@@ -298,8 +297,35 @@ fun NuvioDropdownMenuItem(
     leadingIcon: (@Composable () -> Unit)? = null,
     trailingIcon: (@Composable () -> Unit)? = null,
 ) {
-    DropdownMenuItem(
-        text = {
+    Row(
+        modifier = modifier
+            .padding(horizontal = 4.dp, vertical = 1.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                if (selected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                } else {
+                    Color.Transparent
+                },
+            )
+            .then(
+                if (enabled) {
+                    Modifier
+                        .desktopClickablePointer()
+                        .clickable(onClick = onClick)
+                } else {
+                    Modifier
+                },
+            )
+            .heightIn(min = 32.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        leadingIcon?.invoke()
+        Box(
+            contentAlignment = Alignment.CenterStart,
+        ) {
             Text(
                 text = text,
                 modifier = textModifier,
@@ -312,40 +338,9 @@ fun NuvioDropdownMenuItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        },
-        onClick = onClick,
-        modifier = modifier
-            .padding(horizontal = 4.dp, vertical = 1.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                if (selected) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                } else {
-                    Color.Transparent
-                },
-            )
-            .then(if (enabled) Modifier.desktopClickablePointer() else Modifier),
-        enabled = enabled,
-        leadingIcon = leadingIcon,
-        trailingIcon = trailingIcon,
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-        colors = MenuDefaults.itemColors(
-            textColor = MaterialTheme.colorScheme.onSurface,
-            leadingIconColor = if (selected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            trailingIconColor = if (selected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-        ),
-    )
+        }
+        trailingIcon?.invoke()
+    }
 }
 
 @Composable
