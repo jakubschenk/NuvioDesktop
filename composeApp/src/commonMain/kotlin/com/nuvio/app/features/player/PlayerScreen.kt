@@ -896,16 +896,14 @@ fun PlayerScreen(
             val target = level.coerceIn(0f, 1f)
             pendingPlayerVolumeTarget = target
             applyVolumeFeedback(optimisticAudioLevelForVolume(target))
-            val nextLevel = playerController?.setVolume(target) ?: gestureController?.setVolume(target)
-            if (nextLevel != null) {
+            val appliedLevel = playerController?.setVolume(target) ?: gestureController?.setVolume(target)
+            if (appliedLevel != null) {
                 pendingPlayerVolumeTarget = null
-                syncPlayerAudioLevel(nextLevel)
             }
         }
 
         fun adjustVolume(delta: Float) {
-            val current = currentPlayerVolume() ?: visiblePlayerAudioLevel
-            setPlayerVolume(current.fraction + delta)
+            setPlayerVolume(visiblePlayerAudioLevel.fraction + delta)
         }
 
         fun toggleMute() {
@@ -967,10 +965,8 @@ fun PlayerScreen(
             val controller = playerController ?: return@LaunchedEffect
             val target = pendingPlayerVolumeTarget ?: return@LaunchedEffect
             repeat(24) {
-                val resolved = controller.setVolume(target)
-                if (resolved != null) {
+                if (controller.setVolume(target) != null) {
                     pendingPlayerVolumeTarget = null
-                    syncPlayerAudioLevel(resolved)
                     return@LaunchedEffect
                 }
                 delay(75L)
@@ -2287,9 +2283,8 @@ fun PlayerScreen(
                     playerControllerSourceUrl = activeSourceUrl
                     val pendingVolumeTarget = pendingPlayerVolumeTarget
                     if (pendingVolumeTarget != null) {
-                        controller.setVolume(pendingVolumeTarget)?.let { resolved ->
+                        if (controller.setVolume(pendingVolumeTarget) != null) {
                             pendingPlayerVolumeTarget = null
-                            syncPlayerAudioLevel(resolved)
                         }
                     } else {
                         syncPlayerAudioLevel(controller.currentVolume())

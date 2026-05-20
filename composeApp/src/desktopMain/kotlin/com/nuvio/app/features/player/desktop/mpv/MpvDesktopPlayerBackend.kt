@@ -595,13 +595,21 @@ internal class MpvDesktopPlayerBackend private constructor(
         override fun setVolume(level: Float): PlayerAudioLevel? {
             if (!canReceiveCommands()) return null
             val target = level.coerceIn(0f, 1f)
-            runCatching {
-                mpvHandle.setMpvProperty("volume", (target * 100.0).coerceIn(0.0, 100.0))
-                mpvHandle.setMpvProperty("mute", target <= 0.001f)
+            val applied = runCatching {
+                val volumeApplied = mpvHandle.setMpvProperty("volume", (target * 100.0).coerceIn(0.0, 100.0))
+                val muteApplied = mpvHandle.setMpvProperty("mute", target <= 0.001f)
+                volumeApplied && muteApplied
             }.onFailure {
                 DesktopRuntimeLog.error("MPV controller setVolume failed target=$target", it)
+            }.getOrDefault(false)
+            return if (applied) {
+                PlayerAudioLevel(
+                    fraction = target,
+                    isMuted = target <= 0.001f,
+                )
+            } else {
+                null
             }
-            return currentVolume()
         }
 
         override fun getAudioTracks(): List<AudioTrack> =
