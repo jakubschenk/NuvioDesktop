@@ -101,10 +101,9 @@ private val PlayerToolbarButtonSize = 44.dp
 private val PlayerToolbarIconSize = 23.dp
 private val PlayerVolumeSliderWidth = 112.dp
 private val PlayerVolumeSliderTouchHeight = 34.dp
-private val PlayerVolumeSliderTrackHeight = 4.dp
-private val PlayerVolumeSliderThumbSize = 10.dp
 private const val PlayerVolumeSliderIdleScaleY = 0.72f
 private const val PlayerVolumeKeyboardStep = 0.05f
+private const val PlayerVolumeSliderSteps = 19
 
 private fun PlayerPlaybackSnapshot.displayPositionAt(
     snapshotEpochMs: Long,
@@ -703,7 +702,6 @@ private fun PlayerVolumeControl(
     val focusRequester = remember { FocusRequester() }
     val onVolumeChangeState = rememberUpdatedState(onVolumeChange)
     val volumeEnabled = onVolumeChange != null
-    var sliderWidthPx by remember { mutableStateOf(0) }
     var isHovered by remember { mutableStateOf(false) }
     var isFocused by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
@@ -712,23 +710,11 @@ private fun PlayerVolumeControl(
         targetValue = if (isHovered || isFocused || isDragging) 1f else PlayerVolumeSliderIdleScaleY,
         label = "player_volume_slider_scale",
     )
-    val thumbAlpha by animateFloatAsState(
-        targetValue = if (isHovered || isFocused || isDragging) 0.96f else 0.74f,
-        label = "player_volume_thumb_alpha",
-    )
-
-    fun volumeForX(x: Float, width: Float): Float {
-        if (width <= 0f) return coercedVolume
-        return (x / width).coerceIn(0f, 1f)
-    }
 
     fun commitVolume(value: Float) {
-        onVolumeChangeState.value?.invoke(value.coerceIn(0f, 1f))
-    }
-
-    fun commitVolumeForX(x: Float) {
-        val width = sliderWidthPx.toFloat().takeIf { it > 0f } ?: return
-        commitVolume(volumeForX(x, width))
+        val snapped = ((value.coerceIn(0f, 1f) / PlayerVolumeKeyboardStep).roundToInt() * PlayerVolumeKeyboardStep)
+            .coerceIn(0f, 1f)
+        onVolumeChangeState.value?.invoke(snapped)
     }
 
     Row(
@@ -746,7 +732,6 @@ private fun PlayerVolumeControl(
                 .width(PlayerVolumeSliderWidth)
                 .height(PlayerVolumeSliderTouchHeight)
                 .then(if (volumeEnabled) Modifier.desktopClickablePointer() else Modifier)
-                .onSizeChanged { size -> sliderWidthPx = size.width }
                 .focusRequester(focusRequester)
                 .onFocusChanged { isFocused = it.isFocused }
                 .focusable(enabled = volumeEnabled)
@@ -770,69 +755,31 @@ private fun PlayerVolumeControl(
                 .onPointerEvent(PointerEventType.Exit) {
                     isHovered = false
                 }
-                .pointerInput(volumeEnabled) {
-                    if (!volumeEnabled) return@pointerInput
-                    awaitEachGesture {
-                        val down = awaitFirstDown(pass = PointerEventPass.Initial)
+                .onPointerEvent(PointerEventType.Press) {
+                    if (volumeEnabled) {
                         focusRequester.requestFocus()
-                        sliderWidthPx = size.width
                         isDragging = true
-                        try {
-                            commitVolumeForX(down.position.x)
-                            down.consume()
-
-                            while (true) {
-                                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                if (!change.pressed) break
-                                commitVolumeForX(change.position.x)
-                                change.consume()
-                            }
-                        } finally {
-                            isDragging = false
-                        }
                     }
-            },
+                }
+                .onPointerEvent(PointerEventType.Release) {
+                    isDragging = false
+                },
             contentAlignment = Alignment.Center,
         ) {
-            Box(
+            Slider(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(PlayerVolumeSliderTrackHeight)
-                    .graphicsLayer(scaleY = sliderScaleY)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = if (volumeEnabled) 0.24f else 0.12f)),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(coercedVolume)
-                        .height(PlayerVolumeSliderTrackHeight)
-                        .clip(CircleShape)
-                        .background(
-                            Color.White.copy(
-                                alpha = when {
-                                    !volumeEnabled -> 0.28f
-                                    isMuted -> 0.48f
-                                    else -> 0.92f
-                                },
-                            ),
-                        ),
-                )
-            }
-            if (sliderWidthPx > 0) {
-                val density = LocalDensity.current
-                val thumbSizePx = with(density) { PlayerVolumeSliderThumbSize.toPx() }
-                val thumbOffsetPx = ((sliderWidthPx - thumbSizePx).coerceAtLeast(0f) * coercedVolume).roundToInt()
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .offset { IntOffset(thumbOffsetPx, 0) }
-                        .size(PlayerVolumeSliderThumbSize)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = if (volumeEnabled) thumbAlpha else 0.36f))
-                        .border(1.dp, Color.Black.copy(alpha = 0.2f), CircleShape),
-                )
-            }
+                    .fillMaxSize()
+                    .graphicsLayer(scaleY = sliderScaleY),
+                value = coercedVolume,
+                onValueChange = { value ->
+                    isDragging = true
+                    commitVolume(value)
+                },
+                onValueChangeFinished = { isDragging = false },
+                valueRange = 0f..1f,
+                steps = PlayerVolumeSliderSteps,
+                enabled = volumeEnabled,
+            )
         }
     }
 }
