@@ -411,11 +411,20 @@ internal class MpvDesktopPlayerBackend private constructor(
         override fun setVolume(level: Float): PlayerAudioLevel? {
             if (!canReceiveCommands()) return null
             val target = (level.coerceIn(0f, 1f) * 100f).roundToInt()
-            runCatching {
-                player.impl.setMpvProperty("volume", target)
+            val applied = runCatching {
+                val volumeApplied = player.impl.setMpvProperty("volume", target)
                 if (target > 0) player.impl.setMpvProperty("mute", false)
+                volumeApplied
             }.onFailure { DesktopRuntimeLog.error("MPV setVolume failed target=$target", it) }
-            return readAudioLevel()
+                .getOrDefault(false)
+            return if (applied) {
+                PlayerAudioLevel(
+                    fraction = (target / 100f).coerceIn(0f, 1f),
+                    isMuted = target <= 0,
+                )
+            } else {
+                null
+            }
         }
 
         override fun toggleMute(): PlayerAudioLevel? {
