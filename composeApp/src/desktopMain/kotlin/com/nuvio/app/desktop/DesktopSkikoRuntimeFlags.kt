@@ -14,6 +14,12 @@ internal object DesktopSkikoRuntimeFlags {
             ?: System.getProperty("skiko.renderApi")?.normalizeRenderApi()
             ?: defaultRenderApi()
         setProperty("skiko.renderApi", renderApi, applied)
+        if (renderApi == "ANGLE") {
+            val explicitAngleEnabled = firstEnv("NUVIO_SKIKO_ANGLE_ENABLED")
+                ?.let(::normalizeBoolean)
+                ?: System.getProperty("skiko.rendering.angle.enabled")?.let(::normalizeBoolean)
+            setProperty("skiko.rendering.angle.enabled", explicitAngleEnabled ?: "true", applied)
+        }
 
         val mpvSurface = firstEnv("NUVIO_MPV_SURFACE")
             ?.normalizeMpvSurfaceMode()
@@ -59,12 +65,14 @@ internal object DesktopSkikoRuntimeFlags {
             applied = applied,
             normalize = ::normalizeBoolean,
         )
-        setPropertyFromEnv(
-            property = "skiko.rendering.angle.enabled",
-            envNames = arrayOf("NUVIO_SKIKO_ANGLE_ENABLED"),
-            applied = applied,
-            normalize = ::normalizeBoolean,
-        )
+        if (renderApi != "ANGLE") {
+            setPropertyFromEnv(
+                property = "skiko.rendering.angle.enabled",
+                envNames = arrayOf("NUVIO_SKIKO_ANGLE_ENABLED"),
+                applied = applied,
+                normalize = ::normalizeBoolean,
+            )
+        }
         setPropertyFromEnv(
             property = "skiko.gpu.priority",
             envNames = arrayOf("NUVIO_SKIKO_GPU_PRIORITY"),
