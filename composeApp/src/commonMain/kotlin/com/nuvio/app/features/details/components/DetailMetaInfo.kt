@@ -69,6 +69,8 @@ import kotlin.math.roundToInt
 fun DetailMetaInfo(
     meta: MetaDetails,
     modifier: Modifier = Modifier,
+    showCredits: Boolean = true,
+    showDescription: Boolean = true,
 ) {
     Column(
         modifier = modifier
@@ -149,21 +151,21 @@ fun DetailMetaInfo(
             )
         }
 
-        if (meta.director.isNotEmpty()) {
+        if (showCredits && meta.director.isNotEmpty()) {
             MetaLabelValueRow(
                 label = stringResource(Res.string.details_director),
                 value = meta.director.joinToString(", "),
             )
         }
 
-        if (meta.writer.isNotEmpty()) {
+        if (showCredits && meta.writer.isNotEmpty()) {
             MetaLabelValueRow(
                 label = stringResource(Res.string.details_writer),
                 value = meta.writer.joinToString(", "),
             )
         }
 
-        if (!meta.description.isNullOrBlank()) {
+        if (showDescription && !meta.description.isNullOrBlank()) {
             var expanded by remember { mutableStateOf(false) }
             var canExpand by remember(meta.description) { mutableStateOf(false) }
             Column(

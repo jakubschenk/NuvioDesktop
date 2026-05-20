@@ -7,19 +7,14 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -37,16 +32,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,13 +55,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -83,12 +69,10 @@ import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.build.TrailerPlaybackMode
 import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
-import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.NuvioBackButton
+import com.nuvio.app.core.ui.NuvioIconActionButton
 import com.nuvio.app.core.ui.NuvioImageFilterQuality
 import com.nuvio.app.core.ui.TraktListPickerDialog
-import com.nuvio.app.core.ui.appIconPainter
-import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.features.details.components.DetailActionButtons
 import com.nuvio.app.features.details.components.CommentDetailSheet
@@ -100,6 +84,7 @@ import com.nuvio.app.features.details.components.DetailHero
 import com.nuvio.app.features.details.components.DetailMetaInfo
 import com.nuvio.app.features.details.components.DetailPosterRailSection
 import com.nuvio.app.features.details.components.DetailProductionSection
+import com.nuvio.app.features.details.components.DetailSection
 import com.nuvio.app.features.details.components.DetailSeriesContent
 import com.nuvio.app.features.details.components.DetailTrailersSection
 import com.nuvio.app.features.details.components.EpisodeWatchedActionSheet
@@ -763,9 +748,13 @@ fun MetaDetailsScreen(
                         }
                         if (useDesktopSourceLayout) {
                             val sourcePanelWidth = (layoutMaxWidth * 0.36f).coerceIn(440.dp, 620.dp)
+                            val useInlineEpisodeSelector = metaScreenSettingsUiState.episodeCardStyle == MetaEpisodeCardStyle.Horizontal
+                            val showPanelEpisodeSelector = hasEpisodes && !useInlineEpisodeSelector && selectedSourceTargetOverride == null
+                            val panelEpisodeScrollState = rememberScrollState()
                             val isMetaWatched = remember(watchedUiState.watchedKeys, meta.id, meta.type) {
                                 WatchedRepository.isWatched(id = meta.id, type = meta.type)
                             }
+                            val trailer = meta.trailers.firstOrNull()
                             Row(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -793,44 +782,114 @@ fun MetaDetailsScreen(
 
                                     Spacer(modifier = Modifier.height(28.dp))
 
-                                    StremioHeroTitle(meta = meta)
-
-                                    Spacer(modifier = Modifier.height(22.dp))
-
-                                    StremioMetaRow(meta = meta)
-
-                                    Spacer(modifier = Modifier.height(28.dp))
-
-                                    StremioPillSection(
-                                        label = "GENRES",
-                                        values = meta.genres.take(4),
-                                    )
-
-                                    if (meta.cast.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(26.dp))
-                                        StremioPillSection(
-                                            label = stringResource(Res.string.settings_meta_cast),
-                                            values = meta.cast.take(4).map(MetaPerson::name),
+                                    val logoUrl = meta.logo?.takeIf(String::isNotBlank)
+                                    if (logoUrl != null) {
+                                        AsyncImage(
+                                            model = logoUrl,
+                                            contentDescription = stringResource(Res.string.detail_logo_content_description, meta.name),
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.58f)
+                                                .heightIn(min = 92.dp, max = 156.dp),
+                                            alignment = Alignment.CenterStart,
+                                            contentScale = ContentScale.Fit,
+                                            useDesktopImagePainterWorkaround = false,
+                                        )
+                                    } else {
+                                        Text(
+                                            text = meta.name,
+                                            modifier = Modifier.widthIn(max = 760.dp),
+                                            style = MaterialTheme.typography.displayLarge,
+                                            color = MaterialTheme.colorScheme.onBackground,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
                                         )
                                     }
 
-                                    if (meta.director.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(26.dp))
-                                        StremioPillSection(
-                                            label = stringResource(Res.string.details_director),
-                                            values = meta.director.take(3),
+                                    Spacer(modifier = Modifier.height(22.dp))
+
+                                    DetailMetaInfo(
+                                        meta = meta,
+                                        modifier = Modifier.widthIn(max = 760.dp),
+                                        showCredits = false,
+                                        showDescription = false,
+                                    )
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Row(
+                                        modifier = Modifier.widthIn(max = 560.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        DetailActionButtons(
+                                            modifier = Modifier.weight(1f),
+                                            playLabel = stringResource(Res.string.generic_trailer),
+                                            saveLabel = if (isSaved) {
+                                                stringResource(Res.string.action_saved)
+                                            } else {
+                                                stringResource(Res.string.action_save)
+                                            },
+                                            isSaved = isSaved,
+                                            isTablet = false,
+                                            showPlayButton = trailer != null,
+                                            onPlayClick = {
+                                                trailer?.let { resolveTrailer(it) }
+                                            },
+                                            onSaveClick = toggleSaved,
+                                            onSaveLongClick = openLibraryListPicker,
+                                        )
+                                        NuvioIconActionButton(
+                                            icon = if (isMetaWatched) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                            contentDescription = if (isMetaWatched) {
+                                                stringResource(Res.string.hero_mark_unwatched)
+                                            } else {
+                                                stringResource(Res.string.hero_mark_watched)
+                                            },
+                                            modifier = Modifier.size(50.dp),
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                            onClick = {
+                                                WatchedRepository.toggleWatched(meta.toSeriesWatchedItem())
+                                            },
+                                        )
+                                    }
+
+                                    if (meta.genres.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(24.dp))
+                                        Text(
+                                            text = meta.genres.take(4).joinToString("  /  "),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
                                         )
                                     }
 
                                     if (!meta.description.isNullOrBlank()) {
-                                        Spacer(modifier = Modifier.height(30.dp))
-                                        StremioSummaryBlock(
-                                            text = meta.description,
-                                            maxLines = if (hasEpisodes) 2 else 3,
+                                        Spacer(modifier = Modifier.height(26.dp))
+                                        DetailSection(title = stringResource(Res.string.settings_meta_overview)) {
+                                            Text(
+                                                text = meta.description,
+                                                modifier = Modifier.widthIn(max = 960.dp),
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = if (hasEpisodes) 2 else 3,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+
+                                    if (meta.cast.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(24.dp))
+                                        DetailCastSection(
+                                            cast = meta.cast.take(12),
+                                            showHeader = true,
+                                            onCastClick = onCastClick,
+                                            sharedTransitionScope = sharedTransitionScope,
+                                            animatedVisibilityScope = animatedVisibilityScope,
                                         )
                                     }
 
-                                    if (hasEpisodes) {
+                                    if (hasEpisodes && useInlineEpisodeSelector) {
                                         Spacer(modifier = Modifier.height(24.dp))
                                         DetailSeriesContent(
                                             modifier = Modifier
@@ -856,20 +915,6 @@ fun MetaDetailsScreen(
                                     }
 
                                     Spacer(modifier = Modifier.weight(1f))
-
-                                    StremioDetailActions(
-                                        meta = meta,
-                                        isSaved = isSaved,
-                                        isWatched = isMetaWatched,
-                                        onTrailerClick = meta.trailers.firstOrNull()?.let { trailer ->
-                                            { resolveTrailer(trailer) }
-                                        },
-                                        onSaveClick = toggleSaved,
-                                        onSaveLongClick = openLibraryListPicker,
-                                        onWatchedClick = {
-                                            WatchedRepository.toggleWatched(meta.toSeriesWatchedItem())
-                                        },
-                                    )
                                 }
 
                                 Box(
@@ -879,7 +924,34 @@ fun MetaDetailsScreen(
                                         .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp))
                                         .background(Color(0xFF15121F).copy(alpha = 0.90f)),
                                 ) {
-                                    sourceContent()
+                                    if (showPanelEpisodeSelector) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .verticalScroll(panelEpisodeScrollState)
+                                                .padding(horizontal = 28.dp, vertical = 28.dp),
+                                        ) {
+                                            DetailSeriesContent(
+                                                meta = meta,
+                                                showHeader = false,
+                                                preferredSeasonNumber = activeSourceTarget.seasonNumber ?: seriesAction?.seasonNumber,
+                                                preferredEpisodeNumber = activeSourceTarget.episodeNumber ?: seriesAction?.episodeNumber,
+                                                episodeCardStyle = MetaEpisodeCardStyle.List,
+                                                progressByVideoId = watchProgressUiState.byVideoId,
+                                                watchedKeys = watchedUiState.watchedKeys,
+                                                episodeRatings = episodeImdbRatings,
+                                                blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
+                                                selectedVideoId = activeSourceTarget.videoId,
+                                                forceTextSeasonSelector = true,
+                                                onEpisodeClick = { video ->
+                                                    selectedSourceTargetOverride = episodePlaybackTarget(video)
+                                                },
+                                                onEpisodeLongPress = { video -> selectedEpisodeForActions = video },
+                                            )
+                                        }
+                                    } else {
+                                        sourceContent()
+                                    }
                                 }
                             }
                         } else {
@@ -1228,310 +1300,6 @@ fun MetaDetailsScreen(
     }
 }
 
-@Composable
-private fun StremioHeroTitle(
-    meta: MetaDetails,
-    modifier: Modifier = Modifier,
-) {
-    val logoUrl = meta.logo?.takeIf(String::isNotBlank)
-    if (logoUrl != null) {
-        AsyncImage(
-            model = logoUrl,
-            contentDescription = stringResource(Res.string.detail_logo_content_description, meta.name),
-            modifier = modifier
-                .fillMaxWidth(0.58f)
-                .heightIn(min = 92.dp, max = 156.dp),
-            alignment = Alignment.CenterStart,
-            contentScale = ContentScale.Fit,
-            useDesktopImagePainterWorkaround = false,
-        )
-    } else {
-        Text(
-            text = meta.name,
-            modifier = modifier.widthIn(max = 760.dp),
-            style = MaterialTheme.typography.displayLarge.copy(
-                fontSize = 76.sp,
-                lineHeight = 82.sp,
-                fontWeight = FontWeight.Light,
-            ),
-            color = Color.White,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun StremioMetaRow(
-    meta: MetaDetails,
-    modifier: Modifier = Modifier,
-) {
-    val releaseLine = formatMetaReleaseLineForDetails(meta)
-    val runtimeText = formatRuntimeForDisplay(meta.runtime)
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(34.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        runtimeText?.let { value -> StremioMetaText(value) }
-        releaseLine?.let { value -> StremioMetaText(value) }
-        meta.imdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StremioMetaText(rating)
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(Color(0xFFF5C518))
-                        .padding(horizontal = 5.dp, vertical = 2.dp),
-                ) {
-                    Text(
-                        text = stringResource(Res.string.source_imdb),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 0.sp,
-                        ),
-                        color = Color.Black,
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StremioMetaText(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleMedium.copy(
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-        ),
-        color = Color.White.copy(alpha = 0.94f),
-        maxLines = 1,
-    )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun StremioPillSection(
-    label: String,
-    values: List<String>,
-    modifier: Modifier = Modifier,
-) {
-    if (values.isEmpty()) return
-
-    Column(
-        modifier = modifier.widthIn(max = 760.dp),
-        verticalArrangement = Arrangement.spacedBy(9.dp),
-    ) {
-        Text(
-            text = label.uppercase(),
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 0.sp,
-            ),
-            color = Color.White.copy(alpha = 0.30f),
-            maxLines = 1,
-        )
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            values.forEach { value ->
-                StremioInfoPill(value)
-            }
-        }
-    }
-}
-
-@Composable
-private fun StremioInfoPill(
-    text: String,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.White.copy(alpha = 0.10f))
-            .padding(horizontal = 22.dp, vertical = 10.dp),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-            ),
-            color = Color.White.copy(alpha = 0.94f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun StremioSummaryBlock(
-    text: String,
-    maxLines: Int,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.widthIn(max = 960.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text(
-            text = "SUMMARY",
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 0.sp,
-            ),
-            color = Color.White.copy(alpha = 0.30f),
-            maxLines = 1,
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontSize = 16.sp,
-                lineHeight = 28.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-            color = Color.White.copy(alpha = 0.94f),
-            maxLines = maxLines,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun StremioDetailActions(
-    meta: MetaDetails,
-    isSaved: Boolean,
-    isWatched: Boolean,
-    onTrailerClick: (() -> Unit)?,
-    onSaveClick: () -> Unit,
-    onSaveLongClick: (() -> Unit)?,
-    onWatchedClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (onTrailerClick != null) {
-            StremioActionButton(
-                label = stringResource(Res.string.generic_trailer),
-                painter = appIconPainter(AppIconResource.PlayerPlay),
-                onClick = onTrailerClick,
-                wide = true,
-            )
-        }
-        StremioActionButton(
-            painter = if (isSaved) null else appIconPainter(AppIconResource.LibraryAddPlus),
-            imageVector = if (isSaved) Icons.Rounded.Check else null,
-            contentDescription = if (isSaved) {
-                stringResource(Res.string.action_saved)
-            } else {
-                stringResource(Res.string.action_save)
-            },
-            onClick = onSaveClick,
-            onLongClick = onSaveLongClick,
-        )
-        StremioActionButton(
-            imageVector = if (isWatched) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-            contentDescription = if (isWatched) {
-                stringResource(Res.string.hero_mark_unwatched)
-            } else {
-                stringResource(Res.string.hero_mark_watched)
-            },
-            onClick = onWatchedClick,
-        )
-        StremioActionButton(
-            imageVector = Icons.Rounded.ThumbUp,
-            contentDescription = "Like",
-            onClick = {},
-        )
-        StremioActionButton(
-            imageVector = Icons.Rounded.FavoriteBorder,
-            contentDescription = "Favorite",
-            onClick = {},
-        )
-        StremioActionButton(
-            imageVector = Icons.Rounded.Share,
-            contentDescription = "Share",
-            onClick = {},
-        )
-    }
-}
-
-@Composable
-@OptIn(ExperimentalFoundationApi::class)
-private fun StremioActionButton(
-    label: String? = null,
-    painter: Painter? = null,
-    imageVector: ImageVector? = null,
-    contentDescription: String? = label,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
-    wide: Boolean = false,
-) {
-    val shape = RoundedCornerShape(999.dp)
-    Row(
-        modifier = Modifier
-            .height(58.dp)
-            .then(if (wide) Modifier.widthIn(min = 154.dp) else Modifier.width(58.dp))
-            .clip(shape)
-            .background(Color.White.copy(alpha = 0.12f))
-            .border(1.dp, Color.White.copy(alpha = 0.05f), shape)
-            .desktopClickablePointer()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-            )
-            .padding(horizontal = if (wide) 26.dp else 0.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        when {
-            painter != null -> {
-                Icon(
-                    painter = painter,
-                    contentDescription = contentDescription,
-                    modifier = Modifier.size(22.dp),
-                    tint = Color.White.copy(alpha = 0.92f),
-                )
-            }
-            imageVector != null -> {
-                Icon(
-                    imageVector = imageVector,
-                    contentDescription = contentDescription,
-                    modifier = Modifier.size(23.dp),
-                    tint = Color.White.copy(alpha = 0.92f),
-                )
-            }
-        }
-        if (!label.isNullOrBlank()) {
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-                color = Color.White.copy(alpha = 0.94f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
 private fun MetaDetails.isSeriesLikeForEpisodeRatings(): Boolean {
     val normalizedType = type.trim().lowercase()
     val hasNumberedEpisodes = videos.any { it.season != null && it.episode != null }
@@ -1682,7 +1450,7 @@ private fun ConfiguredMetaSections(
                         showHeader = showHeader,
                         preferredSeasonNumber = preferredEpisodeSeasonNumber,
                         preferredEpisodeNumber = preferredEpisodeNumber,
-                        episodeCardStyle = settings.episodeCardStyle,
+                        episodeCardStyle = MetaEpisodeCardStyle.List,
                         progressByVideoId = progressByVideoId,
                         watchedKeys = watchedKeys,
                         episodeRatings = episodeImdbRatings,
