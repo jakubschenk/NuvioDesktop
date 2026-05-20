@@ -402,10 +402,19 @@ fun PlayerScreen(
         var nextEpisodeAutoPlaySourceName by remember { mutableStateOf<String?>(null) }
         var nextEpisodeAutoPlayCountdown by remember { mutableStateOf<Int?>(null) }
         var nextEpisodeAutoPlayJob by remember { mutableStateOf<Job?>(null) }
-        var lastNonMutedVolume by remember { mutableStateOf(1f) }
-        var visibleVolumeLevel by remember { mutableStateOf<PlayerAudioLevel?>(null) }
-        var rememberedPlayerAudioLevel by remember { mutableStateOf(PlayerAudioLevel(fraction = 1f, isMuted = false)) }
-        var pendingPlayerVolumeTarget by remember(activeSourceUrl) { mutableStateOf<Float?>(null) }
+        val initialPlayerAudioLevel = remember(activeSourceUrl) {
+            PlayerSettingsRepository.initialVolumeFraction().let { fraction ->
+                PlayerAudioLevel(fraction = fraction, isMuted = fraction <= 0.001f)
+            }
+        }
+        var lastNonMutedVolume by remember(activeSourceUrl) {
+            mutableStateOf(initialPlayerAudioLevel.fraction.takeIf { it > 0.001f } ?: 1f)
+        }
+        var visibleVolumeLevel by remember(activeSourceUrl) { mutableStateOf<PlayerAudioLevel?>(null) }
+        var rememberedPlayerAudioLevel by remember(activeSourceUrl) { mutableStateOf(initialPlayerAudioLevel) }
+        var pendingPlayerVolumeTarget by remember(activeSourceUrl) {
+            mutableStateOf<Float?>(initialPlayerAudioLevel.fraction)
+        }
         val visiblePlayerAudioLevel = visibleVolumeLevel ?: rememberedPlayerAudioLevel
         val volumeScrollAccumulator = remember(activeSourceUrl) { PlayerVolumeScrollAccumulator() }
 
@@ -861,6 +870,7 @@ fun PlayerScreen(
             if (!normalized.isMuted && normalized.fraction > 0.001f) {
                 lastNonMutedVolume = normalized.fraction
             }
+            PlayerSettingsRepository.rememberSessionVolume(normalized.fraction)
         }
 
         fun currentPlayerVolume(): PlayerAudioLevel? =

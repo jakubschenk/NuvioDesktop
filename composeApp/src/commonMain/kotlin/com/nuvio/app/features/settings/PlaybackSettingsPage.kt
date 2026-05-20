@@ -224,6 +224,70 @@ private fun PlaybackSettingsSection(
                 )
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_playback_remember_volume),
+                    description = stringResource(Res.string.settings_playback_remember_volume_description),
+                    checked = autoPlayPlayerSettings.rememberVolumeEnabled,
+                    isTablet = isTablet,
+                    onCheckedChange = PlayerSettingsRepository::setRememberVolumeEnabled,
+                )
+                SettingsGroupDivider(isTablet = isTablet)
+                val defaultVolumePercent = autoPlayPlayerSettings.defaultVolumePercent
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = if (isTablet) 18.dp else 16.dp, vertical = 10.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                            Text(
+                                text = stringResource(Res.string.settings_playback_default_volume),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = stringResource(Res.string.settings_playback_default_volume_description),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        ValueBox(
+                            text = stringResource(
+                                Res.string.settings_playback_default_volume_value,
+                                defaultVolumePercent,
+                            ),
+                            modifier = Modifier.wrapContentWidth(),
+                        )
+                    }
+                    var sliderValue by remember(defaultVolumePercent) { mutableFloatStateOf(defaultVolumePercent.toFloat()) }
+                    var lastHapticVolume by remember(defaultVolumePercent) { mutableStateOf(defaultVolumePercent.toFloat()) }
+                    Slider(
+                        value = sliderValue,
+                        onValueChange = {
+                            val snapped = snapToStep(it, 5f)
+                            sliderValue = snapped
+
+                            if (snapped != lastHapticVolume) {
+                                lastHapticVolume = snapped
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                        },
+                        onValueChangeFinished = {
+                            PlayerSettingsRepository.setDefaultVolumePercent(sliderValue.roundToInt())
+                        },
+                        valueRange = 0f..100f,
+                        steps = calculateSteps(0f, 100f, 5f),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                SettingsGroupDivider(isTablet = isTablet)
+                SettingsSwitchRow(
                     title = stringResource(Res.string.settings_playback_external_player),
                     description = stringResource(
                         when {
