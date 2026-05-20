@@ -53,6 +53,7 @@ import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
 import com.nuvio.app.core.ui.NuvioAnimatedWatchedBadge
 import com.nuvio.app.core.ui.NuvioImageFilterQuality
+import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
 import com.nuvio.app.core.ui.NuvioBottomSheetDivider
 import com.nuvio.app.core.ui.NuvioModalBottomSheet
@@ -201,11 +202,10 @@ private fun discoverGridRowContentType(
 
 @Composable
 private fun DiscoverSectionHeader(modifier: Modifier = Modifier) {
-    Text(
-        text = stringResource(Res.string.compose_search_discover_title),
+    NuvioScreenHeader(
+        title = stringResource(Res.string.compose_search_discover_title),
         modifier = modifier,
-        style = MaterialTheme.typography.displaySmall,
-        color = MaterialTheme.colorScheme.onBackground,
+        includeStatusBarPadding = false,
     )
 }
 

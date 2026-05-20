@@ -2195,8 +2195,16 @@ private fun AppTabHost(
                 }
 
                 AppScreenTab.Discover -> {
+                    val desktopTopPadding = if (showSearchChrome) {
+                        null
+                    } else {
+                        val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                        statusBarPadding + 10.dp + 16.dp + 38.dp + 22.dp
+                    }
+
                     DiscoverScreen(
                         modifier = Modifier.fillMaxSize(),
+                        topPadding = desktopTopPadding,
                         onPosterClick = onPosterClick,
                         onPosterLongClick = onPosterLongClick,
                     )

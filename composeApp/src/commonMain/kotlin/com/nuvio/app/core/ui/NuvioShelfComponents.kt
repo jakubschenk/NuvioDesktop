@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -164,7 +165,6 @@ fun NuvioPosterCard(
 
     Column(
         modifier = modifier.width(cardWidth),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
             modifier = Modifier
@@ -236,6 +236,7 @@ fun NuvioPosterCard(
             }
         }
         if (shouldShowTitleBelow) {
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
@@ -244,6 +245,7 @@ fun NuvioPosterCard(
                 overflow = TextOverflow.Ellipsis,
             )
             if (!detailLine.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = detailLine,
                     style = MaterialTheme.typography.labelSmall,
@@ -271,7 +273,7 @@ private fun NuvioShelfSectionHeader(
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
             modifier = Modifier.weight(1f),
@@ -313,7 +315,7 @@ private fun NuvioViewAllPill(
     val colorScheme = MaterialTheme.colorScheme
     val isAmoled = colorScheme.background == androidx.compose.ui.graphics.Color.Black && colorScheme.surface == androidx.compose.ui.graphics.Color(0xFF050505)
     val horizontalPadding = if (size == NuvioViewAllPillSize.Compact) 12.dp else 18.dp
-    val verticalPadding = if (size == NuvioViewAllPillSize.Compact) 9.dp else 14.dp
+    val verticalPadding = if (size == NuvioViewAllPillSize.Compact) 7.dp else 12.dp
     val textStyle = if (size == NuvioViewAllPillSize.Compact) {
         MaterialTheme.typography.labelLarge
     } else {
@@ -349,7 +351,9 @@ private fun NuvioViewAllPill(
             imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.height(if (size == NuvioViewAllPillSize.Compact) 16.dp else 20.dp),
+            modifier = Modifier
+                .width(if (size == NuvioViewAllPillSize.Compact) 16.dp else 20.dp)
+                .height(if (size == NuvioViewAllPillSize.Compact) 16.dp else 20.dp),
         )
     }
 }

@@ -9,14 +9,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import com.nuvio.app.core.ui.NuvioShelfSection
 import com.nuvio.app.core.ui.PosterCardStyleUiState
+import com.nuvio.app.core.ui.PosterCardWidthPreset
 import com.nuvio.app.core.ui.NuvioViewAllPillSize
 import com.nuvio.app.core.ui.landscapePosterWidth
+import com.nuvio.app.core.ui.posterHeightForWidth
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
+import com.nuvio.app.core.ui.resolvedPosterWidthDp
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.home.PosterShape
 import com.nuvio.app.features.home.stableKey
 import com.nuvio.app.features.watching.application.WatchingState
+import kotlin.math.roundToInt
+
+private const val HomeCatalogItemSpacingDp = 10f
+
+private data class HomeCatalogViewportSizing(
+    val maxItems: Int,
+    val posterCardStyle: PosterCardStyleUiState,
+)
 
 @Composable
 fun HomeCatalogRowSection(
@@ -81,8 +92,8 @@ private fun HomeCatalogRowSectionContent(
     onPosterLongClick: ((MetaPreview) -> Unit)?,
 ) {
     val resolvedPosterCardStyle = posterCardStyle ?: rememberPosterCardStyleUiState()
-    val maxVisibleItems = remember(availableWidth, sectionPadding, entries, resolvedPosterCardStyle) {
-        maxHomeCatalogItemsForViewport(
+    val viewportSizing = remember(availableWidth, sectionPadding, entries, resolvedPosterCardStyle) {
+        homeCatalogViewportSizing(
             availableWidth = availableWidth,
             sectionPadding = sectionPadding,
             entries = entries,
@@ -99,14 +110,14 @@ private fun HomeCatalogRowSectionContent(
         showHeaderAccent = showHeaderAccent,
         onViewAllClick = onViewAllClick,
         viewAllPillSize = NuvioViewAllPillSize.Compact,
-        maxItems = maxVisibleItems,
+        maxItems = viewportSizing.maxItems,
         key = { item -> item.stableKey() },
         contentType = { item -> item.posterShape },
     ) { item ->
         HomePosterCard(
             item = item,
             useLandscapeBackdropMode = resolvedPosterCardStyle.catalogLandscapeModeEnabled,
-            posterCardStyle = resolvedPosterCardStyle,
+            posterCardStyle = viewportSizing.posterCardStyle,
             isWatched = WatchingState.isPosterWatched(
                 watchedKeys = watchedKeys,
                 item = item,
@@ -117,13 +128,15 @@ private fun HomeCatalogRowSectionContent(
     }
 }
 
-private fun maxHomeCatalogItemsForViewport(
+private fun homeCatalogViewportSizing(
     availableWidth: Dp,
     sectionPadding: Dp,
     entries: List<MetaPreview>,
     posterCardStyle: PosterCardStyleUiState,
-): Int {
-    if (entries.isEmpty()) return 0
+): HomeCatalogViewportSizing {
+    if (entries.isEmpty()) {
+        return HomeCatalogViewportSizing(maxItems = 0, posterCardStyle = posterCardStyle)
+    }
     val contentWidth = (availableWidth.value - sectionPadding.value * 2f).coerceAtLeast(0f)
     val shape = if (posterCardStyle.catalogLandscapeModeEnabled) {
         PosterShape.Landscape
@@ -135,9 +148,42 @@ private fun maxHomeCatalogItemsForViewport(
         PosterShape.Square -> posterCardStyle.widthDp.toFloat()
         PosterShape.Landscape -> landscapePosterWidth(posterCardStyle.widthDp).value
     }
-    val spacing = 10f
-    return ((contentWidth + spacing) / (cardWidth + spacing))
+    val maxItems = ((contentWidth + HomeCatalogItemSpacingDp) / (cardWidth + HomeCatalogItemSpacingDp))
         .toInt()
         .coerceAtLeast(1)
         .coerceAtMost(entries.size)
+    val targetCardWidth = if (maxItems > 0) {
+        ((contentWidth - HomeCatalogItemSpacingDp * (maxItems - 1)) / maxItems).coerceAtLeast(cardWidth)
+    } else {
+        cardWidth
+    }
+    val landscapeScale = landscapePosterWidth(100).value / 100f
+    val targetBaseWidth = when (shape) {
+        PosterShape.Poster,
+        PosterShape.Square -> targetCardWidth
+        PosterShape.Landscape -> targetCardWidth / landscapeScale
+    }.roundToInt()
+    val adjustedBaseWidth = targetBaseWidth
+        .coerceAtLeast(posterCardStyle.widthDp)
+        .coerceAtMost(nextPosterCardWidthDp(posterCardStyle.widthPreset))
+
+    val adjustedStyle = if (adjustedBaseWidth == posterCardStyle.widthDp) {
+        posterCardStyle
+    } else {
+        posterCardStyle.copy(
+            widthDp = adjustedBaseWidth,
+            heightDp = posterHeightForWidth(adjustedBaseWidth),
+        )
+    }
+    return HomeCatalogViewportSizing(
+        maxItems = maxItems,
+        posterCardStyle = adjustedStyle,
+    )
+}
+
+private fun nextPosterCardWidthDp(widthPreset: PosterCardWidthPreset): Int {
+    val currentIndex = PosterCardWidthPreset.entries.indexOf(widthPreset)
+    val nextPreset = PosterCardWidthPreset.entries.getOrNull(currentIndex + 1)
+    return nextPreset?.let(::resolvedPosterWidthDp)
+        ?: (resolvedPosterWidthDp(widthPreset) + 12)
 }

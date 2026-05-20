@@ -1147,12 +1147,12 @@ private fun StreamCard(
     val isEnabled = stream.directPlaybackUrl != null || stream.isTorrentStream
     val cardShape = RoundedCornerShape(12.dp)
     val cardColor = if (embeddedStyle) {
-        Color.White.copy(alpha = 0.075f)
+        Color.White.copy(alpha = 0.05f)
     } else {
         Color.White.copy(alpha = 0.05f)
     }
     val cardBorderColor = if (embeddedStyle) {
-        Color.White.copy(alpha = 0.10f)
+        Color.Transparent
     } else {
         Color.Transparent
     }

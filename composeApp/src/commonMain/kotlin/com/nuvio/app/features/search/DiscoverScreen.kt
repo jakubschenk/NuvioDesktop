@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.network.NetworkCondition
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.map
 @Composable
 fun DiscoverScreen(
     modifier: Modifier = Modifier,
+    topPadding: Dp? = null,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
 ) {
@@ -92,6 +94,7 @@ fun DiscoverScreen(
 
         NuvioScreen(
             horizontalPadding = 0.dp,
+            topPadding = topPadding,
             listState = listState,
             modifier = Modifier.fillMaxSize(),
         ) {

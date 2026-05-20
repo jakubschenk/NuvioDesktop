@@ -858,8 +858,8 @@ fun MetaDetailsScreen(
                                             model = logoUrl,
                                             contentDescription = stringResource(Res.string.detail_logo_content_description, meta.name),
                                             modifier = Modifier
-                                                .fillMaxWidth(0.66f)
-                                                .heightIn(min = 108.dp, max = 176.dp),
+                                                .fillMaxWidth(0.76f)
+                                                .heightIn(min = 124.dp, max = 202.dp),
                                             alignment = Alignment.CenterStart,
                                             contentScale = ContentScale.Fit,
                                             useDesktopImagePainterWorkaround = false,
@@ -963,6 +963,8 @@ fun MetaDetailsScreen(
                                         )
                                     }
 
+                                    Spacer(modifier = Modifier.weight(1f))
+
                                     if (hasEpisodes && useInlineEpisodeSelector) {
                                         Spacer(modifier = Modifier.height(24.dp))
                                         DetailSeriesContent(
@@ -987,8 +989,6 @@ fun MetaDetailsScreen(
                                             onEpisodeLongPress = { video -> selectedEpisodeForActions = video },
                                         )
                                     }
-
-                                    Spacer(modifier = Modifier.weight(1f))
                                 }
 
                                 Box(
@@ -996,7 +996,7 @@ fun MetaDetailsScreen(
                                         .width(sourcePanelWidth)
                                         .fillMaxHeight()
                                         .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp))
-                                        .background(Color(0xFF131318).copy(alpha = 0.84f)),
+                                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.92f)),
                                 ) {
                                     if (showPanelEpisodeSelector) {
                                         Column(
