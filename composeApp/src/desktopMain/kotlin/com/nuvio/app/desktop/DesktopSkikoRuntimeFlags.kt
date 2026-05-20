@@ -21,6 +21,14 @@ internal object DesktopSkikoRuntimeFlags {
             ?: defaultMpvSurfaceMode(renderApi)
         setProperty("nuvio.mpv.surface", mpvSurface, applied)
 
+        val interopBlending = firstEnv("NUVIO_COMPOSE_INTEROP_BLENDING", "COMPOSE_INTEROP_BLENDING")
+            ?.let(::normalizeBoolean)
+            ?: System.getProperty("compose.interop.blending")?.let(::normalizeBoolean)
+            ?: if (mpvSurface == "native-window") "true" else null
+        if (interopBlending != null) {
+            setProperty("compose.interop.blending", interopBlending, applied)
+        }
+
         setPropertyFromEnv(
             property = "skiko.buffering",
             envNames = arrayOf("NUVIO_SKIKO_BUFFERING"),
