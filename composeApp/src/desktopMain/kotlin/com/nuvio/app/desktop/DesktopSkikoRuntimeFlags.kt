@@ -47,12 +47,12 @@ internal object DesktopSkikoRuntimeFlags {
             applied = applied,
             normalize = { it.uppercase(Locale.US) },
         )
-        val explicitVsync = firstEnv("NUVIO_SKIKO_VSYNC_ENABLED", "NUVIO_SKIKO_VSYNC")
-            ?.let(::normalizeBoolean)
-        when {
-            explicitVsync != null -> setProperty("skiko.vsync.enabled", explicitVsync, applied)
-            mpvSurface == "native-window" -> setProperty("skiko.vsync.enabled", "false", applied)
-        }
+        setPropertyFromEnv(
+            property = "skiko.vsync.enabled",
+            envNames = arrayOf("NUVIO_SKIKO_VSYNC_ENABLED", "NUVIO_SKIKO_VSYNC"),
+            applied = applied,
+            normalize = ::normalizeBoolean,
+        )
         setPropertyFromEnv(
             property = "skiko.vsync.framelimit.fallback.enabled",
             envNames = arrayOf("NUVIO_SKIKO_VSYNC_FALLBACK_ENABLED", "NUVIO_SKIKO_VSYNC_FALLBACK"),

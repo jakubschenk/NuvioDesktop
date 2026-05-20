@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -98,7 +99,6 @@ private val PlayerSeekTimeTextWidth = 84.dp
 private val PlayerSeekTimeHorizontalGap = 6.dp
 private val PlayerToolbarButtonSize = 44.dp
 private val PlayerToolbarIconSize = 23.dp
-private const val PlayerChromeFrameIntervalMs = 8L
 
 private fun PlayerPlaybackSnapshot.displayPositionAt(
     snapshotEpochMs: Long,
@@ -132,7 +132,7 @@ private fun rememberLiveDisplayedPositionMs(
             return@LaunchedEffect
         }
         while (true) {
-            delay(PlayerChromeFrameIntervalMs)
+            withFrameNanos { }
             frameEpochMs = PlayerWallClock.nowEpochMs()
         }
     }
