@@ -47,12 +47,13 @@ internal object DesktopSkikoRuntimeFlags {
             applied = applied,
             normalize = { it.uppercase(Locale.US) },
         )
-        setPropertyFromEnv(
-            property = "skiko.vsync.enabled",
-            envNames = arrayOf("NUVIO_SKIKO_VSYNC_ENABLED", "NUVIO_SKIKO_VSYNC"),
-            applied = applied,
-            normalize = ::normalizeBoolean,
-        )
+        val explicitVsync = firstEnv("NUVIO_SKIKO_VSYNC_ENABLED", "NUVIO_SKIKO_VSYNC")
+            ?.let(::normalizeBoolean)
+            ?: System.getProperty("skiko.vsync.enabled")?.let(::normalizeBoolean)
+        when {
+            explicitVsync != null -> setProperty("skiko.vsync.enabled", explicitVsync, applied)
+            renderApi == "DIRECT3D" -> setProperty("skiko.vsync.enabled", "false", applied)
+        }
         setPropertyFromEnv(
             property = "skiko.vsync.framelimit.fallback.enabled",
             envNames = arrayOf("NUVIO_SKIKO_VSYNC_FALLBACK_ENABLED", "NUVIO_SKIKO_VSYNC_FALLBACK"),
@@ -123,8 +124,8 @@ internal object DesktopSkikoRuntimeFlags {
     private fun String.normalizeRenderApi(): String =
         when (trim().uppercase(Locale.US).replace('-', '_')) {
             "AUTO", "DEFAULT", "BEST" -> defaultRenderApi()
-            "ANGLE_D3D", "ANGLE_D3D11" -> "ANGLE"
-            "D3D", "D3D11", "DIRECTX", "DIRECTX11" -> "DIRECT3D"
+            "ANGLE_D3D", "ANGLE_D3D11", "D3D11", "DIRECTX11", "DIRECT3D11" -> "ANGLE"
+            "D3D", "D3D12", "DIRECTX", "DIRECTX12", "DIRECT3D12" -> "DIRECT3D"
             "GL" -> "OPENGL"
             "SW", "SOFTWARE" -> "SOFTWARE_FAST"
             else -> trim().uppercase(Locale.US)

@@ -70,8 +70,9 @@ internal actual fun DesktopDecoderSettingsSection(isTablet: Boolean) {
                     "override NUVIO_COMPOSE_LAYERS_TYPE only for renderer troubleshooting.\n\n" +
                     "Hardware decoding (hwdec) is separate from GPU rendering: you can use " +
                     "D3D11VA or NVDEC for video decoding while the selected renderer handles " +
-                    "presentation. Launch with NUVIO_SKIKO_RENDER_API=OPENGL to force the " +
-                    "legacy libmpv/OpenGL path for troubleshooting.",
+                    "presentation. Launch with NUVIO_SKIKO_RENDER_API=D3D11 to force the " +
+                    "ANGLE/D3D11 path, DIRECT3D for Skiko D3D12, or OPENGL for the legacy " +
+                    "libmpv/OpenGL path.",
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
