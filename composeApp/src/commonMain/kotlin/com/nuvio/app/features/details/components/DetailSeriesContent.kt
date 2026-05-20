@@ -99,6 +99,9 @@ fun DetailSeriesContent(
     watchedKeys: Set<String> = emptySet(),
     episodeRatings: Map<Pair<Int, Int>, Double> = emptyMap(),
     blurUnwatchedEpisodes: Boolean = false,
+    selectedVideoId: String? = null,
+    forceTextSeasonSelector: Boolean = false,
+    showEpisodeSectionTitle: Boolean = true,
     onEpisodeClick: ((MetaVideo) -> Unit)? = null,
     onEpisodeLongPress: ((MetaVideo) -> Unit)? = null,
 ) {
@@ -206,7 +209,7 @@ fun DetailSeriesContent(
                             ),
                             color = MaterialTheme.colorScheme.onBackground,
                         )
-                        if (hasSeasonPosters) {
+                        if (hasSeasonPosters && !forceTextSeasonSelector) {
                             SeasonViewModeToggle(
                                 mode = seasonViewMode,
                                 sizing = sizing,
@@ -219,7 +222,7 @@ fun DetailSeriesContent(
                         }
                     }
 
-                    if (hasSeasonPosters) {
+                    if (hasSeasonPosters && !forceTextSeasonSelector) {
                         Crossfade(
                             targetState = seasonViewMode,
                             animationSpec = tween(280),
@@ -274,9 +277,11 @@ fun DetailSeriesContent(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    DetailSectionTitle(
-                        title = sectionTitle,
-                    )
+                    if (showEpisodeSectionTitle) {
+                        DetailSectionTitle(
+                            title = sectionTitle,
+                        )
+                    }
                     val seasonEpisodes = groupedEpisodes.getValue(seasonForContent)
                     if (episodeCardStyle == MetaEpisodeCardStyle.Horizontal) {
                         EpisodeHorizontalRow(
@@ -290,6 +295,7 @@ fun DetailSeriesContent(
                             episodeRatings = episodeRatings,
                             blurUnwatchedEpisodes = blurUnwatchedEpisodes,
                             preferredEpisodeNumber = preferredEpisodeNumber,
+                            selectedVideoId = selectedVideoId,
                             onEpisodeClick = onEpisodeClick,
                             onEpisodeLongPress = onEpisodeLongPress,
                         )
@@ -315,9 +321,10 @@ fun DetailSeriesContent(
                                             metaType = meta.type,
                                             metaId = meta.id,
                                             episode = episode,
-                                        ),
+                                    ),
                                     blurUnwatchedEpisodes = blurUnwatchedEpisodes,
                                     sizing = sizing,
+                                    isSelected = selectedVideoId == episodeVideoId || selectedVideoId == episode.id,
                                     onClick = { onEpisodeClick?.invoke(episode) },
                                     onLongPress = { onEpisodeLongPress?.invoke(episode) },
                                 )
@@ -586,6 +593,7 @@ private fun EpisodeHorizontalRow(
     episodeRatings: Map<Pair<Int, Int>, Double>,
     blurUnwatchedEpisodes: Boolean,
     preferredEpisodeNumber: Int? = null,
+    selectedVideoId: String? = null,
     onEpisodeClick: ((MetaVideo) -> Unit)?,
     onEpisodeLongPress: ((MetaVideo) -> Unit)?,
 ) {
@@ -642,6 +650,7 @@ private fun EpisodeHorizontalRow(
                     ),
                 blurUnwatchedEpisodes = blurUnwatchedEpisodes,
                 metrics = rowMetrics,
+                isSelected = selectedVideoId == episodeVideoId || selectedVideoId == episode.id,
                 onClick = { onEpisodeClick?.invoke(episode) },
                 onLongPress = { onEpisodeLongPress?.invoke(episode) },
             )
@@ -659,6 +668,7 @@ private fun EpisodeHorizontalCard(
     isWatched: Boolean,
     blurUnwatchedEpisodes: Boolean,
     metrics: EpisodeHorizontalCardMetrics,
+    isSelected: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
 ) {
@@ -673,8 +683,12 @@ private fun EpisodeHorizontalCard(
             .clip(cardShape)
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
             .border(
-                width = 1.dp,
-                color = Color.White.copy(alpha = 0.12f),
+                width = if (isSelected) 2.dp else 1.dp,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.92f)
+                } else {
+                    Color.White.copy(alpha = 0.12f)
+                },
                 shape = cardShape,
             )
             .then(
@@ -1019,6 +1033,7 @@ private fun EpisodeListCard(
     isWatched: Boolean,
     blurUnwatchedEpisodes: Boolean,
     sizing: SeriesContentSizing,
+    isSelected: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
@@ -1033,8 +1048,12 @@ private fun EpisodeListCard(
             .clip(cardShape)
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
             .border(
-                width = 1.dp,
-                color = Color.White.copy(alpha = 0.1f),
+                width = if (isSelected) 2.dp else 1.dp,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.92f)
+                } else {
+                    Color.White.copy(alpha = 0.1f)
+                },
                 shape = cardShape,
             )
             .then(

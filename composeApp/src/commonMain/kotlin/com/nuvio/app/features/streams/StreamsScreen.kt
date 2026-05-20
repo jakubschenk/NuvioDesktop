@@ -66,6 +66,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -213,7 +214,7 @@ fun StreamsScreen(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(if (embedded) Color.Transparent else MaterialTheme.colorScheme.background),
     ) {
         val isTabletLayout = maxWidth >= 768.dp
 
@@ -438,13 +439,12 @@ private fun EmbeddedStreamsLayout(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(Color.Transparent),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-                .padding(start = 12.dp, end = 14.dp, top = 10.dp, bottom = 8.dp),
+                .padding(start = 28.dp, end = 28.dp, top = 28.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -462,14 +462,17 @@ private fun EmbeddedStreamsLayout(
             ) {
                 Text(
                     text = stringResource(Res.string.compose_player_sources),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = Color.White.copy(alpha = 0.94f),
                     maxLines = 1,
                 )
                 Text(
                     text = sourceTitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color.White.copy(alpha = 0.56f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -478,7 +481,7 @@ private fun EmbeddedStreamsLayout(
                 modifier = Modifier
                     .size(40.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                        color = Color.White.copy(alpha = 0.09f),
                         shape = CircleShape,
                     )
                     .desktopClickablePointer()
@@ -488,7 +491,7 @@ private fun EmbeddedStreamsLayout(
                 Icon(
                     imageVector = Icons.Rounded.Refresh,
                     contentDescription = stringResource(Res.string.streams_refresh),
-                    tint = MaterialTheme.colorScheme.onSurface,
+                    tint = Color.White.copy(alpha = 0.86f),
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -506,6 +509,7 @@ private fun EmbeddedStreamsLayout(
             groups = uiState.groups,
             selectedFilter = uiState.selectedFilter,
             onFilterSelected = { addonId -> StreamsRepository.selectFilter(addonId) },
+            horizontalPadding = 28.dp,
         )
 
         StreamList(
@@ -514,6 +518,7 @@ private fun EmbeddedStreamsLayout(
             onStreamLongPress = onStreamLongPress,
             resumePositionMs = resumePositionMs,
             resumeProgressFraction = resumeProgressFraction,
+            horizontalPadding = 28.dp,
             modifier = Modifier.weight(1f),
         )
     }
@@ -810,6 +815,7 @@ internal fun ProviderFilterRow(
     selectedFilter: String?,
     onFilterSelected: (String?) -> Unit,
     modifier: Modifier = Modifier,
+    horizontalPadding: Dp = 12.dp,
 ) {
     val addonGroups = groups.filter { it.streams.isNotEmpty() || it.isLoading }
     if (addonGroups.isEmpty()) return
@@ -818,7 +824,7 @@ internal fun ProviderFilterRow(
         modifier = modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = horizontalPadding, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // "All" chip
@@ -909,6 +915,7 @@ internal fun StreamList(
     resumePositionMs: Long?,
     resumeProgressFraction: Float?,
     modifier: Modifier = Modifier,
+    horizontalPadding: Dp = 12.dp,
 ) {
     val filteredGroups = uiState.filteredGroups
     val hasGroups = filteredGroups.isNotEmpty()
@@ -918,7 +925,7 @@ internal fun StreamList(
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(
-            horizontal = 12.dp,
+            horizontal = horizontalPadding,
             vertical = 12.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(0.dp),
