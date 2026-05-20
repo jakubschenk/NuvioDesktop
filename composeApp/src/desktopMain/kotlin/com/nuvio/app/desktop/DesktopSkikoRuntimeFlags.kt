@@ -31,7 +31,6 @@ internal object DesktopSkikoRuntimeFlags {
         val composeLayersType = firstEnv("NUVIO_COMPOSE_LAYERS_TYPE", "COMPOSE_LAYERS_TYPE")
             ?.normalizeComposeLayersType()
             ?: System.getProperty("compose.layers.type")?.normalizeComposeLayersType()
-            ?: if (mpvSurface == "native-window") "COMPONENT" else null
         if (composeLayersType != null) {
             setProperty("compose.layers.type", composeLayersType, applied)
         }

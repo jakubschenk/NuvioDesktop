@@ -3,26 +3,29 @@
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.currentCompositionLocalContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.awt.ComposePanel
 import androidx.compose.ui.awt.ComposeWindow
+import androidx.compose.ui.awt.RenderSettings
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import com.nuvio.app.desktop.DesktopBorderlessFullscreenController
 import com.nuvio.app.LocalDesktopWindow
 import com.nuvio.app.core.storage.ProfileScopedKey
@@ -48,13 +51,19 @@ import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import java.awt.Point
 import java.awt.Toolkit
+import java.awt.Window
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.KeyEvent
 import java.awt.image.BufferedImage
 import java.util.Locale
+import javax.swing.JWindow
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlin.math.roundToInt
+import java.awt.Color as AwtColor
 
 private val isMacOS: Boolean by lazy {
     System.getProperty("os.name")?.lowercase()?.contains("mac") == true
@@ -1302,7 +1311,7 @@ actual fun PlayerOverlayLayer(
     modifier: Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    if (!usesComponentPlayerOverlayLayer() || layoutSize.width <= 0 || layoutSize.height <= 0) {
+    if (!usesOwnedPlayerOverlayWindow() || layoutSize.width <= 0 || layoutSize.height <= 0) {
         Box(
             modifier = modifier,
             content = content,
@@ -1310,40 +1319,164 @@ actual fun PlayerOverlayLayer(
         return
     }
 
-    val density = LocalDensity.current
-    Popup(
-        alignment = Alignment.TopStart,
-        offset = IntOffset.Zero,
-        properties = PopupProperties(
-            focusable = false,
-            dismissOnBackPress = false,
-            dismissOnClickOutside = false,
-            clippingEnabled = false,
-            usePlatformDefaultWidth = false,
-            usePlatformInsets = false,
-        ),
-        onDismissRequest = null,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(
-                    width = with(density) { layoutSize.width.toDp() },
-                    height = with(density) { layoutSize.height.toDp() },
+    var boundsInWindow by remember { mutableStateOf<IntRect?>(null) }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { coordinates ->
+                val bounds = coordinates.boundsInWindow()
+                boundsInWindow = IntRect(
+                    left = bounds.left.roundToInt(),
+                    top = bounds.top.roundToInt(),
+                    right = bounds.right.roundToInt(),
+                    bottom = bounds.bottom.roundToInt(),
                 )
-                .then(modifier),
-            content = content,
-        )
+            },
+    )
+
+    DesktopOwnedPlayerOverlayWindow(
+        boundsInWindow = boundsInWindow,
+        modifier = modifier,
+        content = content,
+    )
+}
+
+@Composable
+private fun DesktopOwnedPlayerOverlayWindow(
+    boundsInWindow: IntRect?,
+    modifier: Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val owner = LocalDesktopWindow.current
+    val compositionLocalContext = currentCompositionLocalContext
+    val latestBounds by rememberUpdatedState(boundsInWindow)
+    val latestModifier by rememberUpdatedState(modifier)
+    val latestContent by rememberUpdatedState(content)
+    val latestCompositionLocalContext by rememberUpdatedState(compositionLocalContext)
+
+    val overlay = remember(owner) {
+        owner?.let(::DesktopPlayerOverlayWindow)
+    }
+
+    DisposableEffect(overlay) {
+        val currentOverlay = overlay ?: return@DisposableEffect onDispose {}
+        currentOverlay.panel.setContent {
+            CompositionLocalProvider(latestCompositionLocalContext) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(latestModifier),
+                    content = latestContent,
+                )
+            }
+        }
+        onDispose {
+            currentOverlay.dispose()
+        }
+    }
+
+    DisposableEffect(overlay, owner) {
+        val currentOverlay = overlay ?: return@DisposableEffect onDispose {}
+        val currentOwner = owner ?: return@DisposableEffect onDispose {}
+        val listener = object : ComponentAdapter() {
+            override fun componentMoved(event: ComponentEvent) {
+                currentOverlay.updateBounds(latestBounds)
+            }
+
+            override fun componentResized(event: ComponentEvent) {
+                currentOverlay.updateBounds(latestBounds)
+            }
+
+            override fun componentShown(event: ComponentEvent) {
+                currentOverlay.updateBounds(latestBounds)
+            }
+
+            override fun componentHidden(event: ComponentEvent) {
+                currentOverlay.hide()
+            }
+        }
+        currentOwner.addComponentListener(listener)
+        onDispose {
+            currentOwner.removeComponentListener(listener)
+        }
+    }
+
+    SideEffect {
+        overlay?.updateBounds(boundsInWindow)
     }
 }
 
-private fun usesComponentPlayerOverlayLayer(): Boolean {
+@OptIn(ExperimentalComposeUiApi::class)
+private class DesktopPlayerOverlayWindow(
+    private val owner: Window,
+) {
+    val panel: ComposePanel = ComposePanel(
+        renderSettings = RenderSettings.SwingGraphics(),
+    ).apply {
+        isOpaque = false
+        background = TransparentAwtColor
+        isFocusable = true
+    }
+
+    private val window = JWindow(owner).apply {
+        type = Window.Type.POPUP
+        background = TransparentAwtColor
+        contentPane = panel
+        focusableWindowState = true
+        isAutoRequestFocus = false
+    }
+
+    fun updateBounds(boundsInWindow: IntRect?) {
+        if (boundsInWindow == null || boundsInWindow.width <= 0 || boundsInWindow.height <= 0 || !owner.isShowing) {
+            hide()
+            return
+        }
+
+        val origin = runCatching {
+            (owner as? ComposeWindow)?.contentPane?.locationOnScreen ?: owner.locationOnScreen
+        }.getOrElse {
+            hide()
+            return
+        }
+
+        val x = origin.x + boundsInWindow.left
+        val y = origin.y + boundsInWindow.top
+        val width = boundsInWindow.width.coerceAtLeast(1)
+        val height = boundsInWindow.height.coerceAtLeast(1)
+        if (
+            window.x != x ||
+            window.y != y ||
+            window.width != width ||
+            window.height != height
+        ) {
+            window.setBounds(x, y, width, height)
+            panel.setBounds(0, 0, width, height)
+            panel.revalidate()
+        }
+        if (!window.isVisible) {
+            window.isVisible = true
+        }
+    }
+
+    fun hide() {
+        if (window.isVisible) {
+            window.isVisible = false
+        }
+    }
+
+    fun dispose() {
+        panel.dispose()
+        window.isVisible = false
+        window.dispose()
+    }
+}
+
+private val TransparentAwtColor = AwtColor(0, 0, 0, 0)
+
+private fun usesOwnedPlayerOverlayWindow(): Boolean {
     if (!isWindowsDesktopPlayerOverlay()) return false
     if (System.getProperty("compose.interop.blending").equals("true", ignoreCase = true)) return false
-    val layerType = System.getProperty("compose.layers.type")
-        ?.trim()
-        ?.uppercase(Locale.US)
-        ?.replace('-', '_')
-    return layerType == "COMPONENT" && MpvDesktopSurfaceMode.resolve() == MpvDesktopSurfaceMode.NativeWindow
+    return MpvDesktopSurfaceMode.resolve() == MpvDesktopSurfaceMode.NativeWindow
 }
 
 private fun isWindowsDesktopPlayerOverlay(): Boolean =
