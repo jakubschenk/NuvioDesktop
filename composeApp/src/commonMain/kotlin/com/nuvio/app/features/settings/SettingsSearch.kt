@@ -434,6 +434,16 @@ internal fun settingsSearchEntries(
                 stringResource(Res.string.settings_playback_show_loading_overlay_description),
             ),
             PlaybackSearchRow(
+                "remember-volume",
+                stringResource(Res.string.settings_playback_remember_volume),
+                stringResource(Res.string.settings_playback_remember_volume_description),
+            ),
+            PlaybackSearchRow(
+                "default-volume",
+                stringResource(Res.string.settings_playback_default_volume),
+                stringResource(Res.string.settings_playback_default_volume_description),
+            ),
+            PlaybackSearchRow(
                 "external-player",
                 stringResource(Res.string.settings_playback_external_player),
                 stringResource(Res.string.settings_playback_external_player_description_android),

@@ -13,6 +13,8 @@ data class PlayerSettingsUiState(
     val resizeMode: PlayerResizeMode = PlayerResizeMode.Fit,
     val holdToSpeedEnabled: Boolean = true,
     val holdToSpeedValue: Float = 2f,
+    val rememberVolumeEnabled: Boolean = true,
+    val defaultVolumePercent: Int = 100,
     val externalPlayerEnabled: Boolean = false,
     val externalPlayerId: String? = ExternalPlayerPlatform.defaultPlayerId(),
     val preferredAudioLanguage: String = AudioLanguageOption.DEVICE,
@@ -54,6 +56,9 @@ object PlayerSettingsRepository {
     private var resizeMode = PlayerResizeMode.Fit
     private var holdToSpeedEnabled = true
     private var holdToSpeedValue = 2f
+    private var rememberVolumeEnabled = true
+    private var defaultVolumePercent = 100
+    private var sessionVolumeFraction: Float? = null
     private var externalPlayerEnabled = false
     private var externalPlayerId: String? = ExternalPlayerPlatform.defaultPlayerId()
     private var preferredAudioLanguage = AudioLanguageOption.DEVICE
@@ -100,6 +105,9 @@ object PlayerSettingsRepository {
         resizeMode = PlayerResizeMode.Fit
         holdToSpeedEnabled = true
         holdToSpeedValue = 2f
+        rememberVolumeEnabled = true
+        defaultVolumePercent = 100
+        sessionVolumeFraction = null
         externalPlayerEnabled = false
         externalPlayerId = ExternalPlayerPlatform.defaultPlayerId()
         preferredAudioLanguage = AudioLanguageOption.DEVICE
@@ -141,6 +149,11 @@ object PlayerSettingsRepository {
             ?: PlayerResizeMode.Fit
         holdToSpeedEnabled = PlayerSettingsStorage.loadHoldToSpeedEnabled() ?: true
         holdToSpeedValue = PlayerSettingsStorage.loadHoldToSpeedValue() ?: 2f
+        rememberVolumeEnabled = PlayerSettingsStorage.loadRememberVolumeEnabled() ?: true
+        defaultVolumePercent = (PlayerSettingsStorage.loadDefaultVolumePercent() ?: 100).coerceIn(0, 100)
+        if (!rememberVolumeEnabled) {
+            sessionVolumeFraction = null
+        }
         externalPlayerEnabled = PlayerSettingsStorage.loadExternalPlayerEnabled() ?: false
         externalPlayerId = PlayerSettingsStorage.loadExternalPlayerId()
             ?: ExternalPlayerPlatform.defaultPlayerId()
@@ -238,6 +251,42 @@ object PlayerSettingsRepository {
         holdToSpeedValue = normalized
         publish()
         PlayerSettingsStorage.saveHoldToSpeedValue(normalized)
+    }
+
+    fun setRememberVolumeEnabled(enabled: Boolean) {
+        ensureLoaded()
+        if (rememberVolumeEnabled == enabled) return
+        rememberVolumeEnabled = enabled
+        if (!enabled) {
+            sessionVolumeFraction = null
+        }
+        publish()
+        PlayerSettingsStorage.saveRememberVolumeEnabled(enabled)
+    }
+
+    fun setDefaultVolumePercent(percent: Int) {
+        ensureLoaded()
+        val normalized = percent.coerceIn(0, 100)
+        if (defaultVolumePercent == normalized) return
+        defaultVolumePercent = normalized
+        publish()
+        PlayerSettingsStorage.saveDefaultVolumePercent(normalized)
+    }
+
+    fun initialVolumeFraction(): Float {
+        ensureLoaded()
+        val fraction = if (rememberVolumeEnabled) {
+            sessionVolumeFraction ?: (defaultVolumePercent / 100f)
+        } else {
+            defaultVolumePercent / 100f
+        }
+        return fraction.coerceIn(0f, 1f)
+    }
+
+    fun rememberSessionVolume(fraction: Float) {
+        ensureLoaded()
+        if (!rememberVolumeEnabled) return
+        sessionVolumeFraction = fraction.coerceIn(0f, 1f)
     }
 
     fun setExternalPlayerEnabled(enabled: Boolean) {
@@ -504,6 +553,8 @@ object PlayerSettingsRepository {
             resizeMode = resizeMode,
             holdToSpeedEnabled = holdToSpeedEnabled,
             holdToSpeedValue = holdToSpeedValue,
+            rememberVolumeEnabled = rememberVolumeEnabled,
+            defaultVolumePercent = defaultVolumePercent,
             externalPlayerEnabled = externalPlayerEnabled,
             externalPlayerId = externalPlayerId,
             preferredAudioLanguage = preferredAudioLanguage,

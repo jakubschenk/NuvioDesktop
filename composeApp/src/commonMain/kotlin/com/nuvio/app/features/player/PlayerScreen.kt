@@ -274,8 +274,13 @@ fun PlayerScreen(
         var playerController by remember { mutableStateOf<PlayerEngineController?>(null) }
         var playerControllerSourceUrl by remember { mutableStateOf<String?>(null) }
         var playerAudioLevel by remember(activeSourceUrl) { mutableStateOf<PlayerAudioLevel?>(null) }
-        var rememberedPlayerAudioLevel by remember { mutableStateOf(PlayerAudioLevel(fraction = 1f, isMuted = false)) }
-        var pendingPlayerVolumeTarget by remember(activeSourceUrl) { mutableStateOf<Float?>(null) }
+        val initialPlayerAudioLevel = remember(activeSourceUrl) {
+            PlayerSettingsRepository.initialVolumeFraction().let { fraction ->
+                PlayerAudioLevel(fraction = fraction, isMuted = fraction <= 0f)
+            }
+        }
+        var rememberedPlayerAudioLevel by remember(activeSourceUrl) { mutableStateOf(initialPlayerAudioLevel) }
+        var pendingPlayerVolumeTarget by remember(activeSourceUrl) { mutableStateOf<Float?>(initialPlayerAudioLevel.fraction) }
         val visiblePlayerAudioLevel = playerAudioLevel ?: rememberedPlayerAudioLevel
         val volumeScrollAccumulator = remember(activeSourceUrl) { PlayerVolumeScrollAccumulator() }
         var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -744,6 +749,7 @@ fun PlayerScreen(
             val normalized = level?.let(::normalizedAudioLevel) ?: return
             playerAudioLevel = normalized
             rememberedPlayerAudioLevel = normalized
+            PlayerSettingsRepository.rememberSessionVolume(normalized.fraction)
         }
 
         fun optimisticAudioLevelForVolume(level: Float): PlayerAudioLevel {
