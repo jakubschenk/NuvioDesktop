@@ -62,6 +62,11 @@ internal object MetaDetailsParser {
     private fun JsonObject.string(name: String): String? =
         this[name]?.jsonPrimitive?.contentOrNull
 
+    private fun JsonObject.firstString(vararg names: String): String? =
+        names.firstNotNullOfOrNull { name ->
+            string(name)?.trim()?.takeIf(String::isNotBlank)
+        }
+
     private fun JsonObject.array(name: String): JsonArray =
         this[name] as? JsonArray ?: JsonArray(emptyList())
 
@@ -92,6 +97,12 @@ internal object MetaDetailsParser {
 
     private fun JsonObject.int(name: String): Int? =
         this[name]?.jsonPrimitive?.intOrNull
+
+    private fun JsonObject.firstInt(vararg names: String): Int? =
+        names.firstNotNullOfOrNull { name ->
+            val primitive = this[name]?.jsonPrimitive ?: return@firstNotNullOfOrNull null
+            primitive.intOrNull ?: primitive.contentOrNull?.trim()?.toIntOrNull()
+        }
 
     private fun JsonObject.boolean(name: String): Boolean? =
         this[name]?.jsonPrimitive?.booleanOrNull
@@ -175,8 +186,19 @@ internal object MetaDetailsParser {
                             ?: return@mapNotNull null
                         MetaPerson(
                             name = personName,
-                            role = element.string("character")?.trim()?.takeIf(String::isNotBlank),
-                            photo = element.string("photo")?.trim()?.takeIf(String::isNotBlank),
+                            role = element.firstString("character", "role", "job"),
+                            photo = element.firstString(
+                                "photo",
+                                "profilePhoto",
+                                "profile_photo",
+                                "profilePath",
+                                "profile_path",
+                                "image",
+                                "imageUrl",
+                                "image_url",
+                                "avatar",
+                            ),
+                            tmdbId = element.firstInt("tmdbId", "tmdb_id", "id"),
                         )
                     }
                     is JsonPrimitive -> element.contentOrNull
@@ -210,6 +232,7 @@ internal object MetaDetailsParser {
                     existing.copy(
                         role = existing.role ?: person.role,
                         photo = existing.photo ?: person.photo,
+                        tmdbId = existing.tmdbId ?: person.tmdbId,
                     )
                 }
             }

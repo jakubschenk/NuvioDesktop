@@ -29,4 +29,34 @@ class MetaDetailsParserTest {
         assertEquals("series", result.type)
         assertEquals("The Fragrant Flower Blooms with Dignity", result.name)
     }
+
+    @Test
+    fun `parse accepts app extras cast profile fields`() {
+        val result = MetaDetailsParser.parse(
+            """
+            {
+              "meta": {
+                "id": "tt123",
+                "type": "movie",
+                "name": "Example",
+                "app_extras": {
+                  "cast": [
+                    {
+                      "id": "42",
+                      "name": "Example Actor",
+                      "character": "Example Role",
+                      "profile_path": "/actor.jpg"
+                    }
+                  ]
+                }
+              }
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals("Example Actor", result.cast.single().name)
+        assertEquals("Example Role", result.cast.single().role)
+        assertEquals("/actor.jpg", result.cast.single().photo)
+        assertEquals(42, result.cast.single().tmdbId)
+    }
 }

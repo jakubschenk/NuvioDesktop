@@ -718,7 +718,11 @@ private fun EpisodeHorizontalRow(
         state = listState,
         modifier = Modifier
             .fillMaxWidth()
-            .desktopHorizontalLazyRowGestures(listState, scrollWithoutShift = true),
+            .desktopHorizontalLazyRowGestures(
+                listState = listState,
+                scrollWithoutShift = true,
+                wheelScrollMultiplier = 3.4f,
+            ),
         contentPadding = PaddingValues(horizontal = rowMetrics.rowHorizontalPadding, vertical = rowMetrics.rowVerticalPadding),
         horizontalArrangement = Arrangement.spacedBy(rowMetrics.itemSpacing),
     ) {

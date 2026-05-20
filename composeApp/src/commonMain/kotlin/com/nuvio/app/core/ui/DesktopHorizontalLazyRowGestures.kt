@@ -6,4 +6,5 @@ import androidx.compose.ui.Modifier
 expect fun Modifier.desktopHorizontalLazyRowGestures(
     listState: LazyListState,
     scrollWithoutShift: Boolean = false,
+    wheelScrollMultiplier: Float = 1f,
 ): Modifier
