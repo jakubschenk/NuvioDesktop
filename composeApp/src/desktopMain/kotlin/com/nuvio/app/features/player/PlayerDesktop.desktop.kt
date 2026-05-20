@@ -1478,8 +1478,8 @@ private class DesktopPlayerOverlayWindow(
 @OptIn(ExperimentalComposeUiApi::class)
 private fun desktopPlayerOverlayRenderSettings(): RenderSettings =
     when (System.getenv("NUVIO_PLAYER_OVERLAY_RENDERER")?.trim()?.lowercase(Locale.US)) {
-        "swing", "swing-graphics", "swing_graphics", "gdi" -> RenderSettings.SwingGraphics()
-        else -> RenderSettings.SkiaSurface()
+        "skia", "skia-surface", "skia_surface", "angle" -> RenderSettings.SkiaSurface()
+        else -> RenderSettings.SwingGraphics()
     }
 
 private val OverlayHitTestAwtColor = AwtColor(0, 0, 0, 1)
