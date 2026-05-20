@@ -1,5 +1,8 @@
 package com.nuvio.app.features.player.desktop
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -9,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.nuvio.app.desktop.DesktopPlayerRegistry
 import com.nuvio.app.desktop.DesktopRuntimeLog
 import com.nuvio.app.features.player.PlayerEngineController
@@ -98,7 +102,9 @@ internal fun DesktopPlayerSurfaceHost(
         backend.setResizeMode(resizeMode)
     }
 
-    backend.Surface(modifier)
+    Box(modifier = modifier.background(Color.Black)) {
+        backend.Surface(Modifier.fillMaxSize())
+    }
 }
 
 private fun String.sha256Prefix(): String {
