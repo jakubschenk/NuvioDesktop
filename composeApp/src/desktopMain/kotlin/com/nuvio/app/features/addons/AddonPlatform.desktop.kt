@@ -132,15 +132,18 @@ private fun readResponseBody(body: ResponseBody?): String {
 }
 
 private suspend fun executeTextRequest(
+    label: String,
     method: String,
     url: String,
     headers: Map<String, String> = emptyMap(),
     body: String = "",
 ): String = withContext(Dispatchers.IO) {
+    val traceUrl = normalizeDesktopAddonRequestUrl(url)
+    ApiKacheClient.traceNetworkStart(label, method, traceUrl)
     try {
         val normalizedMethod = method.uppercase()
         val sanitizedHeaders = headers.withoutAcceptEncoding()
-        val builder = Request.Builder().url(normalizeDesktopAddonRequestUrl(url))
+        val builder = Request.Builder().url(traceUrl)
         sanitizedHeaders.forEach { (key, value) ->
             builder.header(key, value)
         }
@@ -157,6 +160,13 @@ private suspend fun executeTextRequest(
 
         addonHttpClient.newCall(request).execute().use { response ->
             val payload = readResponseBody(response.body)
+            ApiKacheClient.traceNetworkEnd(
+                label = label,
+                method = normalizedMethod,
+                url = traceUrl,
+                status = response.code,
+                bytes = payload.length,
+            )
             if (!response.isSuccessful) {
                 error("Request failed with HTTP ${response.code}")
             }
@@ -166,6 +176,7 @@ private suspend fun executeTextRequest(
             payload
         }
     } catch (e: Exception) {
+        ApiKacheClient.traceNetworkError(label, method, traceUrl, e)
         throw e
     }
 }
@@ -173,6 +184,7 @@ private suspend fun executeTextRequest(
 actual suspend fun httpGetText(url: String): String =
     ApiKacheClient.getText(url) {
         executeTextRequest(
+            label = "generic-get",
             method = "GET",
             url = url,
             headers = mapOf("Accept" to "application/json"),
@@ -182,6 +194,7 @@ actual suspend fun httpGetText(url: String): String =
 actual suspend fun httpGetSourceText(url: String): String =
     ApiKacheClient.getSourceText(url) {
         executeTextRequest(
+            label = "source-get",
             method = "GET",
             url = url,
             headers = mapOf("Accept" to "application/json"),
@@ -189,8 +202,9 @@ actual suspend fun httpGetSourceText(url: String): String =
     }
 
 actual suspend fun httpPostJson(url: String, body: String): String =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "post-json", method = "POST", url = url) {
         executeTextRequest(
+            label = "post-json",
             method = "POST",
             url = url,
             headers = mapOf(
@@ -205,8 +219,9 @@ actual suspend fun httpGetTextWithHeaders(
     url: String,
     headers: Map<String, String>,
 ): String =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "get-with-headers", method = "GET", url = url) {
         executeTextRequest(
+            label = "get-with-headers",
             method = "GET",
             url = url,
             headers = mapOf("Accept" to "application/json") + headers,
@@ -218,8 +233,9 @@ actual suspend fun httpPostJsonWithHeaders(
     body: String,
     headers: Map<String, String>,
 ): String =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "post-json-with-headers", method = "POST", url = url) {
         executeTextRequest(
+            label = "post-json-with-headers",
             method = "POST",
             url = url,
             headers = mapOf(
@@ -237,11 +253,13 @@ actual suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean,
 ): RawHttpResponse =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "raw", method = method, url = url) {
         withContext(Dispatchers.IO) {
             val normalizedMethod = method.uppercase()
             val sanitizedHeaders = headers.withoutAcceptEncoding()
-            val builder = Request.Builder().url(normalizeDesktopAddonRequestUrl(url))
+            val traceUrl = normalizeDesktopAddonRequestUrl(url)
+            ApiKacheClient.traceNetworkStart("raw", normalizedMethod, traceUrl)
+            val builder = Request.Builder().url(traceUrl)
             sanitizedHeaders.forEach { (key, value) ->
                 builder.header(key, value)
             }
@@ -264,18 +282,31 @@ actual suspend fun httpRequestRaw(
                     .build()
             }
 
-            client.newCall(request).execute().use { response ->
-                RawHttpResponse(
-                    status = response.code,
-                    statusText = response.message,
-                    url = response.request.url.toString(),
-                    body = readResponseBodyLimited(response.body),
-                    headers = response.headers.toMultimap().mapValues { (_, values) ->
-                        values.joinToString(",")
-                    }.mapKeys { (name, _) ->
-                        name.lowercase()
-                    },
-                )
+            try {
+                client.newCall(request).execute().use { response ->
+                    val responseBody = readResponseBodyLimited(response.body)
+                    ApiKacheClient.traceNetworkEnd(
+                        label = "raw",
+                        method = normalizedMethod,
+                        url = traceUrl,
+                        status = response.code,
+                        bytes = responseBody.length,
+                    )
+                    RawHttpResponse(
+                        status = response.code,
+                        statusText = response.message,
+                        url = response.request.url.toString(),
+                        body = responseBody,
+                        headers = response.headers.toMultimap().mapValues { (_, values) ->
+                            values.joinToString(",")
+                        }.mapKeys { (name, _) ->
+                            name.lowercase()
+                        },
+                    )
+                }
+            } catch (e: Exception) {
+                ApiKacheClient.traceNetworkError("raw", normalizedMethod, traceUrl, e)
+                throw e
             }
         }
     }

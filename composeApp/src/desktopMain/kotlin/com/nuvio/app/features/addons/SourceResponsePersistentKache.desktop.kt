@@ -6,6 +6,8 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.io.path.createDirectories
+import kotlin.io.path.exists
+import kotlin.io.path.fileSize
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
 import kotlinx.coroutines.sync.Mutex
@@ -13,6 +15,41 @@ import kotlinx.coroutines.sync.withLock
 
 internal actual object ApiKacheClock {
     actual fun nowEpochMs(): Long = System.currentTimeMillis()
+}
+
+internal actual object ApiRequestTraceLog {
+    private const val maxLogBytes = 5L * 1024L * 1024L
+    private val logLock = Any()
+
+    actual fun append(line: String) {
+        synchronized(logLock) {
+            runCatching {
+                val file = traceLogFile()
+                if (file.exists() && file.fileSize() > maxLogBytes) {
+                    file.writeText("", StandardCharsets.UTF_8)
+                }
+                java.nio.file.Files.writeString(
+                    file,
+                    line + System.lineSeparator(),
+                    StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.APPEND,
+                )
+            }
+        }
+    }
+
+    private fun traceLogFile(): Path =
+        Paths.get(
+            System.getProperty("user.home"),
+            "Library",
+            "Application Support",
+            "Nuvio",
+            "logs",
+            "network-requests.log",
+        ).apply {
+            parent.createDirectories()
+        }
 }
 
 internal actual object SourceResponsePersistentKache {

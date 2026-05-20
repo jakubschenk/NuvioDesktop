@@ -4,6 +4,10 @@ internal actual object ApiKacheClock {
     actual fun nowEpochMs(): Long = System.currentTimeMillis()
 }
 
+internal actual object ApiRequestTraceLog {
+    actual fun append(line: String) = Unit
+}
+
 internal actual object SourceResponsePersistentKache {
     actual suspend fun read(cacheKey: String): ApiKacheEntry? = null
 

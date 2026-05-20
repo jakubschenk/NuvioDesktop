@@ -83,7 +83,7 @@ actual suspend fun httpGetSourceText(url: String): String =
     }
 
 actual suspend fun httpPostJson(url: String, body: String): String =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "post-json", method = "POST", url = url) {
         addonHttpClient
             .post(url) {
                 accept(ContentType.Application.Json)
@@ -106,7 +106,7 @@ actual suspend fun httpGetTextWithHeaders(
     url: String,
     headers: Map<String, String>,
 ): String =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "get-with-headers", method = "GET", url = url) {
         addonHttpClient
             .get(url) {
                 accept(ContentType.Application.Json)
@@ -131,7 +131,7 @@ actual suspend fun httpPostJsonWithHeaders(
     body: String,
     headers: Map<String, String>,
 ): String =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "post-json-with-headers", method = "POST", url = url) {
         addonHttpClient
             .post(url) {
                 accept(ContentType.Application.Json)
@@ -160,7 +160,7 @@ actual suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean,
 ): RawHttpResponse =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "raw", method = method, url = url) {
         addonHttpClient
             .request {
                 url(url)

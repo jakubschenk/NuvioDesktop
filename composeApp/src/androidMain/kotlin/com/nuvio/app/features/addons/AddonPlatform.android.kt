@@ -128,12 +128,14 @@ private fun readResponseBody(body: ResponseBody?): String {
 }
 
 private suspend fun executeTextRequest(
+    label: String,
     method: String,
     url: String,
     headers: Map<String, String> = emptyMap(),
     body: String = "",
 ): String = withContext(Dispatchers.IO) {
     val normalizedMethod = method.uppercase()
+    ApiKacheClient.traceNetworkStart(label, normalizedMethod, url)
     val sanitizedHeaders = headers.withoutAcceptEncoding()
     val builder = Request.Builder().url(url)
     sanitizedHeaders.forEach { (key, value) ->
@@ -152,6 +154,7 @@ private suspend fun executeTextRequest(
 
     addonHttpClient.newCall(request).execute().use { response ->
         val payload = readResponseBody(response.body)
+        ApiKacheClient.traceNetworkEnd(label, normalizedMethod, url, response.code, payload.length)
         if (!response.isSuccessful) {
             error("Request failed with HTTP ${response.code}")
         }
@@ -165,6 +168,7 @@ private suspend fun executeTextRequest(
 actual suspend fun httpGetText(url: String): String =
     ApiKacheClient.getText(url) {
         executeTextRequest(
+            label = "generic-get",
             method = "GET",
             url = url,
             headers = mapOf("Accept" to "application/json"),
@@ -174,6 +178,7 @@ actual suspend fun httpGetText(url: String): String =
 actual suspend fun httpGetSourceText(url: String): String =
     ApiKacheClient.getSourceText(url) {
         executeTextRequest(
+            label = "source-get",
             method = "GET",
             url = url,
             headers = mapOf("Accept" to "application/json"),
@@ -181,8 +186,9 @@ actual suspend fun httpGetSourceText(url: String): String =
     }
 
 actual suspend fun httpPostJson(url: String, body: String): String =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "post-json", method = "POST", url = url) {
         executeTextRequest(
+            label = "post-json",
             method = "POST",
             url = url,
             headers = mapOf(
@@ -197,8 +203,9 @@ actual suspend fun httpGetTextWithHeaders(
     url: String,
     headers: Map<String, String>,
 ): String =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "get-with-headers", method = "GET", url = url) {
         executeTextRequest(
+            label = "get-with-headers",
             method = "GET",
             url = url,
             headers = mapOf("Accept" to "application/json") + headers,
@@ -210,8 +217,9 @@ actual suspend fun httpPostJsonWithHeaders(
     body: String,
     headers: Map<String, String>,
 ): String =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "post-json-with-headers", method = "POST", url = url) {
         executeTextRequest(
+            label = "post-json-with-headers",
             method = "POST",
             url = url,
             headers = mapOf(
@@ -229,9 +237,10 @@ actual suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean,
 ): RawHttpResponse =
-    ApiKacheClient.noStore {
+    ApiKacheClient.noStore(label = "raw", method = method, url = url) {
         withContext(Dispatchers.IO) {
             val normalizedMethod = method.uppercase()
+            ApiKacheClient.traceNetworkStart("raw", normalizedMethod, url)
             val sanitizedHeaders = headers.withoutAcceptEncoding()
             val builder = Request.Builder().url(url)
             sanitizedHeaders.forEach { (key, value) ->
@@ -257,11 +266,13 @@ actual suspend fun httpRequestRaw(
             }
 
             client.newCall(request).execute().use { response ->
+                val responseBody = readResponseBodyLimited(response.body)
+                ApiKacheClient.traceNetworkEnd("raw", normalizedMethod, url, response.code, responseBody.length)
                 RawHttpResponse(
                     status = response.code,
                     statusText = response.message,
                     url = response.request.url.toString(),
-                    body = readResponseBodyLimited(response.body),
+                    body = responseBody,
                     headers = response.headers.toMultimap().mapValues { (_, values) ->
                         values.joinToString(",")
                     }.mapKeys { (name, _) ->

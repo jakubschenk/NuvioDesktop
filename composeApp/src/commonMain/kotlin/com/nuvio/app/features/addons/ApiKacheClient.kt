@@ -3,6 +3,7 @@ package com.nuvio.app.features.addons
 import co.touchlab.kermit.Logger
 import com.mayakapps.kache.InMemoryKache
 import com.mayakapps.kache.KacheStrategy
+import com.nuvio.app.core.logging.redactedUrlForLog
 import kotlin.time.Duration.Companion.minutes
 
 internal data class ApiKacheEntry(
@@ -12,6 +13,10 @@ internal data class ApiKacheEntry(
 
 internal expect object ApiKacheClock {
     fun nowEpochMs(): Long
+}
+
+internal expect object ApiRequestTraceLog {
+    fun append(line: String)
 }
 
 internal expect object SourceResponsePersistentKache {
@@ -40,6 +45,8 @@ internal object ApiKacheClient {
         fetch: suspend () -> String,
     ): String =
         cachedText(
+            label = "generic-get",
+            url = url,
             cacheKey = "GET|$url",
             ttlMs = GenericGetTtlMs,
             persistentSourceCache = false,
@@ -51,6 +58,8 @@ internal object ApiKacheClient {
         fetch: suspend () -> String,
     ): String =
         cachedText(
+            label = "source-get",
+            url = url,
             cacheKey = "SOURCE|GET|$url",
             ttlMs = SourceResponseTtlMs,
             persistentSourceCache = true,
@@ -58,10 +67,37 @@ internal object ApiKacheClient {
         )
 
     suspend fun <T> noStore(
+        label: String,
+        method: String,
+        url: String,
         fetch: suspend () -> T,
-    ): T = fetch()
+    ): T {
+        trace("NO_STORE_START label=$label method=${method.uppercase()} ${url.redactedUrlForLog()}")
+        return runCatching { fetch() }
+            .onSuccess {
+                trace("NO_STORE_END label=$label method=${method.uppercase()} ${url.redactedUrlForLog()}")
+            }
+            .onFailure { error ->
+                trace("NO_STORE_ERROR label=$label method=${method.uppercase()} ${url.redactedUrlForLog()} error=${error.safeMessage()}")
+            }
+            .getOrThrow()
+    }
+
+    fun traceNetworkStart(label: String, method: String, url: String) {
+        trace("NETWORK_START label=$label method=${method.uppercase()} ${url.redactedUrlForLog()}")
+    }
+
+    fun traceNetworkEnd(label: String, method: String, url: String, status: Int, bytes: Int) {
+        trace("NETWORK_END label=$label method=${method.uppercase()} status=$status bytes=$bytes ${url.redactedUrlForLog()}")
+    }
+
+    fun traceNetworkError(label: String, method: String, url: String, error: Throwable) {
+        trace("NETWORK_ERROR label=$label method=${method.uppercase()} ${url.redactedUrlForLog()} error=${error.safeMessage()}")
+    }
 
     private suspend fun cachedText(
+        label: String,
+        url: String,
         cacheKey: String,
         ttlMs: Long,
         persistentSourceCache: Boolean,
@@ -69,6 +105,7 @@ internal object ApiKacheClient {
     ): String {
         val memoryEntry = freshMemoryEntry(cacheKey, ttlMs)
         if (memoryEntry != null) {
+            trace("CACHE_HIT_MEMORY label=$label ttlMs=$ttlMs ${url.redactedUrlForLog()}")
             return memoryEntry.body
         }
 
@@ -77,13 +114,16 @@ internal object ApiKacheClient {
             if (diskEntry != null && diskEntry.isFresh(ttlMs)) {
                 textCache.put(cacheKey, diskEntry)
                 log.d { "Source response disk cache hit" }
+                trace("CACHE_HIT_DISK label=$label ttlMs=$ttlMs ${url.redactedUrlForLog()}")
                 return diskEntry.body
             }
             if (diskEntry != null) {
+                trace("CACHE_EXPIRED_DISK label=$label ttlMs=$ttlMs ${url.redactedUrlForLog()}")
                 SourceResponsePersistentKache.remove(cacheKey)
             }
         }
 
+        trace("CACHE_MISS label=$label ttlMs=$ttlMs ${url.redactedUrlForLog()}")
         val entry = textCache.getOrPut(cacheKey) {
             ApiKacheEntry(
                 cachedAtMs = ApiKacheClock.nowEpochMs(),
@@ -97,6 +137,8 @@ internal object ApiKacheClient {
         if (!entry.isFresh(ttlMs)) {
             textCache.remove(cacheKey)
             return cachedText(
+                label = label,
+                url = url,
                 cacheKey = cacheKey,
                 ttlMs = ttlMs,
                 persistentSourceCache = persistentSourceCache,
@@ -122,4 +164,11 @@ internal object ApiKacheClient {
 
     private fun ApiKacheEntry.isFresh(ttlMs: Long): Boolean =
         cachedAtMs > 0L && ApiKacheClock.nowEpochMs() - cachedAtMs <= ttlMs
+
+    private fun trace(message: String) {
+        ApiRequestTraceLog.append("${ApiKacheClock.nowEpochMs()} $message")
+    }
+
+    private fun Throwable.safeMessage(): String =
+        "${this::class.simpleName}:${message?.take(180).orEmpty()}"
 }
