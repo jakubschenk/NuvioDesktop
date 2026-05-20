@@ -60,7 +60,6 @@ import java.awt.image.BufferedImage
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JWindow
-import javax.swing.Timer
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -71,8 +70,6 @@ import java.awt.Color as AwtColor
 private val isMacOS: Boolean by lazy {
     System.getProperty("os.name")?.lowercase()?.contains("mac") == true
 }
-
-private const val DefaultPlayerOverlaySwingRepaintHz = 120
 
 @Composable
 actual fun PlatformPlayerSurface(
@@ -1443,22 +1440,8 @@ private class DesktopPlayerOverlayWindow(
         isAutoRequestFocus = false
     }
 
-    private val repaintTimer: Timer? = renderConfig.repaintHz?.let { repaintHz ->
-        Timer((1000.0 / repaintHz).roundToInt().coerceAtLeast(1)) {
-            if (!disposed && window.isVisible && panel.isShowing) {
-                panel.repaint()
-            }
-        }.apply {
-            isRepeats = true
-            setCoalesce(true)
-        }
-    }
-
     init {
-        DesktopRuntimeLog.info(
-            "playerOverlay renderer=${renderConfig.name} " +
-                "repaintHz=${renderConfig.repaintHz?.toString() ?: "off"}",
-        )
+        DesktopRuntimeLog.info("playerOverlay renderer=${renderConfig.name}")
     }
 
     fun updateBounds(boundsInWindow: IntRect?) {
@@ -1510,7 +1493,6 @@ private class DesktopPlayerOverlayWindow(
         if (!window.isVisible) {
             window.isVisible = true
         }
-        startRepaintPump()
     }
 
     fun hide() {
@@ -1526,7 +1508,6 @@ private class DesktopPlayerOverlayWindow(
     }
 
     private fun hideOnEventQueue() {
-        stopRepaintPump()
         if (window.isVisible) {
             window.isVisible = false
         }
@@ -1555,17 +1536,6 @@ private class DesktopPlayerOverlayWindow(
             }
         }
     }
-
-    private fun startRepaintPump() {
-        val timer = repaintTimer ?: return
-        if (!timer.isRunning) {
-            timer.start()
-        }
-    }
-
-    private fun stopRepaintPump() {
-        repaintTimer?.stop()
-    }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -1574,42 +1544,24 @@ private fun desktopPlayerOverlayRenderConfig(): DesktopPlayerOverlayRenderConfig
         ?.trim()
         ?.lowercase(Locale.US)
         ?.replace('_', '-')
-    val renderSettings = when (renderer) {
-        "skia", "skia-surface", "angle" -> DesktopPlayerOverlayRenderConfig(
-            name = "skia",
-            renderSettings = RenderSettings.SkiaSurface(),
-            defaultRepaintHz = null,
+    return when (renderer) {
+        "swing", "swing-graphics", "gdi" -> DesktopPlayerOverlayRenderConfig(
+            name = "swing",
+            renderSettings = RenderSettings.SwingGraphics(),
         )
 
         else -> DesktopPlayerOverlayRenderConfig(
-            name = "swing",
-            renderSettings = RenderSettings.SwingGraphics(),
-            defaultRepaintHz = DefaultPlayerOverlaySwingRepaintHz,
+            name = "skia",
+            renderSettings = RenderSettings.SkiaSurface(),
         )
     }
-    return renderSettings.copy(
-        repaintHz = desktopPlayerOverlayRepaintHz(renderSettings.defaultRepaintHz),
-    )
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
 private data class DesktopPlayerOverlayRenderConfig(
     val name: String,
     val renderSettings: RenderSettings,
-    val defaultRepaintHz: Int?,
-    val repaintHz: Int? = defaultRepaintHz,
 )
-
-private fun desktopPlayerOverlayRepaintHz(defaultRepaintHz: Int?): Int? {
-    val configured = System.getenv("NUVIO_PLAYER_OVERLAY_REPAINT_HZ")
-        ?.trim()
-        ?.takeIf(String::isNotBlank)
-        ?: return defaultRepaintHz
-    return when (configured.lowercase(Locale.US)) {
-        "0", "off", "false", "no", "disabled" -> null
-        else -> configured.toIntOrNull()?.coerceIn(1, 240) ?: defaultRepaintHz
-    }
-}
 
 private val OverlayHitTestAwtColor = AwtColor(0, 0, 0, 1)
 private val OverlayHitTestColor = Color.Black.copy(alpha = 1f / 255f)
