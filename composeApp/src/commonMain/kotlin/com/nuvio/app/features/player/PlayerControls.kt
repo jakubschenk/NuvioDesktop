@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
@@ -56,23 +58,44 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.appIconPainter
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.nuvioTypeScale
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.roundToInt
+
+private val PlayerVolumeSliderTouchHeight = 34.dp
+private val PlayerVolumeTrackHeight = 4.dp
+private val PlayerVolumeThumbSize = 12.dp
+private val PlayerVolumeHoverThumbSize = 10.dp
+private const val PlayerVolumeKeyboardStep = 0.05f
 
 @Composable
 internal fun PlayerControlsShell(
@@ -645,12 +668,28 @@ private fun PlayerVolumeSlider(
     onVolumeChange: (Float) -> Unit,
     onMuteClick: () -> Unit,
 ) {
-    val percentage = (volumeLevel.fraction * 100f).toInt().coerceIn(0, 100)
+    val percentage = (volumeLevel.fraction * 100f).roundToInt().coerceIn(0, 100)
+    val focusRequester = remember { FocusRequester() }
     val onVolumeChangeState = rememberUpdatedState(onVolumeChange)
+    var sliderWidthPx by remember { mutableStateOf(0) }
+    var isHovered by remember { mutableStateOf(false) }
+    var isFocused by remember { mutableStateOf(false) }
+    var isDragging by remember { mutableStateOf(false) }
+    val coercedVolume = volumeLevel.fraction.coerceIn(0f, 1f)
+    val density = LocalDensity.current
 
     fun volumeForX(x: Float, width: Float): Float {
-        if (width <= 0f) return volumeLevel.fraction.coerceIn(0f, 1f)
+        if (width <= 0f) return coercedVolume
         return (x / width).coerceIn(0f, 1f)
+    }
+
+    fun commitVolume(value: Float) {
+        onVolumeChangeState.value(value.coerceIn(0f, 1f))
+    }
+
+    fun commitVolumeForX(x: Float) {
+        val width = sliderWidthPx.toFloat().takeIf { it > 0f } ?: return
+        commitVolume(volumeForX(x, width))
     }
 
     Row(
@@ -676,30 +715,86 @@ private fun PlayerVolumeSlider(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(34.dp)
+                .height(PlayerVolumeSliderTouchHeight)
+                .desktopClickablePointer()
+                .onSizeChanged { size -> sliderWidthPx = size.width }
+                .focusRequester(focusRequester)
+                .onFocusChanged { isFocused = it.isFocused }
+                .focusable()
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.DirectionLeft -> {
+                            commitVolume(coercedVolume - PlayerVolumeKeyboardStep)
+                            true
+                        }
+
+                        Key.DirectionRight -> {
+                            commitVolume(coercedVolume + PlayerVolumeKeyboardStep)
+                            true
+                        }
+
+                        else -> false
+                    }
+                }
+                .onPointerEvent(PointerEventType.Enter) { isHovered = true }
+                .onPointerEvent(PointerEventType.Exit) {
+                    isHovered = false
+                }
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         val down = awaitFirstDown(pass = PointerEventPass.Initial)
-                        val width = size.width.toFloat().takeIf { it > 0f } ?: return@awaitEachGesture
-                        onVolumeChangeState.value(volumeForX(down.position.x, width))
-                        down.consume()
+                        focusRequester.requestFocus()
+                        sliderWidthPx = size.width
+                        isDragging = true
+                        try {
+                            commitVolumeForX(down.position.x)
+                            down.consume()
 
-                        while (true) {
-                            val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            if (!change.pressed) break
-                            onVolumeChangeState.value(volumeForX(change.position.x, width))
-                            change.consume()
+                            while (true) {
+                                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
+                                commitVolumeForX(change.position.x)
+                                change.consume()
+                            }
+                        } finally {
+                            isDragging = false
                         }
                     }
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Slider(
-                modifier = Modifier.fillMaxSize(),
-                value = volumeLevel.fraction.coerceIn(0f, 1f),
-                onValueChange = onVolumeChange,
-                valueRange = 0f..1f,
+            val thumbSize = if (isHovered || isFocused || isDragging) PlayerVolumeThumbSize else PlayerVolumeHoverThumbSize
+            val thumbOffsetPx = with(density) { (thumbSize / 2).roundToPx() }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(PlayerVolumeTrackHeight)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color.White.copy(alpha = 0.26f)),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(coercedVolume)
+                        .height(PlayerVolumeTrackHeight)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color.White.copy(alpha = if (volumeLevel.isMuted) 0.48f else 0.92f)),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .offset {
+                        IntOffset(
+                            x = (sliderWidthPx * coercedVolume).roundToInt() - thumbOffsetPx,
+                            y = 0,
+                        )
+                    }
+                    .size(thumbSize)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.98f)),
             )
         }
         Text(
