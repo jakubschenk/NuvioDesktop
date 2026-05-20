@@ -166,6 +166,7 @@ fun NuvioPosterCard(
     bottomLeftText: String? = null,
     isWatched: Boolean = false,
     posterCardStyle: PosterCardStyleUiState? = null,
+    animateWatchedBadge: Boolean = true,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -265,7 +266,15 @@ fun NuvioPosterCard(
                 }
             }
 
-            NuvioPosterWatchedOverlay(isWatched = isWatched)
+            if (animateWatchedBadge) {
+                NuvioPosterWatchedOverlay(isWatched = isWatched)
+            } else if (isWatched) {
+                NuvioWatchedBadge(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp),
+                )
+            }
         }
         if (shouldShowTitleBelow) {
             Text(
