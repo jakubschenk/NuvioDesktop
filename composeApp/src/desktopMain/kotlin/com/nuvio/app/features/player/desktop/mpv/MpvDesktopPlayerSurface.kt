@@ -15,6 +15,7 @@ import org.openani.mediamp.mpv.compose.MpvMediampPlayerSurface
 import java.awt.BorderLayout
 import java.awt.Canvas
 import java.awt.EventQueue
+import java.awt.Graphics
 import javax.swing.JPanel
 import java.awt.Color as AwtColor
 
@@ -25,6 +26,8 @@ internal fun MpvDesktopPlayerSurface(
     modifier: Modifier,
     surfaceMode: MpvDesktopSurfaceMode,
     onSurfaceReady: () -> Unit,
+    attachNativeSurface: (Long) -> Boolean = { windowPtr -> player.attachRenderSurface(windowPtr) },
+    detachNativeSurface: () -> Boolean = { player.detachRenderSurface() },
 ) {
     when (surfaceMode) {
         MpvDesktopSurfaceMode.OpenGlInterop -> {
@@ -39,7 +42,7 @@ internal fun MpvDesktopPlayerSurface(
             val latestOnSurfaceReady = rememberUpdatedState(onSurfaceReady)
             DisposableEffect(player) {
                 onDispose {
-                    runCatching { player.detachRenderSurface() }
+                    runCatching { detachNativeSurface() }
                         .onFailure { DesktopRuntimeLog.warn("MPV native surface detach failed: ${it.message}") }
                 }
             }
@@ -48,7 +51,8 @@ internal fun MpvDesktopPlayerSurface(
                 background = Color.Black,
                 factory = {
                     MpvNativeWindowPanel(
-                        player = player,
+                        attachNativeSurface = attachNativeSurface,
+                        detachNativeSurface = detachNativeSurface,
                         onSurfaceReady = { latestOnSurfaceReady.value() },
                     )
                 },
@@ -62,18 +66,30 @@ internal fun MpvDesktopPlayerSurface(
 
 @OptIn(InternalMediampApi::class)
 private class MpvNativeWindowPanel(
-    private val player: MpvMediampPlayer,
+    private val attachNativeSurface: (Long) -> Boolean,
+    private val detachNativeSurface: () -> Boolean,
     private val onSurfaceReady: () -> Unit,
 ) : JPanel(BorderLayout()) {
-    private val canvas = Canvas()
+    private val canvas = object : Canvas() {
+        override fun update(graphics: Graphics) {
+            paint(graphics)
+        }
+
+        override fun paint(graphics: Graphics) {
+            graphics.color = AwtColor.BLACK
+            graphics.fillRect(0, 0, width, height)
+        }
+    }
     private var attachedWindowPtr: Long = 0L
 
     init {
+        isOpaque = true
+        isDoubleBuffered = false
         isFocusable = false
         background = AwtColor.BLACK
         canvas.background = AwtColor.BLACK
+        canvas.foreground = AwtColor.BLACK
         canvas.isFocusable = false
-        canvas.ignoreRepaint = true
         add(canvas, BorderLayout.CENTER)
     }
 
@@ -95,7 +111,7 @@ private class MpvNativeWindowPanel(
             ?: return
         if (attachedWindowPtr == windowPtr) return
         runCatching {
-            val attached = player.attachRenderSurface(windowPtr)
+            val attached = attachNativeSurface(windowPtr)
             if (attached) {
                 attachedWindowPtr = windowPtr
                 DesktopRuntimeLog.info("MPV native HWND surface attached hwnd=0x${windowPtr.toString(16)}")
@@ -118,7 +134,7 @@ private class MpvNativeWindowPanel(
         val previousWindowPtr = attachedWindowPtr
         if (previousWindowPtr == 0L) return
         attachedWindowPtr = 0L
-        runCatching { player.detachRenderSurface() }
+        runCatching { detachNativeSurface() }
             .onSuccess {
                 DesktopRuntimeLog.info("MPV native HWND surface detached hwnd=0x${previousWindowPtr.toString(16)}")
             }
