@@ -82,6 +82,68 @@ internal fun Bitmap.nuvioScaleToFillBitmap(
     return scaled
 }
 
+internal fun Bitmap.nuvioScaleToFitBitmap(
+    widthPx: Int,
+    heightPx: Int,
+    alignment: Alignment,
+): Bitmap? {
+    if (widthPx <= 0 || heightPx <= 0) return null
+    if (width <= 0 || height <= 0) return null
+    if (width == widthPx && height == heightPx) return this
+
+    val targetScale = minOf(
+        widthPx.toFloat() / width.toFloat(),
+        heightPx.toFloat() / height.toFloat(),
+    )
+    val scaledWidth = (width * targetScale).roundToInt().coerceIn(1, widthPx)
+    val scaledHeight = (height * targetScale).roundToInt().coerceIn(1, heightPx)
+    if (scaledWidth == widthPx && scaledHeight == heightPx) {
+        return nuvioScaleToBitmap(widthPx, heightPx)
+    }
+
+    val scaled = nuvioScaleToBitmap(scaledWidth, scaledHeight) ?: return null
+    val output = Bitmap()
+    output.allocN32Pixels(widthPx, heightPx)
+    if (output.peekPixels() == null) {
+        if (scaled !== this) scaled.close()
+        return null
+    }
+
+    val offset = alignment.align(
+        size = IntSize(scaledWidth, scaledHeight),
+        space = IntSize(widthPx, heightPx),
+        layoutDirection = LayoutDirection.Ltr,
+    )
+    val canvas = Canvas(output)
+    val paint = Paint().apply {
+        isAntiAlias = true
+        isDither = true
+    }
+    val image = Image.makeFromBitmap(scaled)
+    return try {
+        output.erase(0x00000000)
+        canvas.drawImageRect(
+            image = image,
+            src = Rect.makeWH(scaledWidth.toFloat(), scaledHeight.toFloat()),
+            dst = Rect.makeXYWH(
+                offset.x.toFloat(),
+                offset.y.toFloat(),
+                scaledWidth.toFloat(),
+                scaledHeight.toFloat(),
+            ),
+            samplingMode = NuvioDesktopDownsampleSampling,
+            paint = paint,
+            strict = true,
+        )
+        output
+    } finally {
+        image.close()
+        paint.close()
+        canvas.close()
+        if (scaled !== this) scaled.close()
+    }
+}
+
 private fun Bitmap.fillSourceRect(
     widthPx: Int,
     heightPx: Int,

@@ -15,20 +15,23 @@ internal actual fun ImageRequest.Builder.nuvioPrescaleToDrawSize(
     alignment: Alignment,
 ): ImageRequest.Builder {
     if (widthPx <= 0 || heightPx <= 0) return this
-    if (scale != Scale.FILL) return this
-    return transformations(NuvioDesktopPrescaleTransformation(widthPx, heightPx, alignment))
+    return transformations(NuvioDesktopPrescaleTransformation(widthPx, heightPx, scale, alignment))
 }
 
 private class NuvioDesktopPrescaleTransformation(
     private val widthPx: Int,
     private val heightPx: Int,
+    private val scale: Scale,
     private val alignment: Alignment,
 ) : Transformation() {
     override val cacheKey: String =
-        "nuvio_desktop_prescale_lanczos_v6:$widthPx:$heightPx:${alignment.nuvioDesktopAlignmentCacheKey()}"
+        "nuvio_desktop_prescale_lanczos_v8:$widthPx:$heightPx:${scale.name}:${alignment.nuvioDesktopAlignmentCacheKey()}"
 
     override suspend fun transform(input: Bitmap, size: Size): Bitmap {
-        return input.nuvioScaleToFillBitmap(widthPx, heightPx, alignment) ?: input
+        return when (scale) {
+            Scale.FILL -> input.nuvioScaleToFillBitmap(widthPx, heightPx, alignment)
+            Scale.FIT -> input.nuvioScaleToFitBitmap(widthPx, heightPx, alignment)
+        } ?: input
     }
 }
 

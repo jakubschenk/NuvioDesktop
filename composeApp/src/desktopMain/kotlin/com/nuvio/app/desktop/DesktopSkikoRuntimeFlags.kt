@@ -5,6 +5,7 @@ import java.util.Locale
 internal object DesktopSkikoRuntimeFlags {
     private const val DefaultRenderApi = "OPENGL"
     private const val PreferredWindowsRenderApi = "ANGLE"
+    private const val DefaultWindowsGpuResourceCacheLimit = "256M"
 
     fun configure(): String {
         val applied = mutableListOf<String>()
@@ -30,6 +31,7 @@ internal object DesktopSkikoRuntimeFlags {
         val interopBlending = firstEnv("NUVIO_COMPOSE_INTEROP_BLENDING", "COMPOSE_INTEROP_BLENDING")
             ?.let(::normalizeBoolean)
             ?: System.getProperty("compose.interop.blending")?.let(::normalizeBoolean)
+            ?: defaultInteropBlending(renderApi = renderApi, mpvSurface = mpvSurface)
         if (interopBlending != null) {
             setProperty("compose.interop.blending", interopBlending, applied)
         }
@@ -79,12 +81,12 @@ internal object DesktopSkikoRuntimeFlags {
             applied = applied,
             normalize = { it },
         )
-        setPropertyFromEnv(
-            property = "skiko.gpu.resourceCacheLimit",
-            envNames = arrayOf("NUVIO_SKIKO_GPU_RESOURCE_CACHE_LIMIT"),
-            applied = applied,
-            normalize = { it },
-        )
+        val gpuResourceCacheLimit = firstEnv("NUVIO_SKIKO_GPU_RESOURCE_CACHE_LIMIT")
+            ?: System.getProperty("skiko.gpu.resourceCacheLimit")
+            ?: defaultGpuResourceCacheLimit(renderApi)
+        if (gpuResourceCacheLimit != null) {
+            setProperty("skiko.gpu.resourceCacheLimit", gpuResourceCacheLimit, applied)
+        }
         setPropertyFromEnv(
             property = "skiko.fps.enabled",
             envNames = arrayOf("NUVIO_SKIKO_FPS_ENABLED", "NUVIO_SKIKO_FPS"),
@@ -151,6 +153,23 @@ internal object DesktopSkikoRuntimeFlags {
 
     private fun defaultMpvSurfaceMode(renderApi: String): String =
         if (renderApi.uppercase(Locale.US).replace('-', '_') == "OPENGL") "opengl" else "native-window"
+
+    private fun defaultInteropBlending(
+        renderApi: String,
+        mpvSurface: String,
+    ): String? =
+        if (isWindows() && mpvSurface == "native-window" && renderApi != "OPENGL") {
+            "false"
+        } else {
+            null
+        }
+
+    private fun defaultGpuResourceCacheLimit(renderApi: String): String? =
+        if (isWindows() && renderApi != "SOFTWARE_FAST" && renderApi != "SOFTWARE_COMPAT") {
+            DefaultWindowsGpuResourceCacheLimit
+        } else {
+            null
+        }
 
     private fun isWindows(): Boolean =
         System.getProperty("os.name")

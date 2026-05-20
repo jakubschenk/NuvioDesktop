@@ -126,6 +126,7 @@ fun NuvioPosterCard(
     bottomLeftLogoUrl: String? = null,
     bottomLeftText: String? = null,
     isWatched: Boolean = false,
+    animateWatchedBadge: Boolean = true,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -219,12 +220,17 @@ fun NuvioPosterCard(
                 }
             }
 
-            NuvioAnimatedWatchedBadge(
-                isVisible = isWatched,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp),
-            )
+            val watchedBadgeModifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(6.dp)
+            if (animateWatchedBadge) {
+                NuvioAnimatedWatchedBadge(
+                    isVisible = isWatched,
+                    modifier = watchedBadgeModifier,
+                )
+            } else if (isWatched) {
+                NuvioWatchedBadge(modifier = watchedBadgeModifier)
+            }
         }
         if (shouldShowTitleBelow) {
             Text(
