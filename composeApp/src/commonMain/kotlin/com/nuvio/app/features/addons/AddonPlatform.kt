@@ -17,6 +17,8 @@ data class RawHttpResponse(
 
 expect suspend fun httpGetText(url: String): String
 
+expect suspend fun httpGetSourceText(url: String, forceRefresh: Boolean = false): String
+
 expect suspend fun httpPostJson(url: String, body: String): String
 
 expect suspend fun httpGetTextWithHeaders(

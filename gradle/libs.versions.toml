@@ -20,6 +20,7 @@ kotlin = "2.3.0"
 kotlinx-serialization = "1.8.1"
 kotlinx-coroutines = "1.10.2"
 ktor = "3.4.1"
+kache = "2.1.1"
 jna = "5.14.0"
 material3 = "1.11.0-alpha07"
 androidx-media3 = "1.8.0"
@@ -59,6 +60,8 @@ ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "k
 ktor-client-java = { module = "io.ktor:ktor-client-java", version.ref = "ktor" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+kache-core = { module = "com.mayakapps.kache:kache", version.ref = "kache" }
+kache-file = { module = "com.mayakapps.kache:file-kache", version.ref = "kache" }
 kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
 androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "androidx-media3" }
 androidx-media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "androidx-media3" }

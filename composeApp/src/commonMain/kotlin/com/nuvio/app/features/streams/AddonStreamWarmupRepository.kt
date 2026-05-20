@@ -6,7 +6,7 @@ import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.addons.buildAddonResourceUrl
 import com.nuvio.app.features.addons.enabledAddons
-import com.nuvio.app.features.addons.httpGetText
+import com.nuvio.app.features.addons.httpGetSourceText
 import com.nuvio.app.features.debrid.DebridSettings
 import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.features.debrid.DebridStreamPresentation
@@ -175,7 +175,7 @@ object AddonStreamWarmupRepository {
             id = videoId,
         )
         return runCatchingUnlessCancelled {
-            val payload = httpGetText(url)
+            val payload = httpGetSourceText(url)
             StreamParser.parse(
                 payload = payload,
                 addonName = target.addonName,

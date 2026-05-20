@@ -198,6 +198,15 @@ actual suspend fun httpGetText(url: String): String =
         headers = mapOf("Accept" to "application/json"),
     )
 
+actual suspend fun httpGetSourceText(url: String, forceRefresh: Boolean): String =
+    ApiKacheClient.getSourceText(url, forceRefresh = forceRefresh) {
+        executeTextRequest(
+            method = "GET",
+            url = url,
+            headers = mapOf("Accept" to "application/json"),
+        )
+    }
+
 actual suspend fun httpPostJson(url: String, body: String): String =
     executeTextRequest(
         method = "POST",

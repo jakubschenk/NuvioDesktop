@@ -91,6 +91,24 @@ actual suspend fun httpGetText(url: String): String =
             payload
         }
 
+actual suspend fun httpGetSourceText(url: String, forceRefresh: Boolean): String =
+    ApiKacheClient.getSourceText(url, forceRefresh = forceRefresh) {
+        addonHttpClient
+            .get(url) {
+                accept(ContentType.Application.Json)
+            }
+            .let { response ->
+                val payload = response.bodyAsText()
+                if (!response.status.isSuccess()) {
+                    error("Request failed with HTTP ${response.status.value}")
+                }
+                if (payload.isBlank()) {
+                    throw IllegalStateException("Empty response body")
+                }
+                payload
+            }
+    }
+
 actual suspend fun httpPostJson(url: String, body: String): String =
     addonHttpClient
         .post(url) {
