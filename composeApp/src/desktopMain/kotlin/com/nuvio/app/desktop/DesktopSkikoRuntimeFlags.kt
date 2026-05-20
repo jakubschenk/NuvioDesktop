@@ -4,7 +4,7 @@ import java.util.Locale
 
 internal object DesktopSkikoRuntimeFlags {
     private const val DefaultRenderApi = "OPENGL"
-    private const val PreferredWindowsRenderApi = "ANGLE"
+    private const val PreferredWindowsRenderApi = "OPENGL"
 
     fun configure(): String {
         val applied = mutableListOf<String>()
@@ -24,7 +24,6 @@ internal object DesktopSkikoRuntimeFlags {
         val interopBlending = firstEnv("NUVIO_COMPOSE_INTEROP_BLENDING", "COMPOSE_INTEROP_BLENDING")
             ?.let(::normalizeBoolean)
             ?: System.getProperty("compose.interop.blending")?.let(::normalizeBoolean)
-            ?: if (mpvSurface == "native-window") "true" else null
         if (interopBlending != null) {
             setProperty("compose.interop.blending", interopBlending, applied)
         }

@@ -222,7 +222,16 @@ internal actual fun DesktopDecoderSettingsSection(isTablet: Boolean) {
 
         SettingsGroup(isTablet = isTablet) {
             Text(
-                text = "Direct3D renderers use the native MPV window surface by default. Set NUVIO_MPV_SURFACE=opengl or NUVIO_SKIKO_RENDER_API=OPENGL before launch to use the legacy OpenGL interop path.",
+                text = "This player uses mpv's libmpv render API (vo=libmpv) which " +
+                    "renders video frames into an OpenGL framebuffer. This keeps video, " +
+                    "player controls, and mouse input in the same Compose scene. The " +
+                    "Direct3D/ANGLE native Windows surface path is still available for " +
+                    "renderer testing, but it is not the default because native HWND video " +
+                    "does not currently compose cleanly with the player overlay.\n\n" +
+                    "Hardware decoding (hwdec) is separate from GPU rendering: you can use " +
+                    "D3D11VA or NVDEC for video decoding while the selected renderer handles " +
+                    "presentation. Launch with NUVIO_SKIKO_RENDER_API=ANGLE and " +
+                    "NUVIO_MPV_SURFACE=native-window to test the native surface path.",
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
