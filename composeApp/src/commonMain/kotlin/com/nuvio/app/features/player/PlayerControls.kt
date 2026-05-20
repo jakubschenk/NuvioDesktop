@@ -101,6 +101,8 @@ private val PlayerToolbarButtonSize = 44.dp
 private val PlayerToolbarIconSize = 23.dp
 private val PlayerVolumeSliderWidth = 112.dp
 private val PlayerVolumeSliderTouchHeight = 34.dp
+private val PlayerVolumeSliderTrackHeight = 4.dp
+private val PlayerVolumeSliderThumbSize = 10.dp
 private const val PlayerVolumeSliderIdleScaleY = 0.72f
 private const val PlayerVolumeKeyboardStep = 0.05f
 
@@ -710,6 +712,10 @@ private fun PlayerVolumeControl(
         targetValue = if (isHovered || isFocused || isDragging) 1f else PlayerVolumeSliderIdleScaleY,
         label = "player_volume_slider_scale",
     )
+    val thumbAlpha by animateFloatAsState(
+        targetValue = if (isHovered || isFocused || isDragging) 0.96f else 0.74f,
+        label = "player_volume_thumb_alpha",
+    )
 
     fun volumeForX(x: Float, width: Float): Float {
         if (width <= 0f) return coercedVolume
@@ -786,19 +792,47 @@ private fun PlayerVolumeControl(
                             isDragging = false
                         }
                     }
-                },
+            },
             contentAlignment = Alignment.Center,
         ) {
-            Slider(
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(scaleY = sliderScaleY),
-                value = coercedVolume,
-                onValueChange = {},
-                onValueChangeFinished = {},
-                valueRange = 0f..1f,
-                enabled = volumeEnabled,
-            )
+                    .fillMaxWidth()
+                    .height(PlayerVolumeSliderTrackHeight)
+                    .graphicsLayer(scaleY = sliderScaleY)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = if (volumeEnabled) 0.24f else 0.12f)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(coercedVolume)
+                        .height(PlayerVolumeSliderTrackHeight)
+                        .clip(CircleShape)
+                        .background(
+                            Color.White.copy(
+                                alpha = when {
+                                    !volumeEnabled -> 0.28f
+                                    isMuted -> 0.48f
+                                    else -> 0.92f
+                                },
+                            ),
+                        ),
+                )
+            }
+            if (sliderWidthPx > 0) {
+                val density = LocalDensity.current
+                val thumbSizePx = with(density) { PlayerVolumeSliderThumbSize.toPx() }
+                val thumbOffsetPx = ((sliderWidthPx - thumbSizePx).coerceAtLeast(0f) * coercedVolume).roundToInt()
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .offset { IntOffset(thumbOffsetPx, 0) }
+                        .size(PlayerVolumeSliderThumbSize)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = if (volumeEnabled) thumbAlpha else 0.36f))
+                        .border(1.dp, Color.Black.copy(alpha = 0.2f), CircleShape),
+                )
+            }
         }
     }
 }

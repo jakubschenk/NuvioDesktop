@@ -96,6 +96,7 @@ internal class MpvDesktopPlayerBackend private constructor(
     override val controller: PlayerEngineController = MpvController()
 
     init {
+        configurePresentationDefaults()
         observePlayerState()
         DesktopRuntimeLog.info(
             "MPV backend created id=$id surfaceMode=$surfaceMode " +
@@ -210,6 +211,27 @@ internal class MpvDesktopPlayerBackend private constructor(
             attachNativeSurface = ::attachNativeSurface,
             detachNativeSurface = ::detachNativeSurface,
         )
+    }
+
+    private fun configurePresentationDefaults() {
+        val options: List<Pair<String, Any>> = listOf(
+            "background" to "color",
+            "background-color" to "#000000",
+            "border-background" to "color",
+            "osc" to "no",
+            "osd-level" to 0,
+        )
+        val failed = options.mapNotNull { (name, value) ->
+            val applied = runCatching { player.impl.setMpvRuntimeOption(name, value) }
+                .onFailure { DesktopRuntimeLog.warn("MPV presentation option failed name=$name message=${it.message}") }
+                .getOrDefault(false)
+            if (applied) null else name
+        }
+        if (failed.isEmpty()) {
+            DesktopRuntimeLog.info("MPV presentation defaults applied")
+        } else {
+            DesktopRuntimeLog.warn("MPV presentation defaults partial failed=${failed.joinToString()}")
+        }
     }
 
     private suspend fun awaitNativeSurfaceIfNeeded() {
