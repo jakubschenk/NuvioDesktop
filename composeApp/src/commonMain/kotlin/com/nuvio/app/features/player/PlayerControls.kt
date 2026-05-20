@@ -103,7 +103,6 @@ private val PlayerVolumeSliderWidth = 112.dp
 private val PlayerVolumeSliderTouchHeight = 34.dp
 private const val PlayerVolumeSliderIdleScaleY = 0.72f
 private const val PlayerVolumeKeyboardStep = 0.05f
-private const val PlayerVolumeSliderSteps = 19
 
 private fun PlayerPlaybackSnapshot.displayPositionAt(
     snapshotEpochMs: Long,
@@ -712,9 +711,7 @@ private fun PlayerVolumeControl(
     )
 
     fun commitVolume(value: Float) {
-        val snapped = ((value.coerceIn(0f, 1f) / PlayerVolumeKeyboardStep).roundToInt() * PlayerVolumeKeyboardStep)
-            .coerceIn(0f, 1f)
-        onVolumeChangeState.value?.invoke(snapped)
+        onVolumeChangeState.value?.invoke(value.coerceIn(0f, 1f))
     }
 
     Row(
@@ -777,7 +774,6 @@ private fun PlayerVolumeControl(
                 },
                 onValueChangeFinished = { isDragging = false },
                 valueRange = 0f..1f,
-                steps = PlayerVolumeSliderSteps,
                 enabled = volumeEnabled,
             )
         }

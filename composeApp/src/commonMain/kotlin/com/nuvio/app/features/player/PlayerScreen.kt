@@ -78,6 +78,8 @@ import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToLong
 import kotlin.math.roundToInt
 
@@ -91,7 +93,6 @@ private const val PlayerVerticalGestureSensitivity = 1f
 private const val PlayerSeekStepMs = 10_000L
 private const val PlayerKeyboardVolumeStep = 0.05f
 private const val PlayerScrollVolumeStep = 0.05f
-private const val PlayerScrollVolumePixelThreshold = 4f
 private const val PlayerNextEpisodeStreamPollIntervalMs = 100L
 private val PlayerSliderOverlayGap = 12.dp
 private val PlayerMetadataBlockHeight = 88.dp
@@ -122,26 +123,15 @@ private enum class PlayerGestureMode {
     Volume,
 }
 
-private class PlayerVolumeScrollAccumulator {
-    private var pendingScrollY = 0f
-
-    fun consumeDelta(scrollY: Float): Float {
-        if (scrollY == 0f) return 0f
-
-        val existingDirection = pendingScrollY.compareTo(0f)
-        val incomingDirection = scrollY.compareTo(0f)
-        if (existingDirection != 0 && existingDirection != incomingDirection) {
-            pendingScrollY = 0f
-        }
-        pendingScrollY += scrollY
-
-        val magnitude = abs(pendingScrollY)
-        if (magnitude < PlayerScrollVolumePixelThreshold) return 0f
-
-        val direction = if (pendingScrollY < 0f) 1f else -1f
-        pendingScrollY = 0f
-        return direction * PlayerScrollVolumeStep
+private fun playerVolumeAfterScroll(currentVolume: Float, scrollY: Float): Float {
+    if (scrollY == 0f) return currentVolume.coerceIn(0f, 1f)
+    val currentStep = currentVolume.coerceIn(0f, 1f) / PlayerScrollVolumeStep
+    val nextStep = if (scrollY < 0f) {
+        floor(currentStep + 0.001f) + 1f
+    } else {
+        ceil(currentStep - 0.001f) - 1f
     }
+    return (nextStep * PlayerScrollVolumeStep).coerceIn(0f, 1f)
 }
 
 private fun String?.normalizedPlayerPreference(): String? =
@@ -283,7 +273,6 @@ fun PlayerScreen(
         var rememberedPlayerAudioLevel by remember(activeSourceUrl) { mutableStateOf(initialPlayerAudioLevel) }
         var pendingPlayerVolumeTarget by remember(activeSourceUrl) { mutableStateOf<Float?>(initialPlayerAudioLevel.fraction) }
         val visiblePlayerAudioLevel = playerAudioLevel ?: rememberedPlayerAudioLevel
-        val volumeScrollAccumulator = remember(activeSourceUrl) { PlayerVolumeScrollAccumulator() }
         var errorMessage by remember { mutableStateOf<String?>(null) }
         val keepScreenAwake = errorMessage == null &&
             (playbackSnapshot.isPlaying || (shouldPlay && playbackSnapshot.isLoading))
@@ -790,10 +779,7 @@ fun PlayerScreen(
 
         fun handlePlayerVolumeScroll(scrollY: Float): Boolean {
             if (scrollY == 0f) return false
-            val delta = volumeScrollAccumulator.consumeDelta(scrollY)
-            if (delta != 0f) {
-                adjustPlayerVolume(delta)
-            }
+            setPlayerVolume(playerVolumeAfterScroll(visiblePlayerAudioLevel.fraction, scrollY))
             return true
         }
 
