@@ -18,8 +18,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -38,6 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.NuvioDropdownMenu
+import com.nuvio.app.core.ui.NuvioDropdownMenuItem
 import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.desktopHorizontalLazyRowGestures
 import com.nuvio.app.features.details.MetaTrailer
@@ -132,19 +132,15 @@ fun DetailTrailersSection(
                         }
                     }
 
-                    DropdownMenu(
+                    NuvioDropdownMenu(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false },
                     ) {
                         grouped.keys.forEach { category ->
                             val count = grouped[category]?.size ?: 0
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = stringResource(Res.string.detail_trailer_category_count, category, count),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
-                                },
+                            NuvioDropdownMenuItem(
+                                text = stringResource(Res.string.detail_trailer_category_count, category, count),
+                                selected = selectedCategory == category,
                                 onClick = {
                                     selectedCategory = category
                                     menuExpanded = false

@@ -134,7 +134,7 @@ fun MetaDetailsScreen(
     onCastClick: ((MetaPerson, String?) -> Unit)? = null,
     onCompanyClick: ((MetaCompany, String) -> Unit)? = null,
     onPrimarySourceTargetChanged: ((MetaDetailsPlaybackTarget?) -> Unit)? = null,
-    sourceContent: (@Composable () -> Unit)? = null,
+    sourceContent: (@Composable (onBackToEpisodeSelector: (() -> Unit)?) -> Unit)? = null,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier,
@@ -1055,7 +1055,13 @@ fun MetaDetailsScreen(
                                             )
                                         }
                                     } else {
-                                        sourceContent()
+                                        val onBackToEpisodeSelector =
+                                            if (hasEpisodes && !useInlineEpisodeSelector && selectedSourceTargetOverride != null) {
+                                                { selectedSourceTargetOverride = null }
+                                            } else {
+                                                null
+                                            }
+                                        sourceContent(onBackToEpisodeSelector)
                                     }
                                 }
                             }
@@ -1161,7 +1167,7 @@ fun MetaDetailsScreen(
                                                 .clip(RoundedCornerShape(20.dp))
                                                 .background(MaterialTheme.colorScheme.background),
                                         ) {
-                                            content()
+                                            content(null)
                                         }
                                     }
 

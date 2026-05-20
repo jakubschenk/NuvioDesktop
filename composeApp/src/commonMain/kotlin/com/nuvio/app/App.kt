@@ -44,8 +44,6 @@ import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -130,6 +128,8 @@ import com.nuvio.app.core.ui.NuvioFloatingPrompt
 import com.nuvio.app.core.ui.TraktListPickerDialog
 import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.core.ui.NuvioInputField
+import com.nuvio.app.core.ui.NuvioDropdownMenu
+import com.nuvio.app.core.ui.NuvioDropdownMenuItem
 import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.NativeNavigationTab
 import com.nuvio.app.core.ui.NativeTabBridge
@@ -1536,12 +1536,12 @@ private fun MainAppContent(
                                 detailStreamLaunch = nextLaunch
                             }
                         },
-                        sourceContent = {
+                        sourceContent = { onBackToEpisodeSelector ->
                             detailStreamLaunch?.let { launch ->
                                 StreamLaunchContent(
                                     launch = launch,
                                     playerSettings = playerSettingsUiState,
-                                    onBack = { },
+                                    onBack = onBackToEpisodeSelector ?: {},
                                     onPlayerLaunch = { playerLaunch, _ ->
                                         StreamsRepository.cancelLoading()
                                         val playerLaunchId = PlayerLaunchStore.put(playerLaunch)
@@ -1549,7 +1549,7 @@ private fun MainAppContent(
                                     },
                                     onPrefetchEpisodeMetadata = ::prefetchPlaybackEpisodeMetadata,
                                     embedded = true,
-                                    showEmbeddedBackButton = false,
+                                    showEmbeddedBackButton = onBackToEpisodeSelector != null,
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             } ?: Box(
@@ -2769,7 +2769,7 @@ private fun ProfileSelectorButton(
             }
         }
 
-        DropdownMenu(
+        NuvioDropdownMenu(
             expanded = menuExpanded,
             onDismissRequest = { menuExpanded = false },
         ) {
@@ -2777,15 +2777,10 @@ private fun ProfileSelectorButton(
                 val isActive = profile.profileIndex == activeProfile?.profileIndex
                 val profileLabel = profile.name.takeIf { it.isNotBlank() } ?: fallbackProfileLabel
 
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = profileLabel,
-                            modifier = Modifier.widthIn(min = 128.dp, max = 220.dp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
+                NuvioDropdownMenuItem(
+                    text = profileLabel,
+                    textModifier = Modifier.widthIn(min = 128.dp, max = 220.dp),
+                    selected = isActive,
                     onClick = {
                         menuExpanded = false
                         when {
@@ -2826,15 +2821,9 @@ private fun ProfileSelectorButton(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             }
 
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = stringResource(Res.string.profile_manage_profiles),
-                        modifier = Modifier.widthIn(min = 128.dp, max = 220.dp),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
+            NuvioDropdownMenuItem(
+                text = stringResource(Res.string.profile_manage_profiles),
+                textModifier = Modifier.widthIn(min = 128.dp, max = 220.dp),
                 onClick = {
                     menuExpanded = false
                     onEditProfilesClick()

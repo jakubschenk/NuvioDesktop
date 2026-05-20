@@ -38,8 +38,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -70,6 +68,8 @@ import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.desktopHorizontalLazyRowGestures
 import com.nuvio.app.core.ui.desktopContextMenuPointer
 import com.nuvio.app.core.ui.NuvioAnimatedWatchedBadge
+import com.nuvio.app.core.ui.NuvioDropdownMenu
+import com.nuvio.app.core.ui.NuvioDropdownMenuItem
 import com.nuvio.app.core.ui.NuvioImageFilterQuality
 import com.nuvio.app.core.ui.NuvioProgressBar
 import com.nuvio.app.features.details.MetaDetails
@@ -209,17 +209,24 @@ fun DetailSeriesContent(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(end = 24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = stringResource(Res.string.details_seasons),
+                            text = stringResource(Res.string.details_seasons).uppercase(),
+                            modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontSize = sizing.seasonHeaderSize,
-                                fontWeight = FontWeight.SemiBold,
+                                lineHeight = sizing.seasonHeaderSize,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.6.sp,
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.88f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -230,7 +237,7 @@ fun DetailSeriesContent(
                                 currentSeason = currentSeason,
                                 sizing = sizing,
                                 onSelect = { selectedSeasonOverride = it },
-                                modifier = Modifier.padding(end = 8.dp),
+                                modifier = Modifier.padding(end = 12.dp),
                             )
                             if (hasSeasonPosters && !forceTextSeasonSelector) {
                                 SeasonViewModeToggle(
@@ -398,18 +405,14 @@ private fun SeasonQuickSelectDropdown(
             )
         }
 
-        DropdownMenu(
+        NuvioDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {
             seasons.forEach { season ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = seasonLabel(season),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    },
+                NuvioDropdownMenuItem(
+                    text = seasonLabel(season),
+                    selected = season == currentSeason,
                     onClick = {
                         expanded = false
                         onSelect(season)
@@ -1336,7 +1339,7 @@ private data class SeriesContentSizing(
 private fun seriesContentSizing(maxWidthDp: Float): SeriesContentSizing =
     when {
         maxWidthDp >= 1440f -> SeriesContentSizing(
-            seasonHeaderSize = 28.sp,
+            seasonHeaderSize = 17.sp,
             seasonToggleTextSize = 16.sp,
             seasonChipGap = 20.dp,
             seasonChipRadius = 16.dp,
@@ -1366,7 +1369,7 @@ private fun seriesContentSizing(maxWidthDp: Float): SeriesContentSizing =
             badgeVerticalPadding = 4.dp,
         )
         maxWidthDp >= 1024f -> SeriesContentSizing(
-            seasonHeaderSize = 26.sp,
+            seasonHeaderSize = 17.sp,
             seasonToggleTextSize = 15.sp,
             seasonChipGap = 18.dp,
             seasonChipRadius = 14.dp,
@@ -1396,7 +1399,7 @@ private fun seriesContentSizing(maxWidthDp: Float): SeriesContentSizing =
             badgeVerticalPadding = 3.dp,
         )
         maxWidthDp >= 768f -> SeriesContentSizing(
-            seasonHeaderSize = 24.sp,
+            seasonHeaderSize = 16.sp,
             seasonToggleTextSize = 14.sp,
             seasonChipGap = 16.dp,
             seasonChipRadius = 12.dp,
@@ -1426,7 +1429,7 @@ private fun seriesContentSizing(maxWidthDp: Float): SeriesContentSizing =
             badgeVerticalPadding = 2.dp,
         )
         else -> SeriesContentSizing(
-            seasonHeaderSize = 18.sp,
+            seasonHeaderSize = 15.sp,
             seasonToggleTextSize = 12.sp,
             seasonChipGap = 16.dp,
             seasonChipRadius = 12.dp,

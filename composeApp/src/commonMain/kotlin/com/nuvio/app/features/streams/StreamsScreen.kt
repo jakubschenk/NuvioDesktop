@@ -46,8 +46,6 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -83,6 +81,8 @@ import com.nuvio.app.core.ui.desktopContextMenuPointer
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
 import com.nuvio.app.core.ui.NuvioBottomSheetDivider
+import com.nuvio.app.core.ui.NuvioDropdownMenu
+import com.nuvio.app.core.ui.NuvioDropdownMenuItem
 import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
@@ -956,20 +956,22 @@ internal fun ProviderFilterRow(
                             )
                         },
                     )
-                    DropdownMenu(
+                    NuvioDropdownMenu(
                         expanded = dropdownExpanded,
                         onDismissRequest = { dropdownExpanded = false },
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(text = allLabel) },
+                        NuvioDropdownMenuItem(
+                            text = allLabel,
+                            selected = selectedFilter == null,
                             onClick = {
                                 dropdownExpanded = false
                                 onFilterSelected(null)
                             },
                         )
                         addonGroups.forEach { group ->
-                            DropdownMenuItem(
-                                text = { Text(text = group.addonName) },
+                            NuvioDropdownMenuItem(
+                                text = group.addonName,
+                                selected = selectedFilter == group.addonId,
                                 onClick = {
                                     dropdownExpanded = false
                                     onFilterSelected(group.addonId)
