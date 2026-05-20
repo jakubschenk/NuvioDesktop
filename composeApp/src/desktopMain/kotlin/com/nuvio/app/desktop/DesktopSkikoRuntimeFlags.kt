@@ -49,10 +49,9 @@ internal object DesktopSkikoRuntimeFlags {
         )
         val explicitVsync = firstEnv("NUVIO_SKIKO_VSYNC_ENABLED", "NUVIO_SKIKO_VSYNC")
             ?.let(::normalizeBoolean)
-            ?: System.getProperty("skiko.vsync.enabled")?.let(::normalizeBoolean)
         when {
             explicitVsync != null -> setProperty("skiko.vsync.enabled", explicitVsync, applied)
-            renderApi == "DIRECT3D" -> setProperty("skiko.vsync.enabled", "false", applied)
+            mpvSurface == "native-window" -> setProperty("skiko.vsync.enabled", "false", applied)
         }
         setPropertyFromEnv(
             property = "skiko.vsync.framelimit.fallback.enabled",

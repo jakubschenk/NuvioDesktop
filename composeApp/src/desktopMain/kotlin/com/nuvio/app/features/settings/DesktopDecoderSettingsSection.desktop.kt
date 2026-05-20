@@ -72,7 +72,8 @@ internal actual fun DesktopDecoderSettingsSection(isTablet: Boolean) {
                     "D3D11VA or NVDEC for video decoding while the selected renderer handles " +
                     "presentation. Launch with NUVIO_SKIKO_RENDER_API=D3D11 to force the " +
                     "ANGLE/D3D11 path, DIRECT3D for Skiko D3D12, or OPENGL for the legacy " +
-                    "libmpv/OpenGL path.",
+                    "libmpv/OpenGL path. Native-window playback disables Skiko vsync by " +
+                    "default; set NUVIO_SKIKO_VSYNC_ENABLED=true to compare.",
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
