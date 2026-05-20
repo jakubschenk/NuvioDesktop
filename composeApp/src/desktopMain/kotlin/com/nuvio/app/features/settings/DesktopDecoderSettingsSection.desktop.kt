@@ -65,14 +65,15 @@ internal actual fun DesktopDecoderSettingsSection(isTablet: Boolean) {
         SettingsGroup(isTablet = isTablet) {
             Text(
                 text = "This player uses mpv's libmpv render API (vo=libmpv) which " +
-                    "renders video frames into an OpenGL framebuffer when the app is using " +
-                    "the legacy OpenGL renderer. On Direct3D/ANGLE, the player uses mpv's " +
-                    "native Windows surface path instead, so Compose can keep the faster " +
-                    "desktop renderer while mpv owns the video HWND.\n\n" +
+                    "renders video frames into an OpenGL framebuffer. This keeps video, " +
+                    "player controls, and mouse input in the same Compose scene. The " +
+                    "Direct3D/ANGLE native Windows surface path is still available for " +
+                    "renderer testing, but it is not the default because native HWND video " +
+                    "does not currently compose cleanly with the player overlay.\n\n" +
                     "Hardware decoding (hwdec) is separate from GPU rendering: you can use " +
                     "D3D11VA or NVDEC for video decoding while the selected renderer handles " +
-                    "presentation. If the native surface path has a driver issue, launch with " +
-                    "NUVIO_SKIKO_RENDER_API=OPENGL to force the legacy OpenGL path.",
+                    "presentation. Launch with NUVIO_SKIKO_RENDER_API=ANGLE and " +
+                    "NUVIO_MPV_SURFACE=native-window to test the native surface path.",
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
