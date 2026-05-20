@@ -125,6 +125,7 @@ fun StreamsScreen(
         resumeProgressFraction: Float?,
     ) -> Unit = { _, _, _, _ -> },
     onBack: () -> Unit,
+    embedded: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val uiState by StreamsRepository.uiState.collectAsStateWithLifecycle()
@@ -198,6 +199,15 @@ fun StreamsScreen(
     } else {
         background ?: poster
     }
+    val reloadStreams = {
+        StreamsRepository.reload(
+            type = type,
+            videoId = videoId,
+            season = seasonNumber,
+            episode = episodeNumber,
+            manualSelection = manualSelection,
+        )
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -206,7 +216,29 @@ fun StreamsScreen(
     ) {
         val isTabletLayout = maxWidth >= 768.dp
 
-        if (isTabletLayout) {
+        if (embedded) {
+            EmbeddedStreamsLayout(
+                isEpisode = isEpisode,
+                title = title,
+                seasonNumber = seasonNumber,
+                episodeNumber = episodeNumber,
+                episodeTitle = episodeTitle,
+                uiState = uiState,
+                resumePositionMs = effectiveResumePositionMs,
+                resumeProgressFraction = effectiveResumeProgressFraction,
+                onStreamSelected = { stream, positionMs, progressFraction ->
+                    if (stream.isTorrentStream) {
+                        NuvioToastController.show(torrentUnsupportedText)
+                    } else {
+                        onStreamSelected(stream, positionMs, progressFraction)
+                    }
+                },
+                onStreamLongPress = { stream -> streamActionsTarget = stream },
+                onBack = onBack,
+                onRefresh = reloadStreams,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else if (isTabletLayout) {
             TabletStreamsLayout(
                 isEpisode = isEpisode,
                 title = title,
@@ -252,48 +284,40 @@ fun StreamsScreen(
             )
         }
 
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-                .padding(start = 12.dp, top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            NuvioBackButton(
-                onClick = onBack,
+        if (!embedded) {
+            Row(
                 modifier = Modifier
-                    .size(40.dp),
-                containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
-                contentColor = MaterialTheme.colorScheme.onBackground,
-            )
-
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
-                        shape = CircleShape,
-                    )
-                    .desktopClickablePointer()
-                    .clickable(
-                        onClick = {
-                            StreamsRepository.reload(
-                                type = type,
-                                videoId = videoId,
-                                season = seasonNumber,
-                                episode = episodeNumber,
-                                manualSelection = manualSelection,
-                            )
-                        },
-                    ),
-                contentAlignment = Alignment.Center,
+                    .align(Alignment.TopStart)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                    .padding(start = 12.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Refresh,
-                    contentDescription = stringResource(Res.string.streams_refresh),
-                    tint = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(20.dp),
+                NuvioBackButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .size(40.dp),
+                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
+                    contentColor = MaterialTheme.colorScheme.onBackground,
                 )
+
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
+                            shape = CircleShape,
+                        )
+                        .desktopClickablePointer()
+                        .clickable(onClick = reloadStreams),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = stringResource(Res.string.streams_refresh),
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
 
@@ -377,6 +401,115 @@ fun StreamsScreen(
                     effectiveResumeProgressFraction,
                 )
             },
+        )
+    }
+}
+
+@Composable
+private fun EmbeddedStreamsLayout(
+    isEpisode: Boolean,
+    title: String,
+    seasonNumber: Int?,
+    episodeNumber: Int?,
+    episodeTitle: String?,
+    uiState: StreamsUiState,
+    resumePositionMs: Long?,
+    resumeProgressFraction: Float?,
+    onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
+    onStreamLongPress: (StreamItem) -> Unit,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val sourceTitle = if (isEpisode && seasonNumber != null && episodeNumber != null) {
+        stringResource(
+            Res.string.streams_episode_title_with_name,
+            seasonNumber,
+            episodeNumber,
+            episodeTitle?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.streams_episode_fallback_title),
+        )
+    } else {
+        title
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                .padding(start = 12.dp, end = 14.dp, top = 10.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NuvioBackButton(
+                onClick = onBack,
+                modifier = Modifier.size(40.dp),
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = stringResource(Res.string.compose_player_sources),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                )
+                Text(
+                    text = sourceTitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                        shape = CircleShape,
+                    )
+                    .desktopClickablePointer()
+                    .clickable(onClick = onRefresh),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Refresh,
+                    contentDescription = stringResource(Res.string.streams_refresh),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+
+        if ((resumePositionMs != null && resumePositionMs > 0L) || (resumeProgressFraction != null && resumeProgressFraction > 0f)) {
+            ResumeBanner(
+                positionMs = resumePositionMs,
+                progressFraction = resumeProgressFraction,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
+            )
+        }
+
+        ProviderFilterRow(
+            groups = uiState.groups,
+            selectedFilter = uiState.selectedFilter,
+            onFilterSelected = { addonId -> StreamsRepository.selectFilter(addonId) },
+        )
+
+        StreamList(
+            uiState = uiState,
+            onStreamSelected = onStreamSelected,
+            onStreamLongPress = onStreamLongPress,
+            resumePositionMs = resumePositionMs,
+            resumeProgressFraction = resumeProgressFraction,
+            modifier = Modifier.weight(1f),
         )
     }
 }
