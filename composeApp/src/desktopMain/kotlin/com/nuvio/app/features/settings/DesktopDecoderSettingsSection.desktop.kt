@@ -223,9 +223,9 @@ internal actual fun DesktopDecoderSettingsSection(isTablet: Boolean) {
         SettingsGroup(isTablet = isTablet) {
             Text(
                 text = "On Windows the app defaults to ANGLE for Compose and mpv's " +
-                    "native Windows surface for video presentation. Player controls are " +
-                    "drawn in a window-backed overlay so they stay interactive above the " +
-                    "native video surface without enabling Compose interop blending.\n\n" +
+                    "native Windows surface for video presentation. Player chrome uses " +
+                    "component-backed Compose layers above the native surface; override with " +
+                    "NUVIO_COMPOSE_LAYERS_TYPE for renderer troubleshooting.\n\n" +
                     "Hardware decoding (hwdec) is separate from GPU rendering: you can use " +
                     "D3D11VA or NVDEC for video decoding while the selected renderer handles " +
                     "presentation. Launch with NUVIO_SKIKO_RENDER_API=OPENGL to force the " +

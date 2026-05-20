@@ -1302,7 +1302,7 @@ actual fun PlayerOverlayLayer(
     modifier: Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    if (!usesWindowBackedPlayerOverlayLayer() || layoutSize.width <= 0 || layoutSize.height <= 0) {
+    if (!usesComponentPlayerOverlayLayer() || layoutSize.width <= 0 || layoutSize.height <= 0) {
         Box(
             modifier = modifier,
             content = content,
@@ -1336,10 +1336,14 @@ actual fun PlayerOverlayLayer(
     }
 }
 
-private fun usesWindowBackedPlayerOverlayLayer(): Boolean {
+private fun usesComponentPlayerOverlayLayer(): Boolean {
     if (!isWindowsDesktopPlayerOverlay()) return false
     if (System.getProperty("compose.interop.blending").equals("true", ignoreCase = true)) return false
-    return MpvDesktopSurfaceMode.resolve() == MpvDesktopSurfaceMode.NativeWindow
+    val layerType = System.getProperty("compose.layers.type")
+        ?.trim()
+        ?.uppercase(Locale.US)
+        ?.replace('-', '_')
+    return layerType == "COMPONENT" && MpvDesktopSurfaceMode.resolve() == MpvDesktopSurfaceMode.NativeWindow
 }
 
 private fun isWindowsDesktopPlayerOverlay(): Boolean =
