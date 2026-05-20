@@ -16,7 +16,6 @@ import okhttp3.ResponseBody
 internal actual object AddonStorage {
     private const val preferencesName = "nuvio_addons"
     private const val addonUrlsKey = "installed_manifest_urls"
-    private const val addonEnabledStatesKey = "installed_manifest_enabled_states"
 
     actual fun loadInstalledAddonUrls(profileId: Int): List<String> =
         DesktopPreferences.getString(preferencesName, "${addonUrlsKey}_$profileId")
@@ -33,34 +32,6 @@ internal actual object AddonStorage {
             urls.joinToString(separator = "\n"),
         )
     }
-
-    actual fun loadAddonEnabledStates(profileId: Int): Map<String, Boolean> =
-        DesktopPreferences.getString(preferencesName, "${addonEnabledStatesKey}_$profileId")
-            .orEmpty()
-            .lineSequence()
-            .mapNotNull(::parseEnabledStateLine)
-            .toMap()
-
-    actual fun saveAddonEnabledStates(profileId: Int, states: Map<String, Boolean>) {
-        val payload = states.entries.joinToString(separator = "\n") { (url, enabled) ->
-            "$url\t$enabled"
-        }
-        DesktopPreferences.putString(
-            preferencesName,
-            "${addonEnabledStatesKey}_$profileId",
-            payload,
-        )
-    }
-}
-
-private fun parseEnabledStateLine(line: String): Pair<String, Boolean>? {
-    val url = line.substringBefore("\t").trim().takeIf { it.isNotEmpty() } ?: return null
-    val rawEnabled = line.substringAfter("\t", "true").trim().lowercase()
-    val enabled = when (rawEnabled) {
-        "false" -> false
-        else -> true
-    }
-    return url to enabled
 }
 
 // Same OkHttp transport as Android (com.squareup.okhttp3:okhttp:4.12.0). OkHttp's
@@ -161,15 +132,18 @@ private fun readResponseBody(body: ResponseBody?): String {
 }
 
 private suspend fun executeTextRequest(
+    label: String,
     method: String,
     url: String,
     headers: Map<String, String> = emptyMap(),
     body: String = "",
 ): String = withContext(Dispatchers.IO) {
+    val traceUrl = normalizeDesktopAddonRequestUrl(url)
+    ApiKacheClient.traceNetworkStart(label, method, traceUrl)
     try {
         val normalizedMethod = method.uppercase()
         val sanitizedHeaders = headers.withoutAcceptEncoding()
-        val builder = Request.Builder().url(normalizeDesktopAddonRequestUrl(url))
+        val builder = Request.Builder().url(traceUrl)
         sanitizedHeaders.forEach { (key, value) ->
             builder.header(key, value)
         }
@@ -186,6 +160,13 @@ private suspend fun executeTextRequest(
 
         addonHttpClient.newCall(request).execute().use { response ->
             val payload = readResponseBody(response.body)
+            ApiKacheClient.traceNetworkEnd(
+                label = label,
+                method = normalizedMethod,
+                url = traceUrl,
+                status = response.code,
+                bytes = payload.length,
+            )
             if (!response.isSuccessful) {
                 error("Request failed with HTTP ${response.code}")
             }
@@ -195,20 +176,25 @@ private suspend fun executeTextRequest(
             payload
         }
     } catch (e: Exception) {
+        ApiKacheClient.traceNetworkError(label, method, traceUrl, e)
         throw e
     }
 }
 
 actual suspend fun httpGetText(url: String): String =
-    executeTextRequest(
-        method = "GET",
-        url = url,
-        headers = mapOf("Accept" to "application/json"),
-    )
+    ApiKacheClient.noStore(label = "generic-get", method = "GET", url = url) {
+        executeTextRequest(
+            label = "generic-get",
+            method = "GET",
+            url = url,
+            headers = mapOf("Accept" to "application/json"),
+        )
+    }
 
 actual suspend fun httpGetSourceText(url: String, forceRefresh: Boolean): String =
     ApiKacheClient.getSourceText(url, forceRefresh = forceRefresh) {
         executeTextRequest(
+            label = "source-get",
             method = "GET",
             url = url,
             headers = mapOf("Accept" to "application/json"),
@@ -216,40 +202,49 @@ actual suspend fun httpGetSourceText(url: String, forceRefresh: Boolean): String
     }
 
 actual suspend fun httpPostJson(url: String, body: String): String =
-    executeTextRequest(
-        method = "POST",
-        url = url,
-        headers = mapOf(
-            "Accept" to "application/json",
-            "Content-Type" to "application/json",
-        ),
-        body = body,
-    )
+    ApiKacheClient.noStore(label = "post-json", method = "POST", url = url) {
+        executeTextRequest(
+            label = "post-json",
+            method = "POST",
+            url = url,
+            headers = mapOf(
+                "Accept" to "application/json",
+                "Content-Type" to "application/json",
+            ),
+            body = body,
+        )
+    }
 
 actual suspend fun httpGetTextWithHeaders(
     url: String,
     headers: Map<String, String>,
 ): String =
-    executeTextRequest(
-        method = "GET",
-        url = url,
-        headers = mapOf("Accept" to "application/json") + headers,
-    )
+    ApiKacheClient.noStore(label = "get-with-headers", method = "GET", url = url) {
+        executeTextRequest(
+            label = "get-with-headers",
+            method = "GET",
+            url = url,
+            headers = mapOf("Accept" to "application/json") + headers,
+        )
+    }
 
 actual suspend fun httpPostJsonWithHeaders(
     url: String,
     body: String,
     headers: Map<String, String>,
 ): String =
-    executeTextRequest(
-        method = "POST",
-        url = url,
-        headers = mapOf(
-            "Accept" to "application/json",
-            "Content-Type" to "application/json",
-        ) + headers,
-        body = body,
-    )
+    ApiKacheClient.noStore(label = "post-json-with-headers", method = "POST", url = url) {
+        executeTextRequest(
+            label = "post-json-with-headers",
+            method = "POST",
+            url = url,
+            headers = mapOf(
+                "Accept" to "application/json",
+                "Content-Type" to "application/json",
+            ) + headers,
+            body = body,
+        )
+    }
 
 actual suspend fun httpRequestRaw(
     method: String,
@@ -258,43 +253,60 @@ actual suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean,
 ): RawHttpResponse =
-    withContext(Dispatchers.IO) {
-        val normalizedMethod = method.uppercase()
-        val sanitizedHeaders = headers.withoutAcceptEncoding()
-        val builder = Request.Builder().url(normalizeDesktopAddonRequestUrl(url))
-        sanitizedHeaders.forEach { (key, value) ->
-            builder.header(key, value)
-        }
+    ApiKacheClient.noStore(label = "raw", method = method, url = url) {
+        withContext(Dispatchers.IO) {
+            val normalizedMethod = method.uppercase()
+            val sanitizedHeaders = headers.withoutAcceptEncoding()
+            val traceUrl = normalizeDesktopAddonRequestUrl(url)
+            ApiKacheClient.traceNetworkStart("raw", normalizedMethod, traceUrl)
+            val builder = Request.Builder().url(traceUrl)
+            sanitizedHeaders.forEach { (key, value) ->
+                builder.header(key, value)
+            }
 
-        val request = if (requestAllowsBody(normalizedMethod)) {
-            val contentType = sanitizedHeaders.getHeaderIgnoreCase("Content-Type")
-                ?: if (normalizedMethod == "POST") "application/x-www-form-urlencoded" else "application/json"
-            val requestBody = body.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaType())
-            builder.method(normalizedMethod, requestBody)
-        } else {
-            builder.method(normalizedMethod, null)
-        }.build()
+            val request = if (requestAllowsBody(normalizedMethod)) {
+                val contentType = sanitizedHeaders.getHeaderIgnoreCase("Content-Type")
+                    ?: if (normalizedMethod == "POST") "application/x-www-form-urlencoded" else "application/json"
+                val requestBody = body.toByteArray(Charsets.UTF_8).toRequestBody(contentType.toMediaType())
+                builder.method(normalizedMethod, requestBody)
+            } else {
+                builder.method(normalizedMethod, null)
+            }.build()
 
-        val client = if (followRedirects) {
-            addonHttpClient
-        } else {
-            addonHttpClient.newBuilder()
-                .followRedirects(false)
-                .followSslRedirects(false)
-                .build()
-        }
+            val client = if (followRedirects) {
+                addonHttpClient
+            } else {
+                addonHttpClient.newBuilder()
+                    .followRedirects(false)
+                    .followSslRedirects(false)
+                    .build()
+            }
 
-        client.newCall(request).execute().use { response ->
-            RawHttpResponse(
-                status = response.code,
-                statusText = response.message,
-                url = response.request.url.toString(),
-                body = readResponseBodyLimited(response.body),
-                headers = response.headers.toMultimap().mapValues { (_, values) ->
-                    values.joinToString(",")
-                }.mapKeys { (name, _) ->
-                    name.lowercase()
-                },
-            )
+            try {
+                client.newCall(request).execute().use { response ->
+                    val responseBody = readResponseBodyLimited(response.body)
+                    ApiKacheClient.traceNetworkEnd(
+                        label = "raw",
+                        method = normalizedMethod,
+                        url = traceUrl,
+                        status = response.code,
+                        bytes = responseBody.length,
+                    )
+                    RawHttpResponse(
+                        status = response.code,
+                        statusText = response.message,
+                        url = response.request.url.toString(),
+                        body = responseBody,
+                        headers = response.headers.toMultimap().mapValues { (_, values) ->
+                            values.joinToString(",")
+                        }.mapKeys { (name, _) ->
+                            name.lowercase()
+                        },
+                    )
+                }
+            } catch (e: Exception) {
+                ApiKacheClient.traceNetworkError("raw", normalizedMethod, traceUrl, e)
+                throw e
+            }
         }
     }
