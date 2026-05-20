@@ -99,6 +99,12 @@ private val PlayerSeekTimeTextWidth = 84.dp
 private val PlayerSeekTimeHorizontalGap = 6.dp
 private val PlayerToolbarButtonSize = 44.dp
 private val PlayerToolbarIconSize = 23.dp
+private val PlayerVolumeSliderWidth = 112.dp
+private val PlayerVolumeSliderTouchHeight = 34.dp
+private val PlayerVolumeTrackHeight = 4.dp
+private val PlayerVolumeThumbSize = 12.dp
+private val PlayerVolumeHoverThumbSize = 10.dp
+private const val PlayerVolumeKeyboardStep = 0.05f
 
 private fun PlayerPlaybackSnapshot.displayPositionAt(
     snapshotEpochMs: Long,
@@ -694,12 +700,28 @@ private fun PlayerVolumeControl(
     onMuteClick: (() -> Unit)?,
     onVolumeChange: ((Float) -> Unit)?,
 ) {
+    val focusRequester = remember { FocusRequester() }
     val onVolumeChangeState = rememberUpdatedState(onVolumeChange)
     val volumeEnabled = onVolumeChange != null
+    var sliderWidthPx by remember { mutableStateOf(0) }
+    var isHovered by remember { mutableStateOf(false) }
+    var isFocused by remember { mutableStateOf(false) }
+    var isDragging by remember { mutableStateOf(false) }
+    val coercedVolume = volumeLevel.coerceIn(0f, 1f)
+    val density = LocalDensity.current
 
     fun volumeForX(x: Float, width: Float): Float {
-        if (width <= 0f) return volumeLevel.coerceIn(0f, 1f)
+        if (width <= 0f) return coercedVolume
         return (x / width).coerceIn(0f, 1f)
+    }
+
+    fun commitVolume(value: Float) {
+        onVolumeChangeState.value?.invoke(value.coerceIn(0f, 1f))
+    }
+
+    fun commitVolumeForX(x: Float) {
+        val width = sliderWidthPx.toFloat().takeIf { it > 0f } ?: return
+        commitVolume(volumeForX(x, width))
     }
 
     Row(
@@ -714,36 +736,88 @@ private fun PlayerVolumeControl(
         )
         Box(
             modifier = Modifier
-                .width(108.dp)
-                .height(34.dp)
+                .width(PlayerVolumeSliderWidth)
+                .height(PlayerVolumeSliderTouchHeight)
                 .then(if (volumeEnabled) Modifier.desktopClickablePointer() else Modifier)
+                .onSizeChanged { size -> sliderWidthPx = size.width }
+                .focusRequester(focusRequester)
+                .onFocusChanged { isFocused = it.isFocused }
+                .focusable(enabled = volumeEnabled)
+                .onPreviewKeyEvent { event ->
+                    if (!volumeEnabled || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.DirectionLeft -> {
+                            commitVolume(coercedVolume - PlayerVolumeKeyboardStep)
+                            true
+                        }
+
+                        Key.DirectionRight -> {
+                            commitVolume(coercedVolume + PlayerVolumeKeyboardStep)
+                            true
+                        }
+
+                        else -> false
+                    }
+                }
+                .onPointerEvent(PointerEventType.Enter) { isHovered = true }
+                .onPointerEvent(PointerEventType.Exit) {
+                    isHovered = false
+                }
                 .pointerInput(volumeEnabled) {
                     if (!volumeEnabled) return@pointerInput
                     awaitEachGesture {
                         val down = awaitFirstDown(pass = PointerEventPass.Initial)
-                        val width = size.width.toFloat().takeIf { it > 0f } ?: return@awaitEachGesture
-                        onVolumeChangeState.value?.invoke(volumeForX(down.position.x, width))
-                        down.consume()
+                        focusRequester.requestFocus()
+                        sliderWidthPx = size.width
+                        isDragging = true
+                        try {
+                            commitVolumeForX(down.position.x)
+                            down.consume()
 
-                        while (true) {
-                            val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            if (!change.pressed) break
-                            onVolumeChangeState.value?.invoke(volumeForX(change.position.x, width))
-                            change.consume()
+                            while (true) {
+                                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
+                                commitVolumeForX(change.position.x)
+                                change.consume()
+                            }
+                        } finally {
+                            isDragging = false
                         }
                     }
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Slider(
+            val thumbSize = if (isHovered || isFocused || isDragging) PlayerVolumeThumbSize else PlayerVolumeHoverThumbSize
+            val thumbOffsetPx = with(density) { (thumbSize / 2).roundToPx() }
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(scaleY = 0.72f),
-                value = volumeLevel.coerceIn(0f, 1f),
-                onValueChange = { value -> onVolumeChange?.invoke(value.coerceIn(0f, 1f)) },
-                valueRange = 0f..1f,
-                enabled = volumeEnabled,
+                    .fillMaxWidth()
+                    .height(PlayerVolumeTrackHeight)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color.White.copy(alpha = if (volumeEnabled) 0.26f else 0.12f)),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(coercedVolume)
+                        .height(PlayerVolumeTrackHeight)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color.White.copy(alpha = if (isMuted) 0.48f else 0.92f)),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .offset {
+                        IntOffset(
+                            x = (sliderWidthPx * coercedVolume).roundToInt() - thumbOffsetPx,
+                            y = 0,
+                        )
+                    }
+                    .size(thumbSize)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = if (volumeEnabled) 0.98f else 0.4f)),
             )
         }
     }
