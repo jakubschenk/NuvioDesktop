@@ -47,6 +47,7 @@ import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.streams.AddonStreamGroup
 import com.nuvio.app.features.streams.StreamItem
 import java.awt.Cursor
+import java.awt.EventQueue
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import java.awt.Point
@@ -57,6 +58,7 @@ import java.awt.event.ComponentEvent
 import java.awt.event.KeyEvent
 import java.awt.image.BufferedImage
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JWindow
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
@@ -1262,6 +1264,14 @@ private fun DesktopOwnedPlayerOverlayWindow(
 private class DesktopPlayerOverlayWindow(
     private val owner: Window,
 ) {
+    @Volatile
+    private var disposed: Boolean = false
+
+    @Volatile
+    private var pendingBounds: IntRect? = null
+
+    private val updateQueued = AtomicBoolean(false)
+
     val panel: ComposePanel = ComposePanel(
         renderSettings = desktopPlayerOverlayRenderSettings(),
     ).apply {
@@ -1281,15 +1291,34 @@ private class DesktopPlayerOverlayWindow(
     }
 
     fun updateBounds(boundsInWindow: IntRect?) {
+        if (disposed) return
+        pendingBounds = boundsInWindow
+        if (EventQueue.isDispatchThread()) {
+            updateQueued.set(false)
+            updateBoundsOnEventQueue(pendingBounds)
+            return
+        }
+        if (updateQueued.compareAndSet(false, true)) {
+            EventQueue.invokeLater {
+                updateQueued.set(false)
+                if (!disposed) {
+                    updateBoundsOnEventQueue(pendingBounds)
+                }
+            }
+        }
+    }
+
+    private fun updateBoundsOnEventQueue(boundsInWindow: IntRect?) {
+        if (disposed) return
         if (boundsInWindow == null || boundsInWindow.width <= 0 || boundsInWindow.height <= 0 || !owner.isShowing) {
-            hide()
+            hideOnEventQueue()
             return
         }
 
         val origin = runCatching {
             (owner as? ComposeWindow)?.contentPane?.locationOnScreen ?: owner.locationOnScreen
         }.getOrElse {
-            hide()
+            hideOnEventQueue()
             return
         }
 
@@ -1309,20 +1338,49 @@ private class DesktopPlayerOverlayWindow(
         }
         if (!window.isVisible) {
             window.isVisible = true
-            window.toFront()
         }
     }
 
     fun hide() {
+        if (EventQueue.isDispatchThread()) {
+            hideOnEventQueue()
+        } else {
+            EventQueue.invokeLater {
+                if (!disposed) {
+                    hideOnEventQueue()
+                }
+            }
+        }
+    }
+
+    private fun hideOnEventQueue() {
         if (window.isVisible) {
             window.isVisible = false
         }
     }
 
     fun dispose() {
-        panel.dispose()
-        window.isVisible = false
-        window.dispose()
+        if (disposed) return
+        disposed = true
+        pendingBounds = null
+        EventQueue.invokeLater {
+            runCatching {
+                hideOnEventQueue()
+                panel.isVisible = false
+            }.onFailure {
+                DesktopRuntimeLog.error("playerOverlay hide before dispose failed", it)
+            }
+            runCatching {
+                panel.dispose()
+            }.onFailure {
+                DesktopRuntimeLog.error("playerOverlay panel dispose failed", it)
+            }
+            runCatching {
+                window.dispose()
+            }.onFailure {
+                DesktopRuntimeLog.error("playerOverlay window dispose failed", it)
+            }
+        }
     }
 }
 

@@ -56,6 +56,13 @@ internal object DesktopRuntimeLog {
                         try {
                             super.dispatchEvent(event)
                         } catch (throwable: Throwable) {
+                            if (throwable.isRecoverableComposeMouseLayoutException(event)) {
+                                warn(
+                                    "Recovered AWT/EventQueue Compose pointer layout exception " +
+                                        "event=${event.javaClass.name} message=${throwable.message}",
+                                )
+                                return
+                            }
                             crash("Uncaught AWT/EventQueue exception event=${event.javaClass.name}", throwable)
                             DesktopPlayerRegistry.releaseAll("awtException")
                             throw throwable
@@ -166,6 +173,15 @@ internal object DesktopRuntimeLog {
         throwable.printStackTrace(PrintWriter(writer))
         return writer.toString()
     }
+
+    private fun Throwable.isRecoverableComposeMouseLayoutException(event: AWTEvent): Boolean =
+        event.javaClass.name == "java.awt.event.MouseEvent" &&
+            this is IllegalStateException &&
+            message == "layout state is not idle before measure starts" &&
+            stackTrace.any { element ->
+                element.className.startsWith("androidx.compose.ui.") ||
+                    element.className.startsWith("org.jetbrains.skiko.")
+            }
 
     private fun String?.isTruthy(): Boolean =
         equals("true", ignoreCase = true) ||
