@@ -106,13 +106,13 @@ private const val PlayerRightGestureBoundary = 0.6f
 private const val PlayerVerticalGestureSensitivity = 1f
 private const val PlayerChromeFrameIntervalMs = 8L
 private const val PlayerKeyboardVolumeStep = 0.05f
-private const val PlayerScrollVolumeStep = 0.025f
-private const val PlayerScrollVolumeApplyIntervalMs = 40L
-private const val PlayerScrollVolumePixelThreshold = 8f
-private const val PlayerScrollVolumePixelUnit = 120f
-private const val PlayerScrollVolumeMaxQueuedDelta = 0.1f
+private const val PlayerScrollVolumeStep = 0.05f
+private const val PlayerScrollVolumePixelThreshold = 4f
+private const val PlayerScrollVolumePixelUnit = 60f
+private const val PlayerScrollVolumeMaxSteps = 3
 /** Hard ceiling for next-episode stream search to prevent hanging forever. */
 private const val NEXT_EPISODE_HARD_TIMEOUT_MS = 120_000L
+private const val PlayerNextEpisodeStreamPollIntervalMs = 100L
 private val PlayerSliderOverlayGap = 12.dp
 private val PlayerTimeRowHeight = 36.dp
 private val PlayerActionRowHeight = 50.dp
@@ -147,21 +147,40 @@ private data class PlayerAccumulatedSeekState(
 )
 
 private class PlayerVolumeScrollAccumulator {
-    var pendingDelta = 0f
-    var lastAppliedEpochMs = 0L
-    var applyJob: Job? = null
-}
+    private var pendingScrollY = 0f
 
-private fun playerVolumeDeltaForScroll(scrollY: Float): Float {
-    if (scrollY == 0f) return 0f
-    val magnitude = abs(scrollY)
-    val scrollUnits = if (magnitude > PlayerScrollVolumePixelThreshold) {
-        (magnitude / PlayerScrollVolumePixelUnit).coerceAtMost(1f)
-    } else {
-        (magnitude / PlayerScrollVolumePixelThreshold).coerceIn(0.35f, 1f)
+    fun consumeDelta(scrollY: Float): Float {
+        if (scrollY == 0f) return 0f
+
+        val existingDirection = pendingScrollY.compareTo(0f)
+        val incomingDirection = scrollY.compareTo(0f)
+        if (existingDirection != 0 && existingDirection != incomingDirection) {
+            pendingScrollY = 0f
+        }
+        pendingScrollY += scrollY
+
+        val magnitude = abs(pendingScrollY)
+        if (magnitude < PlayerScrollVolumePixelThreshold) return 0f
+
+        val steps = when {
+            magnitude >= PlayerScrollVolumePixelUnit ->
+                (magnitude / PlayerScrollVolumePixelUnit).toInt().coerceIn(1, PlayerScrollVolumeMaxSteps)
+            else -> 1
+        }
+        val consumed = if (magnitude >= PlayerScrollVolumePixelUnit) {
+            steps * PlayerScrollVolumePixelUnit
+        } else {
+            magnitude
+        }
+        if (pendingScrollY < 0f) {
+            pendingScrollY += consumed
+        } else {
+            pendingScrollY -= consumed
+        }
+
+        val direction = if (scrollY < 0f) 1f else -1f
+        return direction * PlayerScrollVolumeStep * steps
     }
-    val direction = if (scrollY < 0f) 1f else -1f
-    return direction * PlayerScrollVolumeStep * scrollUnits
 }
 
 private fun PlayerPlaybackSnapshot.displayPositionAt(
@@ -923,36 +942,11 @@ fun PlayerScreen(
             revealPlayerChrome()
         }
 
-        fun flushVolumeScrollDelta() {
-            val delta = volumeScrollAccumulator.pendingDelta
-                .coerceIn(-PlayerScrollVolumeMaxQueuedDelta, PlayerScrollVolumeMaxQueuedDelta)
-            volumeScrollAccumulator.pendingDelta = 0f
-            volumeScrollAccumulator.lastAppliedEpochMs = WatchProgressClock.nowEpochMs()
-            if (abs(delta) >= 0.001f) {
-                adjustVolume(delta)
-            }
-        }
-
         fun handlePlayerVolumeScroll(scrollY: Float): Boolean {
-            val delta = playerVolumeDeltaForScroll(scrollY)
-            if (delta == 0f) return false
-
-            volumeScrollAccumulator.pendingDelta =
-                (volumeScrollAccumulator.pendingDelta + delta)
-                    .coerceIn(-PlayerScrollVolumeMaxQueuedDelta, PlayerScrollVolumeMaxQueuedDelta)
-
-            if (volumeScrollAccumulator.applyJob?.isActive == true) {
-                return true
-            }
-
-            val now = WatchProgressClock.nowEpochMs()
-            val elapsedMs = now - volumeScrollAccumulator.lastAppliedEpochMs
-            val delayMs = (PlayerScrollVolumeApplyIntervalMs - elapsedMs).coerceAtLeast(0L)
-            volumeScrollAccumulator.applyJob = scope.launch {
-                if (delayMs > 0L) {
-                    delay(delayMs)
-                }
-                flushVolumeScrollDelta()
+            if (scrollY == 0f) return false
+            val delta = volumeScrollAccumulator.consumeDelta(scrollY)
+            if (delta != 0f) {
+                adjustVolume(delta)
             }
             return true
         }
@@ -2249,8 +2243,7 @@ fun PlayerScreen(
                                 PlayerGestureMode.Volume -> {
                                     val gestureDeltaFraction =
                                         (-totalDy / height) * PlayerVerticalGestureSensitivity
-                                    controller?.setVolume((initialVolume?.fraction ?: 0f) + gestureDeltaFraction)
-                                        ?.let(showVolumeFeedbackState.value)
+                                    setPlayerVolume((initialVolume?.fraction ?: visiblePlayerAudioLevel.fraction) + gestureDeltaFraction)
                                 }
 
                                 null -> Unit

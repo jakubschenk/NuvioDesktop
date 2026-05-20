@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.size
@@ -75,9 +76,11 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.NuvioBackButton
@@ -89,6 +92,8 @@ import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 
 private val PlayerVolumeSliderTouchHeight = 34.dp
+private val PlayerVolumeSliderTrackHeight = 4.dp
+private val PlayerVolumeSliderThumbSize = 10.dp
 private const val PlayerVolumeSliderIdleScaleY = 0.72f
 private const val PlayerVolumeKeyboardStep = 0.05f
 
@@ -675,6 +680,10 @@ private fun PlayerVolumeSlider(
         targetValue = if (isHovered || isFocused || isDragging) 1f else PlayerVolumeSliderIdleScaleY,
         label = "player_volume_slider_scale",
     )
+    val thumbAlpha by animateFloatAsState(
+        targetValue = if (isHovered || isFocused || isDragging) 0.96f else 0.74f,
+        label = "player_volume_thumb_alpha",
+    )
 
     fun volumeForX(x: Float, width: Float): Float {
         if (width <= 0f) return coercedVolume
@@ -760,18 +769,46 @@ private fun PlayerVolumeSlider(
                             isDragging = false
                         }
                     }
-                },
+            },
             contentAlignment = Alignment.Center,
         ) {
-            Slider(
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(scaleY = sliderScaleY),
-                value = coercedVolume,
-                onValueChange = {},
-                onValueChangeFinished = {},
-                valueRange = 0f..1f,
-            )
+                    .fillMaxWidth()
+                    .height(PlayerVolumeSliderTrackHeight)
+                    .graphicsLayer(scaleY = sliderScaleY)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.24f)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(coercedVolume)
+                        .height(PlayerVolumeSliderTrackHeight)
+                        .clip(CircleShape)
+                        .background(
+                            Color.White.copy(
+                                alpha = when {
+                                    volumeLevel.isMuted -> 0.48f
+                                    else -> 0.92f
+                                },
+                            ),
+                        ),
+                )
+            }
+            if (sliderWidthPx > 0) {
+                val density = LocalDensity.current
+                val thumbSizePx = with(density) { PlayerVolumeSliderThumbSize.toPx() }
+                val thumbOffsetPx = ((sliderWidthPx - thumbSizePx).coerceAtLeast(0f) * coercedVolume).roundToInt()
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .offset { IntOffset(thumbOffsetPx, 0) }
+                        .size(PlayerVolumeSliderThumbSize)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = thumbAlpha))
+                        .border(1.dp, Color.Black.copy(alpha = 0.2f), CircleShape),
+                )
+            }
         }
         Text(
             text = percentage.toString(),
