@@ -114,6 +114,9 @@ import org.jetbrains.compose.resources.stringResource
 fun MetaDetailsScreen(
     type: String,
     id: String,
+    initialSelectedVideoId: String? = null,
+    initialSelectedSeasonNumber: Int? = null,
+    initialSelectedEpisodeNumber: Int? = null,
     onBack: () -> Unit,
     onPlay: ((type: String, videoId: String, parentMetaId: String, parentMetaType: String, title: String, logo: String?, poster: String?, background: String?, seasonNumber: Int?, episodeNumber: Int?, episodeTitle: String?, episodeThumbnail: String?, pauseDescription: String?, resumePositionMs: Long?) -> Unit)? = null,
     onPlayManually: ((type: String, videoId: String, parentMetaId: String, parentMetaType: String, title: String, logo: String?, poster: String?, background: String?, seasonNumber: Int?, episodeNumber: Int?, episodeTitle: String?, episodeThumbnail: String?, pauseDescription: String?, resumePositionMs: Long?) -> Unit)? = null,
@@ -364,7 +367,61 @@ fun MetaDetailsScreen(
                 val movieProgress = progressByVideoId[meta.id]
                     ?.takeUnless { it.isCompleted }
                 val cwPrefs by ContinueWatchingPreferencesRepository.uiState.collectAsStateWithLifecycle()
-                val seriesAction = remember(watchProgressUiState.entries, watchedUiState.items, meta, todayIsoDate, cwPrefs.upNextFromFurthestEpisode) {
+                val routeSelectedVideo = remember(
+                    meta.id,
+                    meta.videos,
+                    initialSelectedVideoId,
+                    initialSelectedSeasonNumber,
+                    initialSelectedEpisodeNumber,
+                ) {
+                    if (
+                        initialSelectedVideoId.isNullOrBlank() &&
+                        initialSelectedSeasonNumber == null &&
+                        initialSelectedEpisodeNumber == null
+                    ) {
+                        null
+                    } else {
+                        meta.videos.firstOrNull { video ->
+                            val playbackVideoId = buildPlaybackVideoId(
+                                parentMetaId = meta.id,
+                                seasonNumber = video.season,
+                                episodeNumber = video.episode,
+                                fallbackVideoId = video.id,
+                            )
+                            val matchesVideoId = !initialSelectedVideoId.isNullOrBlank() &&
+                                (video.id == initialSelectedVideoId || playbackVideoId == initialSelectedVideoId)
+                            val matchesSeasonEpisode =
+                                initialSelectedSeasonNumber != null &&
+                                    initialSelectedEpisodeNumber != null &&
+                                    video.season == initialSelectedSeasonNumber &&
+                                    video.episode == initialSelectedEpisodeNumber
+                            matchesVideoId || matchesSeasonEpisode
+                        }
+                    }
+                }
+                val routeSelectedAction = remember(meta.id, routeSelectedVideo, progressByVideoId) {
+                    routeSelectedVideo?.let { video ->
+                        val playbackVideoId = buildPlaybackVideoId(
+                            parentMetaId = meta.id,
+                            seasonNumber = video.season,
+                            episodeNumber = video.episode,
+                            fallbackVideoId = video.id,
+                        )
+                        val streamVideoId = video.id.takeIf { it.isNotBlank() } ?: playbackVideoId
+                        val savedProgress = (progressByVideoId[streamVideoId] ?: progressByVideoId[playbackVideoId])
+                            ?.takeUnless { it.isCompleted }
+                        SeriesPrimaryAction(
+                            label = savedProgress?.resumeLabel() ?: video.playLabel(),
+                            videoId = streamVideoId,
+                            seasonNumber = video.season,
+                            episodeNumber = video.episode,
+                            episodeTitle = video.title,
+                            episodeThumbnail = video.thumbnail,
+                            resumePositionMs = savedProgress?.lastPositionMs,
+                        )
+                    }
+                }
+                val autoSeriesAction = remember(watchProgressUiState.entries, watchedUiState.items, meta, todayIsoDate, cwPrefs.upNextFromFurthestEpisode) {
                     meta.seriesPrimaryAction(
                         entries = watchProgressUiState.entries,
                         watchedItems = watchedUiState.items,
@@ -372,6 +429,7 @@ fun MetaDetailsScreen(
                         preferFurthestEpisode = cwPrefs.upNextFromFurthestEpisode,
                     )
                 }
+                val seriesAction = routeSelectedAction ?: autoSeriesAction
                 val seriesActionVideo = remember(seriesAction, meta.id, meta.videos) {
                     val action = seriesAction ?: return@remember null
                     meta.videos.firstOrNull { video ->

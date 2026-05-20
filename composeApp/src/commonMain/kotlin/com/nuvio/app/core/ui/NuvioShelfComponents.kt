@@ -32,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.draw.clip
@@ -75,6 +77,7 @@ fun <T> NuvioShelfSection(
     showHeaderAccent: Boolean = true,
     onViewAllClick: (() -> Unit)? = null,
     viewAllPillSize: NuvioViewAllPillSize = NuvioViewAllPillSize.Default,
+    scrollWithoutShift: Boolean = false,
     key: ((T) -> Any)? = null,
     itemContent: @Composable (T) -> Unit,
 ) {
@@ -96,7 +99,7 @@ fun <T> NuvioShelfSection(
             state = rowState,
             modifier = Modifier
                 .fillMaxWidth()
-                .shelfRowMouseDragScroll(rowState),
+                .shelfRowMouseDragScroll(rowState, scrollWithoutShift = scrollWithoutShift),
             contentPadding = rowContentPadding,
             horizontalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {
@@ -116,8 +119,28 @@ fun <T> NuvioShelfSection(
     }
 }
 
-private fun Modifier.shelfRowMouseDragScroll(listState: LazyListState): Modifier =
-    pointerInput(listState) {
+private fun Modifier.shelfRowMouseDragScroll(
+    listState: LazyListState,
+    scrollWithoutShift: Boolean,
+): Modifier {
+    val wheelModifier = if (scrollWithoutShift) {
+        onPointerEvent(PointerEventType.Scroll) { event ->
+            val scrollDelta = event.changes.firstOrNull()?.scrollDelta ?: return@onPointerEvent
+            val dominantDelta = if (abs(scrollDelta.x) > abs(scrollDelta.y)) {
+                scrollDelta.x
+            } else {
+                scrollDelta.y
+            }
+            if (dominantDelta == 0f) return@onPointerEvent
+
+            listState.dispatchRawDelta(dominantDelta)
+            event.changes.forEach { change -> change.consume() }
+        }
+    } else {
+        this
+    }
+
+    return wheelModifier.pointerInput(listState) {
         awaitEachGesture {
             val down = awaitFirstDown(pass = PointerEventPass.Initial)
             if (down.type != PointerType.Mouse) return@awaitEachGesture
@@ -153,6 +176,7 @@ private fun Modifier.shelfRowMouseDragScroll(listState: LazyListState): Modifier
             }
         }
     }
+}
 
 @Composable
 fun NuvioPosterCard(

@@ -250,7 +250,22 @@ import org.jetbrains.compose.resources.stringResource
 object TabsRoute
 
 @Serializable
-data class DetailRoute(val type: String, val id: String)
+data class DetailRoute(
+    val type: String,
+    val id: String,
+    val selectedVideoId: String? = null,
+    val selectedSeasonNumber: Int? = null,
+    val selectedEpisodeNumber: Int? = null,
+)
+
+private fun ContinueWatchingItem.toDetailRoute(): DetailRoute =
+    DetailRoute(
+        type = parentMetaType,
+        id = parentMetaId,
+        selectedVideoId = videoId.takeIf { it.isNotBlank() },
+        selectedSeasonNumber = seasonNumber,
+        selectedEpisodeNumber = episodeNumber,
+    )
 
 @Serializable
 data class PersonDetailRoute(
@@ -1253,7 +1268,11 @@ private fun MainAppContent(
         }
 
         val onContinueWatchingClick: (ContinueWatchingItem) -> Unit = { item ->
-            openContinueWatching(item, false, false)
+            if (item.isCloudLibraryContinueWatchingItem()) {
+                openContinueWatching(item, false, false)
+            } else {
+                navController.navigate(item.toDetailRoute())
+            }
         }
 
         val onContinueWatchingStartFromBeginning: (ContinueWatchingItem) -> Unit = { item ->
@@ -1476,6 +1495,9 @@ private fun MainAppContent(
                     MetaDetailsScreen(
                         type = route.type,
                         id = route.id,
+                        initialSelectedVideoId = route.selectedVideoId,
+                        initialSelectedSeasonNumber = route.selectedSeasonNumber,
+                        initialSelectedEpisodeNumber = route.selectedEpisodeNumber,
                         onBack = {
                             navController.popBackStack()
                         },
@@ -2379,12 +2401,7 @@ private fun MainAppContent(
                 onDismiss = { selectedContinueWatchingForActions = null },
                 onOpenDetails = {
                     selectedContinueWatchingForActions?.let { item ->
-                        navController.navigate(
-                            DetailRoute(
-                                type = item.parentMetaType,
-                                id = item.parentMetaId,
-                            ),
-                        )
+                        navController.navigate(item.toDetailRoute())
                     }
                 },
                 onStartFromBeginning = selectedContinueWatchingForActions

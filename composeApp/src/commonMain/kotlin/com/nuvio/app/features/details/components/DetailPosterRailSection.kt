@@ -31,6 +31,7 @@ fun DetailPosterRailSection(
         headerHorizontalPadding = headerHorizontalPadding,
         rowContentPadding = PaddingValues(horizontal = headerHorizontalPadding),
         showHeaderAccent = false,
+        scrollWithoutShift = true,
         key = { item -> item.stableKey() },
     ) { item ->
         HomePosterCard(
