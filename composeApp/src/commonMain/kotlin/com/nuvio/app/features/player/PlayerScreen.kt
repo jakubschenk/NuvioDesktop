@@ -907,17 +907,38 @@ fun PlayerScreen(
             )
         }
 
-        fun applyVolumeFeedback(level: PlayerAudioLevel) {
+        fun applyVolumeFeedback(
+            level: PlayerAudioLevel,
+            showFeedback: Boolean = true,
+        ) {
             val normalized = normalizedAudioLevel(level)
             syncPlayerAudioLevel(normalized)
-            showVolumeFeedback(normalized)
+            if (showFeedback) {
+                showVolumeFeedback(normalized)
+            }
             revealPlayerChrome()
         }
 
-        fun setPlayerVolume(level: Float) {
+        fun previewPlayerVolume(level: Float) {
             val target = level.coerceIn(0f, 1f)
             pendingPlayerVolumeTarget = target
-            applyVolumeFeedback(optimisticAudioLevelForVolume(target))
+            val appliedLevel = playerController?.setVolume(target) ?: gestureController?.setVolume(target)
+            if (appliedLevel != null) {
+                pendingPlayerVolumeTarget = null
+            }
+            revealPlayerChrome()
+        }
+
+        fun setPlayerVolume(
+            level: Float,
+            showFeedback: Boolean = true,
+        ) {
+            val target = level.coerceIn(0f, 1f)
+            pendingPlayerVolumeTarget = target
+            applyVolumeFeedback(
+                level = optimisticAudioLevelForVolume(target),
+                showFeedback = showFeedback,
+            )
             val appliedLevel = playerController?.setVolume(target) ?: gestureController?.setVolume(target)
             if (appliedLevel != null) {
                 pendingPlayerVolumeTarget = null
@@ -2413,7 +2434,8 @@ fun PlayerScreen(
                     onSeekForward = { seekBy(10_000L) },
                     onResizeModeClick = ::cycleResizeMode,
                     onSpeedClick = ::cyclePlaybackSpeed,
-                    onVolumeChange = ::setPlayerVolume,
+                    onVolumeChange = { level -> setPlayerVolume(level, showFeedback = false) },
+                    onVolumePreviewChange = ::previewPlayerVolume,
                     onMuteClick = ::toggleMute,
                     onSubtitleClick = {
                         refreshTracks()

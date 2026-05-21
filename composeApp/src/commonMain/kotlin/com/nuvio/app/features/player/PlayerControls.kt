@@ -114,6 +114,7 @@ internal fun PlayerControlsShell(
     onResizeModeClick: () -> Unit,
     onSpeedClick: () -> Unit,
     onVolumeChange: (Float) -> Unit,
+    onVolumePreviewChange: ((Float) -> Unit)? = null,
     onMuteClick: () -> Unit,
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
@@ -223,6 +224,7 @@ internal fun PlayerControlsShell(
                     onResizeModeClick = onResizeModeClick,
                     onSpeedClick = onSpeedClick,
                     onVolumeChange = onVolumeChange,
+                    onVolumePreviewChange = onVolumePreviewChange,
                     onMuteClick = onMuteClick,
                     onSubtitleClick = onSubtitleClick,
                     onAudioClick = onAudioClick,
@@ -539,6 +541,7 @@ private fun ProgressControls(
     onResizeModeClick: () -> Unit,
     onSpeedClick: () -> Unit,
     onVolumeChange: (Float) -> Unit,
+    onVolumePreviewChange: ((Float) -> Unit)? = null,
     onMuteClick: () -> Unit,
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
@@ -603,6 +606,7 @@ private fun ProgressControls(
                         PlayerVolumeSlider(
                             volumeLevel = volumeLevel,
                             onVolumeChange = onVolumeChange,
+                            onVolumePreviewChange = onVolumePreviewChange,
                             onMuteClick = onMuteClick,
                         )
                     }
@@ -666,9 +670,11 @@ private fun ProgressControls(
 private fun PlayerVolumeSlider(
     volumeLevel: PlayerAudioLevel,
     onVolumeChange: (Float) -> Unit,
+    onVolumePreviewChange: ((Float) -> Unit)? = null,
     onMuteClick: () -> Unit,
 ) {
     val focusRequester = remember { FocusRequester() }
+    val onVolumePreviewChangeState = rememberUpdatedState(onVolumePreviewChange)
     val onVolumeChangeState = rememberUpdatedState(onVolumeChange)
     var isHovered by remember { mutableStateOf(false) }
     var isFocused by remember { mutableStateOf(false) }
@@ -689,7 +695,18 @@ private fun PlayerVolumeSlider(
         val nowMs = PlayerWallClock.nowEpochMs()
         if (!force && nowMs - lastDragCommitMs < PlayerVolumeDragCommitIntervalMs) return
         lastDragCommitMs = nowMs
-        onVolumeChangeState.value(target)
+        if (force) {
+            onVolumeChangeState.value(target)
+        } else {
+            (onVolumePreviewChangeState.value ?: onVolumeChangeState.value)(target)
+        }
+    }
+
+    fun finishVolumeDrag() {
+        isDragging = false
+        val finalVolume = localDragVolume ?: return
+        localDragVolume = null
+        commitVolume(finalVolume)
     }
 
     Row(
@@ -745,9 +762,7 @@ private fun PlayerVolumeSlider(
                     isDragging = true
                 }
                 .onPointerEvent(PointerEventType.Release) {
-                    isDragging = false
-                    localDragVolume?.let { commitVolume(it) }
-                    localDragVolume = null
+                    finishVolumeDrag()
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -766,9 +781,7 @@ private fun PlayerVolumeSlider(
                     commitVolume(target, force = false)
                 },
                 onValueChangeFinished = {
-                    isDragging = false
-                    localDragVolume?.let { commitVolume(it) }
-                    localDragVolume = null
+                    finishVolumeDrag()
                 },
                 valueRange = 0f..1f,
             )
