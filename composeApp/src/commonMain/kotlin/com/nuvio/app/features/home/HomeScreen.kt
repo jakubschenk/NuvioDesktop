@@ -59,11 +59,13 @@ import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.streams.StreamsRepository
 import com.nuvio.app.features.home.components.HomeCollectionRowSection
 import com.nuvio.app.features.watchprogress.ContinueWatchingSectionStyle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import com.nuvio.app.features.home.components.ContinueWatchingLayout
 import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWidth
 import com.nuvio.app.features.home.components.rememberContinueWatchingLayout
@@ -81,12 +83,17 @@ fun HomeScreen(
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
     onFirstCatalogRendered: (() -> Unit)? = null,
 ) {
-    LaunchedEffect(Unit) {
-        AddonRepository.initialize()
-        CollectionRepository.initialize()
-        ContinueWatchingPreferencesRepository.ensureLoaded()
-        WatchedRepository.ensureLoaded()
-        WatchProgressRepository.ensureLoaded()
+    val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
+    val activeProfileId = profileState.activeProfile?.profileIndex ?: 1
+
+    LaunchedEffect(activeProfileId) {
+        withContext(Dispatchers.Default) {
+            AddonRepository.initialize()
+            CollectionRepository.initialize()
+            ContinueWatchingPreferencesRepository.ensureLoaded()
+            WatchedRepository.ensureLoaded()
+            WatchProgressRepository.ensureLoaded()
+        }
     }
 
     val addonsUiState by AddonRepository.uiState.collectAsStateWithLifecycle()
@@ -185,12 +192,16 @@ fun HomeScreen(
             latestCompletedBySeries = latestCompletedBySeries,
         )
     }
-    val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
-    val activeProfileId = profileState.activeProfile?.profileIndex ?: 1
-
     var nextUpItemsBySeries by remember(activeProfileId) { mutableStateOf<Map<String, Pair<Long, ContinueWatchingItem>>>(emptyMap()) }
 
-    val cachedSnapshots = remember(activeProfileId) { ContinueWatchingEnrichmentCache.getSnapshots() }
+    var cachedSnapshots by remember(activeProfileId) {
+        mutableStateOf(emptyList<CachedNextUpItem>() to emptyList<CachedInProgressItem>())
+    }
+    LaunchedEffect(activeProfileId) {
+        cachedSnapshots = withContext(Dispatchers.Default) {
+            ContinueWatchingEnrichmentCache.getSnapshots()
+        }
+    }
     val cachedNextUpItems = remember(
         cachedSnapshots.first,
         continueWatchingPreferences.dismissedNextUpKeys,
@@ -418,10 +429,12 @@ fun HomeScreen(
                 progressPercent = entry.progressPercent,
             )
         }
-        ContinueWatchingEnrichmentCache.saveSnapshots(
-            nextUp = nextUpCache,
-            inProgress = inProgressCache,
-        )
+        withContext(Dispatchers.Default) {
+            ContinueWatchingEnrichmentCache.saveSnapshots(
+                nextUp = nextUpCache,
+                inProgress = inProgressCache,
+            )
+        }
     }
 
     val showHeroSlot = homeSettingsUiState.heroEnabled

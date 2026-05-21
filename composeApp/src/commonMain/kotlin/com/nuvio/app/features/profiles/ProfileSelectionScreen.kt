@@ -86,7 +86,6 @@ fun ProfileSelectionScreen(
 
     LaunchedEffect(Unit) {
         AvatarRepository.fetchAvatars()
-        AvatarRepository.refreshAvatars()
     }
 
     LaunchedEffect(authState) {
@@ -179,7 +178,6 @@ fun ProfileSelectionScreen(
                                         } else if (profile.pinEnabled) {
                                             pinDialogProfile = profile
                                         } else {
-                                            ProfileRepository.selectProfile(profile.profileIndex)
                                             onProfileSelected(profile)
                                         }
                                     },
@@ -220,7 +218,6 @@ fun ProfileSelectionScreen(
                                                 } else if (profile.pinEnabled) {
                                                     pinDialogProfile = profile
                                                 } else {
-                                                    ProfileRepository.selectProfile(profile.profileIndex)
                                                     onProfileSelected(profile)
                                                 }
                                             },
@@ -285,7 +282,6 @@ fun ProfileSelectionScreen(
             onVerify = { pin -> ProfileRepository.verifyPin(profile.profileIndex, pin) },
             onVerified = {
                 pinDialogProfile = null
-                ProfileRepository.selectProfile(profile.profileIndex)
                 onProfileSelected(profile)
             },
             onDismiss = { pinDialogProfile = null },
