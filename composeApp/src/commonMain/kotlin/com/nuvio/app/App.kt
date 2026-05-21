@@ -130,6 +130,7 @@ import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.core.ui.NuvioInputField
 import com.nuvio.app.core.ui.NuvioDropdownMenu
 import com.nuvio.app.core.ui.NuvioDropdownMenuItem
+import com.nuvio.app.core.ui.NuvioWordmarkImage
 import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.NativeNavigationTab
 import com.nuvio.app.core.ui.NativeTabBridge
@@ -222,7 +223,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import nuvio.composeapp.generated.resources.*
-import nuvio.composeapp.generated.resources.app_logo_wordmark
 import nuvio.composeapp.generated.resources.compose_nav_home
 import nuvio.composeapp.generated.resources.compose_nav_profile
 import nuvio.composeapp.generated.resources.compose_nav_search
@@ -2912,8 +2912,7 @@ private fun AppLaunchOverlay(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Image(
-                painter = painterResource(Res.drawable.app_logo_wordmark),
+            NuvioWordmarkImage(
                 contentDescription = stringResource(Res.string.app_brand_name),
                 modifier = Modifier
                     .fillMaxWidth(0.48f)

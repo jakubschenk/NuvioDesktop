@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -59,9 +58,9 @@ import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.ui.nuvioOverlayGradientBrush
 import com.nuvio.app.core.ui.NuvioPrimaryButton
 import com.nuvio.app.core.ui.NuvioSurfaceCard
+import com.nuvio.app.core.ui.NuvioWordmarkImage
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.Res
-import nuvio.composeapp.generated.resources.app_logo_wordmark
 import nuvio.composeapp.generated.resources.compose_auth_already_have_account
 import nuvio.composeapp.generated.resources.compose_auth_continue_without_account
 import nuvio.composeapp.generated.resources.compose_auth_create_account
@@ -76,7 +75,6 @@ import nuvio.composeapp.generated.resources.compose_auth_sign_up_subtitle
 import nuvio.composeapp.generated.resources.compose_auth_store_locally
 import nuvio.composeapp.generated.resources.compose_auth_tagline
 import nuvio.composeapp.generated.resources.compose_auth_welcome_back
-import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -110,8 +108,7 @@ fun AuthScreen(
                 .padding(start = 24.dp, end = 24.dp, top = statusBarTop + 60.dp, bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Image(
-                painter = painterResource(Res.drawable.app_logo_wordmark),
+            NuvioWordmarkImage(
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxWidth(0.6f)
