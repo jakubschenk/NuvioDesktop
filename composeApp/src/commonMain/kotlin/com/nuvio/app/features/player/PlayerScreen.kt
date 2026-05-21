@@ -768,10 +768,15 @@ fun PlayerScreen(
             )
         }
 
-        fun applyVolumeFeedback(level: PlayerAudioLevel) {
+        fun applyVolumeFeedback(
+            level: PlayerAudioLevel,
+            showFeedback: Boolean = true,
+        ) {
             val normalized = normalizedAudioLevel(level)
             syncPlayerAudioLevel(normalized)
-            showVolumeFeedback(normalized)
+            if (showFeedback) {
+                showVolumeFeedback(normalized)
+            }
         }
 
         fun toggleMute() {
@@ -781,10 +786,25 @@ fun PlayerScreen(
             revealPlayerChrome()
         }
 
-        fun setPlayerVolume(level: Float) {
+        fun previewPlayerVolume(level: Float) {
             val target = level.coerceIn(0f, 1f)
             pendingPlayerVolumeTarget = target
-            applyVolumeFeedback(optimisticAudioLevelForVolume(target))
+            if (playerController?.setVolume(target) != null) {
+                pendingPlayerVolumeTarget = null
+            }
+            revealPlayerChrome()
+        }
+
+        fun setPlayerVolume(
+            level: Float,
+            showFeedback: Boolean = true,
+        ) {
+            val target = level.coerceIn(0f, 1f)
+            pendingPlayerVolumeTarget = target
+            applyVolumeFeedback(
+                level = optimisticAudioLevelForVolume(target),
+                showFeedback = showFeedback,
+            )
             if (playerController?.setVolume(target) != null) {
                 pendingPlayerVolumeTarget = null
             }
@@ -2233,7 +2253,8 @@ fun PlayerScreen(
                         showAudioModal = true
                     },
                     onVolumeClick = ::toggleMute,
-                    onVolumeChange = ::setPlayerVolume,
+                    onVolumePreviewChange = ::previewPlayerVolume,
+                    onVolumeChange = { level -> setPlayerVolume(level, showFeedback = false) },
                     volumeLevel = visiblePlayerAudioLevel.fraction,
                     isVolumeMuted = visiblePlayerAudioLevel.isMuted,
                     onNextEpisodeClick = if (isSeries) { ::openNextEpisodeOrEpisodes } else null,

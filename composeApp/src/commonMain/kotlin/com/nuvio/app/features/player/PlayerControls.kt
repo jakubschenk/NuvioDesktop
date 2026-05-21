@@ -209,6 +209,7 @@ internal fun PlayerControlsShell(
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onVolumeClick: (() -> Unit)? = null,
+    onVolumePreviewChange: ((Float) -> Unit)? = null,
     onVolumeChange: ((Float) -> Unit)? = null,
     volumeLevel: Float = 1f,
     isVolumeMuted: Boolean = false,
@@ -337,6 +338,7 @@ internal fun PlayerControlsShell(
                 onSubtitleClick = onSubtitleClick,
                 onAudioClick = onAudioClick,
                 onVolumeClick = onVolumeClick,
+                onVolumePreviewChange = onVolumePreviewChange,
                 onVolumeChange = onVolumeChange,
                 volumeLevel = volumeLevel,
                 isVolumeMuted = isVolumeMuted,
@@ -458,6 +460,7 @@ private fun ProgressControls(
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onVolumeClick: (() -> Unit)? = null,
+    onVolumePreviewChange: ((Float) -> Unit)? = null,
     onVolumeChange: ((Float) -> Unit)? = null,
     volumeLevel: Float = 1f,
     isVolumeMuted: Boolean = false,
@@ -553,6 +556,7 @@ private fun ProgressControls(
                         volumeLevel = volumeLevel,
                         isMuted = isVolumeMuted,
                         onMuteClick = onVolumeClick,
+                        onVolumePreviewChange = onVolumePreviewChange,
                         onVolumeChange = onVolumeChange,
                     )
                 }
@@ -782,11 +786,13 @@ private fun PlayerVolumeControl(
     volumeLevel: Float,
     isMuted: Boolean,
     onMuteClick: (() -> Unit)?,
+    onVolumePreviewChange: ((Float) -> Unit)?,
     onVolumeChange: ((Float) -> Unit)?,
 ) {
     val focusRequester = remember { FocusRequester() }
+    val onVolumePreviewChangeState = rememberUpdatedState(onVolumePreviewChange)
     val onVolumeChangeState = rememberUpdatedState(onVolumeChange)
-    val volumeEnabled = onVolumeChange != null
+    val volumeEnabled = onVolumePreviewChange != null || onVolumeChange != null
     var isHovered by remember { mutableStateOf(false) }
     var isFocused by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
@@ -805,7 +811,18 @@ private fun PlayerVolumeControl(
         val nowMs = PlayerWallClock.nowEpochMs()
         if (!force && nowMs - lastDragCommitMs < PlayerVolumeDragCommitIntervalMs) return
         lastDragCommitMs = nowMs
-        onVolumeChangeState.value?.invoke(target)
+        if (force) {
+            onVolumeChangeState.value?.invoke(target)
+        } else {
+            (onVolumePreviewChangeState.value ?: onVolumeChangeState.value)?.invoke(target)
+        }
+    }
+
+    fun finishVolumeDrag() {
+        isDragging = false
+        val finalVolume = localDragVolume ?: return
+        localDragVolume = null
+        commitVolume(finalVolume)
     }
 
     Row(
@@ -853,9 +870,7 @@ private fun PlayerVolumeControl(
                     }
                 }
                 .onPointerEvent(PointerEventType.Release) {
-                    isDragging = false
-                    localDragVolume?.let { commitVolume(it) }
-                    localDragVolume = null
+                    finishVolumeDrag()
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -874,9 +889,7 @@ private fun PlayerVolumeControl(
                     commitVolume(target, force = false)
                 },
                 onValueChangeFinished = {
-                    isDragging = false
-                    localDragVolume?.let { commitVolume(it) }
-                    localDragVolume = null
+                    finishVolumeDrag()
                 },
                 valueRange = 0f..1f,
                 enabled = volumeEnabled,
