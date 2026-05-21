@@ -39,6 +39,7 @@ import com.nuvio.app.desktop.WindowsNativeBootstrap
 import com.nuvio.app.desktop.WindowsUrlProtocolRegistrar
 import com.nuvio.app.features.notifications.WindowsToastHelper
 import com.nuvio.app.features.addons.ApiRequestTraceLog
+import com.nuvio.app.features.player.desktop.DesktopPlayerBackendFactory
 import com.nuvio.app.features.settings.LayoutSettingsRepository
 import com.nuvio.app.features.trakt.TraktAuthRepository
 import io.ktor.http.Url
@@ -170,6 +171,13 @@ fun main(args: Array<String>) {
     rawStartupUrls.forEach(::handleIncomingDeepLink)
     WindowsNativeBootstrap.bootstrap()
     LayoutSettingsRepository.ensureLoaded()
+    Thread(
+        { DesktopPlayerBackendFactory.prewarmWindowsBackendRuntime() },
+        "nuvio-player-runtime-prewarm",
+    ).apply {
+        isDaemon = true
+        start()
+    }
     configureMacOsNativeAppearance()
     application {
         DesktopRuntimeLog.info("window composition start pid=$pid")

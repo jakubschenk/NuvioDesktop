@@ -26,6 +26,20 @@ internal object DesktopPlayerBackendFactory {
         }
     }
 
+    fun prewarmWindowsBackendRuntime() {
+        val selection = DesktopPlayerBackendSelection.resolve()
+        when (selection.backend) {
+            DesktopPlayerBackendKind.None -> Unit
+            DesktopPlayerBackendKind.Native -> {
+                NativeBridgeRuntimeLocator.resolve()
+                prewarmMpvRuntime()
+            }
+            DesktopPlayerBackendKind.Mpv,
+            DesktopPlayerBackendKind.Auto,
+            -> prewarmMpvRuntime()
+        }
+    }
+
     private fun createMpvOrUnavailable(selection: DesktopPlayerBackendSelection): DesktopPlayerBackend =
         createMpvOrNull(selection) ?: unavailable(
             backendName = "windows-mediamp-mpv",
@@ -64,6 +78,16 @@ internal object DesktopPlayerBackendFactory {
             }
             .onFailure { DesktopRuntimeLog.error("MPV backend init failed", it) }
             .getOrNull()
+    }
+
+    private fun prewarmMpvRuntime() {
+        val runtime = MpvRuntimeLocator.resolve()
+        val bootstrap = MpvRuntimeBootstrap.apply(runtime)
+        if (bootstrap.success) {
+            DesktopRuntimeLog.info("MPV runtime prewarmed diagnostics=${bootstrap.diagnostics}")
+        } else {
+            DesktopRuntimeLog.warn("MPV runtime prewarm skipped diagnostics=${bootstrap.diagnostics}")
+        }
     }
 
     private fun unavailable(
