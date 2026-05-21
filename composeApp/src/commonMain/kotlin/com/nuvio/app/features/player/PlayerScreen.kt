@@ -788,10 +788,7 @@ fun PlayerScreen(
 
         fun previewPlayerVolume(level: Float) {
             val target = level.coerceIn(0f, 1f)
-            pendingPlayerVolumeTarget = target
-            if (playerController?.setVolume(target) != null) {
-                pendingPlayerVolumeTarget = null
-            }
+            playerController?.setVolume(target)
             revealPlayerChrome()
         }
 

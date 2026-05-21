@@ -108,6 +108,7 @@ private val PlayerVolumeSliderTouchHeight = 34.dp
 private const val PlayerVolumeSliderIdleScaleY = 0.72f
 private const val PlayerVolumeKeyboardStep = 0.05f
 private const val PlayerVolumeDragCommitIntervalMs = 33L
+private const val PlayerVolumeRenderEpsilon = 0.001f
 private const val PlayerSeekHoverPreviewStepPx = 3
 private const val PlayerChromeFrameIntervalMs = 8L
 private const val PlayerSeekPendingPositionHoldMs = 450L
@@ -123,6 +124,12 @@ private fun PlayerPlaybackSnapshot.displayPositionAt(
     val elapsedMs = (nowEpochMs - snapshotEpochMs).coerceAtLeast(0L)
     val interpolated = positionMs + (elapsedMs * playbackSpeed).roundToLong()
     return interpolated.coerceIn(0L, durationMs)
+}
+
+private class PlayerVolumeDragCoalescer {
+    var pendingVolume: Float? = null
+    var lastPreviewPercent: Int? = null
+    var lastCommitMs: Long = 0L
 }
 
 @Composable
@@ -797,7 +804,7 @@ private fun PlayerVolumeControl(
     var isFocused by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var localDragVolume by remember { mutableStateOf<Float?>(null) }
-    var lastDragCommitMs by remember { mutableStateOf(0L) }
+    val dragCoalescer = remember { PlayerVolumeDragCoalescer() }
     val volumeEventCounter = remember { PlayerPerfEventRateCounter("player-volume-slider") }
     val coercedVolume = volumeLevel.coerceIn(0f, 1f)
     val displayedVolume = localDragVolume ?: coercedVolume
@@ -809,9 +816,15 @@ private fun PlayerVolumeControl(
     ) {
         val target = value.coerceIn(0f, 1f)
         val nowMs = PlayerWallClock.nowEpochMs()
-        if (!force && nowMs - lastDragCommitMs < PlayerVolumeDragCommitIntervalMs) return
-        lastDragCommitMs = nowMs
+        if (!force && nowMs - dragCoalescer.lastCommitMs < PlayerVolumeDragCommitIntervalMs) return
+        if (!force) {
+            val targetPercent = (target * 100f).roundToInt()
+            if (dragCoalescer.lastPreviewPercent == targetPercent) return
+            dragCoalescer.lastPreviewPercent = targetPercent
+        }
+        dragCoalescer.lastCommitMs = nowMs
         if (force) {
+            dragCoalescer.lastPreviewPercent = null
             onVolumeChangeState.value?.invoke(target)
         } else {
             (onVolumePreviewChangeState.value ?: onVolumeChangeState.value)?.invoke(target)
@@ -820,9 +833,30 @@ private fun PlayerVolumeControl(
 
     fun finishVolumeDrag() {
         isDragging = false
-        val finalVolume = localDragVolume ?: return
+        val finalVolume = dragCoalescer.pendingVolume ?: localDragVolume ?: return
+        dragCoalescer.pendingVolume = null
         localDragVolume = null
         commitVolume(finalVolume)
+    }
+
+    LaunchedEffect(isDragging, volumeEnabled) {
+        if (!isDragging || !volumeEnabled) {
+            dragCoalescer.pendingVolume = null
+            dragCoalescer.lastPreviewPercent = null
+            return@LaunchedEffect
+        }
+        while (true) {
+            withFrameNanos { }
+            val target = dragCoalescer.pendingVolume ?: continue
+            dragCoalescer.pendingVolume = null
+            if (localDragVolume == null || abs((localDragVolume ?: 0f) - target) >= PlayerVolumeRenderEpsilon) {
+                localDragVolume = target
+            }
+            volumeEventCounter.record {
+                "valuePct=${(target * 100f).roundToInt()} muted=$isMuted"
+            }
+            commitVolume(target, force = false)
+        }
     }
 
     Row(
@@ -882,11 +916,7 @@ private fun PlayerVolumeControl(
                 onValueChange = { value ->
                     isDragging = true
                     val target = value.coerceIn(0f, 1f)
-                    localDragVolume = target
-                    volumeEventCounter.record {
-                        "valuePct=${(target * 100f).roundToInt()} muted=$isMuted"
-                    }
-                    commitVolume(target, force = false)
+                    dragCoalescer.pendingVolume = target
                 },
                 onValueChangeFinished = {
                     finishVolumeDrag()
