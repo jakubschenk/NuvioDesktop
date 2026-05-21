@@ -226,10 +226,12 @@ import com.nuvio.app.features.watchprogress.nextUpDismissKey
 import com.nuvio.app.features.watchprogress.toContinueWatchingItem
 import com.nuvio.app.features.watching.application.WatchingActions
 import com.nuvio.app.features.watching.application.WatchingState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import nuvio.composeapp.generated.resources.*
 import nuvio.composeapp.generated.resources.app_logo_wordmark
@@ -428,8 +430,10 @@ fun App(
 
         LaunchedEffect(Unit) {
             NetworkStatusRepository.ensureStarted()
-            ProfileRepository.loadCachedProfiles()
-            AvatarRepository.fetchAvatars()
+            withContext(Dispatchers.Default) {
+                ProfileRepository.loadCachedProfiles()
+                AvatarRepository.fetchAvatars()
+            }
         }
 
         val authState by AuthRepository.state.collectAsStateWithLifecycle()
@@ -463,6 +467,23 @@ fun App(
         var editingProfile by remember { mutableStateOf<NuvioProfile?>(null) }
         var isNewProfile by remember { mutableStateOf(false) }
         var autoSkipProfileSelection by rememberSaveable { mutableStateOf(false) }
+        val profileGateScope = rememberCoroutineScope()
+
+        fun selectProfileForGate(
+            profile: NuvioProfile,
+            syncOnEnter: Boolean,
+            onSelected: () -> Unit,
+        ) {
+            profileGateScope.launch {
+                withContext(Dispatchers.Default) {
+                    ProfileRepository.selectProfile(profile.profileIndex)
+                }
+                if (syncOnEnter) {
+                    SyncManager.pullAllForProfile(profile.profileIndex)
+                }
+                onSelected()
+            }
+        }
 
         fun enterProfileGate(profiles: List<NuvioProfile>, syncOnEnter: Boolean) {
             if (profiles.isEmpty()) {
@@ -474,12 +495,10 @@ fun App(
             autoSkipProfileSelection = true
             if (profiles.size == 1) {
                 val onlyProfile = profiles.first()
-                ProfileRepository.selectProfile(onlyProfile.profileIndex)
-                if (syncOnEnter) {
-                    SyncManager.pullAllForProfile(onlyProfile.profileIndex)
-                }
-                gateScreen = AppGateScreen.Main.name
                 autoSkipProfileSelection = false
+                selectProfileForGate(onlyProfile, syncOnEnter) {
+                    gateScreen = AppGateScreen.Main.name
+                }
             } else {
                 gateScreen = AppGateScreen.ProfileSelection.name
             }
@@ -539,10 +558,10 @@ fun App(
                 profileState.profiles.size == 1
             ) {
                 val onlyProfile = profileState.profiles.first()
-                ProfileRepository.selectProfile(onlyProfile.profileIndex)
-                SyncManager.pullAllForProfile(onlyProfile.profileIndex)
-                gateScreen = AppGateScreen.Main.name
                 autoSkipProfileSelection = false
+                selectProfileForGate(onlyProfile, syncOnEnter = true) {
+                    gateScreen = AppGateScreen.Main.name
+                }
             }
         }
 
@@ -576,11 +595,12 @@ fun App(
                     }
                     ProfileSelectionScreen(
                         onProfileSelected = { profile ->
-                            ProfileRepository.selectProfile(profile.profileIndex)
-                            if (authState is AuthState.Authenticated) {
-                                SyncManager.pullAllForProfile(profile.profileIndex)
+                            selectProfileForGate(
+                                profile = profile,
+                                syncOnEnter = authState is AuthState.Authenticated,
+                            ) {
+                                gateScreen = AppGateScreen.Main.name
                             }
-                            gateScreen = AppGateScreen.Main.name
                         },
                         onEditProfile = { profile ->
                             editingProfile = profile
@@ -676,29 +696,24 @@ private fun MainAppContent(
         var pickerMembership by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
         var pickerPending by remember { mutableStateOf(false) }
         var pickerError by remember { mutableStateOf<String?>(null) }
-        val selectedAppLanguage by remember { ThemeSettingsRepository.selectedAppLanguage }.collectAsStateWithLifecycle()
-        val addonsUiState by remember {
-            AddonRepository.initialize()
-            AddonRepository.uiState
-        }.collectAsStateWithLifecycle()
-        val libraryUiState by remember {
-            LibraryRepository.ensureLoaded()
-            LibraryRepository.uiState
-        }.collectAsStateWithLifecycle()
         val authState by AuthRepository.state.collectAsStateWithLifecycle()
         val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
-    val playerSettingsUiState by remember {
-        PlayerSettingsRepository.ensureLoaded()
-        PlayerSettingsRepository.uiState
-    }.collectAsStateWithLifecycle()
-    val watchedUiState by remember {
-        WatchedRepository.ensureLoaded()
-        WatchedRepository.uiState
-    }.collectAsStateWithLifecycle()
-    val downloadsUiState by remember {
-        DownloadsRepository.ensureLoaded()
-        DownloadsRepository.uiState
-    }.collectAsStateWithLifecycle()
+    val activeProfileIdForHydration = profileState.activeProfile?.profileIndex
+    LaunchedEffect(activeProfileIdForHydration) {
+        withContext(Dispatchers.Default) {
+            AddonRepository.initialize()
+            LibraryRepository.ensureLoaded()
+            PlayerSettingsRepository.ensureLoaded()
+            WatchedRepository.ensureLoaded()
+            DownloadsRepository.ensureLoaded()
+        }
+    }
+    val selectedAppLanguage by remember { ThemeSettingsRepository.selectedAppLanguage }.collectAsStateWithLifecycle()
+    val addonsUiState by remember { AddonRepository.uiState }.collectAsStateWithLifecycle()
+    val libraryUiState by remember { LibraryRepository.uiState }.collectAsStateWithLifecycle()
+    val playerSettingsUiState by remember { PlayerSettingsRepository.uiState }.collectAsStateWithLifecycle()
+    val watchedUiState by remember { WatchedRepository.uiState }.collectAsStateWithLifecycle()
+    val downloadsUiState by remember { DownloadsRepository.uiState }.collectAsStateWithLifecycle()
     val networkStatusUiState by remember {
         NetworkStatusRepository.uiState
     }.collectAsStateWithLifecycle()
@@ -1319,8 +1334,12 @@ private fun MainAppContent(
                         val onProfileSelected: (NuvioProfile) -> Unit = { profile ->
                             profileSwitchLoading = true
                             selectedTab = AppScreenTab.Home
-                            ProfileRepository.selectProfile(profile.profileIndex)
-                            com.nuvio.app.core.sync.SyncManager.pullAllForProfile(profile.profileIndex)
+                            coroutineScope.launch {
+                                withContext(Dispatchers.Default) {
+                                    ProfileRepository.selectProfile(profile.profileIndex)
+                                }
+                                com.nuvio.app.core.sync.SyncManager.pullAllForProfile(profile.profileIndex)
+                            }
                         }
 
                         Scaffold(

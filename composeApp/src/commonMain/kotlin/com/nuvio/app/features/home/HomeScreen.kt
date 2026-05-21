@@ -74,12 +74,14 @@ import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.home.components.HomeCollectionRowSection
 import com.nuvio.app.features.watchprogress.ContinueWatchingSectionStyle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import com.nuvio.app.features.home.components.ContinueWatchingLayout
 import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWidth
 import com.nuvio.app.features.home.components.rememberContinueWatchingLayout
@@ -261,7 +263,14 @@ fun HomeScreen(
     var nextUpItemsBySeries by remember(activeProfileId) { mutableStateOf<Map<String, Pair<Long, ContinueWatchingItem>>>(emptyMap()) }
     var processedNextUpContentIds by remember(activeProfileId) { mutableStateOf<Set<String>>(emptySet()) }
 
-    val cachedSnapshots = remember(activeProfileId) { ContinueWatchingEnrichmentCache.getSnapshots() }
+    var cachedSnapshots by remember(activeProfileId) {
+        mutableStateOf(emptyList<CachedNextUpItem>() to emptyList<CachedInProgressItem>())
+    }
+    LaunchedEffect(activeProfileId) {
+        cachedSnapshots = withContext(Dispatchers.Default) {
+            ContinueWatchingEnrichmentCache.getSnapshots()
+        }
+    }
     val shouldValidateMissingNextUpSeeds = remember(
         isTraktProgressActive,
         watchProgressUiState.hasLoadedRemoteProgress,
@@ -1082,7 +1091,7 @@ private data class HomeContinueWatchingCandidate(
     val isProgressEntry: Boolean,
 )
 
-private fun saveContinueWatchingSnapshots(
+private suspend fun saveContinueWatchingSnapshots(
     nextUpItemsBySeries: Map<String, Pair<Long, ContinueWatchingItem>>,
     visibleContinueWatchingEntries: List<WatchProgressEntry>,
     todayIsoDate: String,
@@ -1132,10 +1141,12 @@ private fun saveContinueWatchingSnapshots(
             progressPercent = entry.progressPercent,
         )
     }
-    ContinueWatchingEnrichmentCache.saveSnapshots(
-        nextUp = nextUpCache,
-        inProgress = inProgressCache,
-    )
+    withContext(Dispatchers.Default) {
+        ContinueWatchingEnrichmentCache.saveSnapshots(
+            nextUp = nextUpCache,
+            inProgress = inProgressCache,
+        )
+    }
 }
 
 private fun CompletedSeriesCandidate.toContinueWatchingSeed(meta: com.nuvio.app.features.details.MetaDetails) =
