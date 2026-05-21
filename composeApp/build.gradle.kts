@@ -449,6 +449,7 @@ kotlin {
                 implementation("com.mortennobel:java-image-scaling:0.8.6")
                 implementation("net.java.dev.jna:jna-platform:5.14.0")
                 implementation("com.squareup.okhttp3:okhttp:4.12.0")
+                runtimeOnly("org.jetbrains.skiko:skiko-awt-runtime-angle-windows-x64:0.144.5")
                 implementation("org.openani.mediamp:mediamp-api:0.1.0-dev-1")
                 implementation("org.openani.mediamp:mediamp-mpv:0.1.0-dev-1") { attributes { attribute(Attribute.of("org.jetbrains.kotlin.platform.type", String::class.java), "jvm") } }
             }

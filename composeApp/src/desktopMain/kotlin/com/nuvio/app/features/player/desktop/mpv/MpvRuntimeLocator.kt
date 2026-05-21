@@ -13,8 +13,14 @@ internal data class MpvRuntimeResolution(
 internal object MpvRuntimeLocator {
     private val isWindows: Boolean
         get() = System.getProperty("os.name")?.contains("Windows", ignoreCase = true) == true
+    @Volatile private var cachedResolution: MpvRuntimeResolution? = null
 
-    fun resolve(): MpvRuntimeResolution {
+    fun resolve(): MpvRuntimeResolution =
+        cachedResolution ?: synchronized(this) {
+            cachedResolution ?: resolveUncached().also { cachedResolution = it }
+        }
+
+    private fun resolveUncached(): MpvRuntimeResolution {
         if (!isWindows) {
             return MpvRuntimeResolution(
                 directory = null,
