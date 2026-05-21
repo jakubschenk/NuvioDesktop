@@ -209,7 +209,7 @@ fun NuvioPosterCard(
                                 .width(catalogLogoOverlaySize.width)
                                 .height(catalogLogoOverlaySize.height),
                             contentScale = ContentScale.Fit,
-                            useDesktopImagePainterWorkaround = false,
+                            useDesktopImagePrescale = false,
                         )
                     } else {
                         Text(

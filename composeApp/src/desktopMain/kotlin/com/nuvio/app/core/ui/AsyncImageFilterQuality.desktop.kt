@@ -2,7 +2,13 @@ package com.nuvio.app.core.ui
 
 import androidx.compose.ui.graphics.FilterQuality
 
-internal actual val nuvioImageFilterQuality: FilterQuality = FilterQuality.High
+internal actual val nuvioImageFilterQuality: FilterQuality =
+    when (nuvioDesktopImageSamplingMode) {
+        NuvioDesktopImageSamplingMode.Chrome,
+        NuvioDesktopImageSamplingMode.SkiaLinearNearestMip,
+        NuvioDesktopImageSamplingMode.SkiaLinearLinearMip -> FilterQuality.Medium
+        else -> FilterQuality.High
+    }
 
 internal actual val nuvioPreferredTmdbImageSize: String? = "original"
 

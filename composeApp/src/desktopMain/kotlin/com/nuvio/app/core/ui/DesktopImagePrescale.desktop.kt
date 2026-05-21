@@ -25,7 +25,8 @@ private class NuvioDesktopPrescaleTransformation(
     private val alignment: Alignment,
 ) : Transformation() {
     override val cacheKey: String =
-        "nuvio_desktop_prescale_lanczos_v8:$widthPx:$heightPx:${scale.name}:${alignment.nuvioDesktopAlignmentCacheKey()}"
+        "nuvio_desktop_prescale_v9:${nuvioDesktopImageSamplingCacheKey}:$widthPx:$heightPx:" +
+            "${scale.name}:${alignment.nuvioDesktopAlignmentCacheKey()}"
 
     override suspend fun transform(input: Bitmap, size: Size): Bitmap {
         return when (scale) {

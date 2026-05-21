@@ -41,6 +41,7 @@ internal fun AsyncImage(
     colorFilter: ColorFilter? = null,
     filterQuality: FilterQuality = nuvioImageFilterQuality,
     useDesktopImagePainterWorkaround: Boolean = true,
+    useDesktopImagePrescale: Boolean = true,
     clipToBounds: Boolean = true,
 ) {
     val shouldMeasureStringModel = model is String
@@ -50,6 +51,7 @@ internal fun AsyncImage(
         drawnSize = drawnSize,
         contentScale = contentScale,
         alignment = alignment,
+        useDesktopImagePrescale = useDesktopImagePrescale,
     )
     val useFallbackPainter = resolvedModel == null
     val transform = remember(
@@ -59,6 +61,7 @@ internal fun AsyncImage(
         filterQuality,
         useFallbackPainter,
         useDesktopImagePainterWorkaround,
+        useDesktopImagePrescale,
     ) {
         { state: AsyncImagePainter.State ->
             val resolvedState = state.withFallbackPainters(
@@ -68,7 +71,10 @@ internal fun AsyncImage(
                 useFallbackPainter = useFallbackPainter,
             )
             if (useDesktopImagePainterWorkaround) {
-                resolvedState.withNuvioImagePainterWorkaround(filterQuality)
+                resolvedState.withNuvioImagePainterWorkaround(
+                    filterQuality = filterQuality,
+                    preferDirectDraw = !useDesktopImagePrescale,
+                )
             } else {
                 resolvedState
             }
@@ -125,27 +131,35 @@ private fun rememberSizedAsyncImageModel(
     drawnSize: IntSize,
     contentScale: ContentScale,
     alignment: Alignment,
+    useDesktopImagePrescale: Boolean,
 ): Any? {
     val platformContext = LocalPlatformContext.current
     val decodeSizeMultiplier = nuvioImageDecodeSizeMultiplier.coerceAtLeast(1f)
     val upgradedModel = remember(model) { model.upgradeTmdbImageModelQuality() }
-    return remember(upgradedModel, drawnSize, contentScale, alignment, platformContext, decodeSizeMultiplier) {
+    return remember(upgradedModel, drawnSize, contentScale, alignment, platformContext, decodeSizeMultiplier, useDesktopImagePrescale) {
         val url = upgradedModel as? String ?: return@remember upgradedModel
         if (url.isBlank()) return@remember null
         val widthPx = drawnSize.width.coerceAtLeast(1)
         val heightPx = drawnSize.height.coerceAtLeast(1)
         if (drawnSize == IntSize.Zero) return@remember null
 
-        val requestWidthPx = (widthPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(widthPx)
-        val requestHeightPx = (heightPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(heightPx)
+        val requestSize = if (useDesktopImagePrescale) {
+            val requestWidthPx = (widthPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(widthPx)
+            val requestHeightPx = (heightPx * decodeSizeMultiplier).roundToInt().coerceAtLeast(heightPx)
+            Size(requestWidthPx, requestHeightPx)
+        } else {
+            Size.ORIGINAL
+        }
         val coilScale = contentScale.toCoilScale()
-        ImageRequest.Builder(platformContext)
+        val builder = ImageRequest.Builder(platformContext)
             .data(url)
-            .size(Size(requestWidthPx, requestHeightPx))
+            .size(requestSize)
             .scale(coilScale)
             .precision(Precision.EXACT)
-            .nuvioPrescaleToDrawSize(widthPx, heightPx, coilScale, alignment)
-            .build()
+        if (useDesktopImagePrescale) {
+            builder.nuvioPrescaleToDrawSize(widthPx, heightPx, coilScale, alignment)
+        }
+        builder.build()
     }
 }
 

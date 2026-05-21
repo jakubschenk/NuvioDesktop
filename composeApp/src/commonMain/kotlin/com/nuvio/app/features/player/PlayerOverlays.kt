@@ -179,7 +179,7 @@ internal fun OpeningOverlay(
                             scaleY = contentScale
                         },
                     contentScale = ContentScale.Fit,
-                    useDesktopImagePainterWorkaround = false,
+                    useDesktopImagePrescale = false,
                 )
             } else if (!title.isNullOrBlank()) {
                 Text(
@@ -388,7 +388,7 @@ internal fun PauseMetadataOverlay(
                     contentDescription = title,
                     contentScale = ContentScale.Fit,
                     alignment = Alignment.BottomStart,
-                    useDesktopImagePainterWorkaround = false,
+                    useDesktopImagePrescale = false,
                     modifier = Modifier.height(logoHeight),
                 )
             } else {

@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import com.mortennobel.imagescaling.ResampleFilters
+import com.mortennobel.imagescaling.ResampleFilter
 import com.mortennobel.imagescaling.ResampleOp
 import java.awt.image.BufferedImage
 import java.awt.image.DataBufferInt
@@ -22,15 +23,128 @@ import org.jetbrains.skia.ImageInfo
 import org.jetbrains.skia.MipmapMode
 import org.jetbrains.skia.Paint
 import org.jetbrains.skia.Rect
+import org.jetbrains.skia.SamplingMode
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.math.roundToInt
 
 private const val SourceRectEpsilon = 0.5f
-private const val MaxJvmLanczosTargetPixels = 5_500_000
-private const val MaxJvmLanczosTargetDimensionPx = 4096
+private const val MaxJvmResizeTargetPixels = 5_500_000
+private const val MaxJvmResizeTargetDimensionPx = 4096
+private const val PiFloat = Math.PI.toFloat()
+private const val FilterEpsilon = 1.0e-6f
 
-private val NuvioDesktopCropSampling = CubicResampler(1f / 3f, 1f / 3f)
-private val NuvioDesktopDownsampleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR)
+internal enum class NuvioDesktopImageSamplingMode(
+    val cacheKey: String,
+    private val jvmFilter: ResampleFilter?,
+    val scaleSampling: SamplingMode,
+    val cropSampling: SamplingMode,
+) {
+    Lanczos3(
+        cacheKey = "lanczos3",
+        jvmFilter = ResampleFilters.getLanczos3Filter(),
+        scaleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR),
+        cropSampling = CubicResampler(1f / 3f, 1f / 3f),
+    ),
+    Chrome(
+        cacheKey = "chrome",
+        jvmFilter = null,
+        scaleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.NEAREST),
+        cropSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.NEAREST),
+    ),
+    SkiaLinearNearestMip(
+        cacheKey = "skia_linear_nearest_mip",
+        jvmFilter = null,
+        scaleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.NEAREST),
+        cropSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.NEAREST),
+    ),
+    SkiaLinearLinearMip(
+        cacheKey = "skia_linear_linear_mip",
+        jvmFilter = null,
+        scaleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR),
+        cropSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR),
+    ),
+    SkiaCatmullRom(
+        cacheKey = "skia_catmull_rom",
+        jvmFilter = null,
+        scaleSampling = CubicResampler(0f, 0.5f),
+        cropSampling = CubicResampler(0f, 0.5f),
+    ),
+    SkiaMitchell(
+        cacheKey = "skia_mitchell",
+        jvmFilter = null,
+        scaleSampling = CubicResampler(1f / 3f, 1f / 3f),
+        cropSampling = CubicResampler(1f / 3f, 1f / 3f),
+    ),
+    JvmMitchell(
+        cacheKey = "jvm_mitchell",
+        jvmFilter = ResampleFilters.getMitchellFilter(),
+        scaleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR),
+        cropSampling = CubicResampler(1f / 3f, 1f / 3f),
+    ),
+    JvmTriangle(
+        cacheKey = "jvm_triangle",
+        jvmFilter = ResampleFilters.getTriangleFilter(),
+        scaleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR),
+        cropSampling = CubicResampler(1f / 3f, 1f / 3f),
+    ),
+    JvmHamming(
+        cacheKey = "jvm_hamming",
+        jvmFilter = ChromiumHamming1Filter,
+        scaleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR),
+        cropSampling = CubicResampler(1f / 3f, 1f / 3f),
+    );
+
+    val usesJvmResize: Boolean
+        get() = jvmFilter != null
+
+    fun jvmFilterOrNull(): ResampleFilter? = jvmFilter
+}
+
+internal val nuvioDesktopImageSamplingMode: NuvioDesktopImageSamplingMode by lazy {
+    val raw = sequenceOf(
+        System.getProperty("nuvio.image.sampling"),
+        System.getProperty("nuvio.image.resampler"),
+        System.getenv("NUVIO_IMAGE_SAMPLING"),
+        System.getenv("NUVIO_IMAGE_RESAMPLER"),
+    ).firstOrNull { !it.isNullOrBlank() }
+
+    when (raw?.trim()?.lowercase()?.replace('-', '_')) {
+        null, "", "default", "current", "lanczos", "lanczos3" -> NuvioDesktopImageSamplingMode.Lanczos3
+        "chrome", "chromium", "browser" -> NuvioDesktopImageSamplingMode.Chrome
+        "skia_linear_nearest_mip", "linear_nearest_mip", "medium" -> NuvioDesktopImageSamplingMode.SkiaLinearNearestMip
+        "skia_linear_linear_mip", "linear_linear_mip" -> NuvioDesktopImageSamplingMode.SkiaLinearLinearMip
+        "skia_catmull_rom", "catmull_rom", "catmullrom" -> NuvioDesktopImageSamplingMode.SkiaCatmullRom
+        "skia_mitchell", "mitchell" -> NuvioDesktopImageSamplingMode.SkiaMitchell
+        "jvm_mitchell" -> NuvioDesktopImageSamplingMode.JvmMitchell
+        "jvm_triangle", "triangle" -> NuvioDesktopImageSamplingMode.JvmTriangle
+        "jvm_hamming", "hamming", "chromium_hamming", "hamming1" -> NuvioDesktopImageSamplingMode.JvmHamming
+        else -> {
+            println("NuvioImage: unknown sampling mode '$raw', falling back to lanczos3")
+            NuvioDesktopImageSamplingMode.Lanczos3
+        }
+    }.also { mode ->
+        nuvioImageDebug("sampling mode ${mode.cacheKey}")
+    }
+}
+
+internal val nuvioDesktopImageSamplingCacheKey: String
+    get() = nuvioDesktopImageSamplingMode.cacheKey
+
+private object ChromiumHamming1Filter : ResampleFilter {
+    override fun getSamplingRadius(): Float = 1f
+
+    override fun apply(value: Float): Float {
+        if (value <= -1f || value >= 1f) return 0f
+        if (abs(value) < FilterEpsilon) return 1f
+        val xpi = value * PiFloat
+        return (sin(xpi) / xpi) * (0.54f + 0.46f * cos(xpi))
+    }
+
+    override fun getName(): String = "Chromium Hamming1"
+}
+
 private val NuvioImageDebugLogging: Boolean by lazy {
     System.getProperty("nuvio.image.debug").equals("true", ignoreCase = true) ||
         System.getenv("NUVIO_IMAGE_DEBUG").equals("1", ignoreCase = true) ||
@@ -44,8 +158,8 @@ internal fun Bitmap.nuvioScaleToBitmap(
     if (widthPx <= 0 || heightPx <= 0) return null
     if (width == widthPx && height == heightPx) return this
 
-    nuvioScaleToBitmapWithJvmLanczos(widthPx, heightPx)?.let { return it }
-    nuvioImageDebug("Skia fallback fit ${width}x$height -> ${widthPx}x$heightPx")
+    nuvioScaleToBitmapWithJvmFilter(widthPx, heightPx)?.let { return it }
+    nuvioImageDebug("Skia ${nuvioDesktopImageSamplingCacheKey} fit ${width}x$height -> ${widthPx}x$heightPx")
     return nuvioScalePixelsToBitmap(widthPx, heightPx)
 }
 
@@ -59,12 +173,12 @@ internal fun Bitmap.nuvioScaleToFillBitmap(
 
     val sourceRect = fillSourceRect(widthPx, heightPx, alignment)
 
-    nuvioScaleToFillBitmapWithJvmLanczos(
+    nuvioScaleToFillBitmapWithJvmFilter(
         widthPx = widthPx,
         heightPx = heightPx,
         sourceRect = sourceRect,
     )?.let { return it }
-    nuvioImageDebug("Skia fallback fill ${width}x$height -> ${widthPx}x$heightPx")
+    nuvioImageDebug("Skia ${nuvioDesktopImageSamplingCacheKey} fill ${width}x$height -> ${widthPx}x$heightPx")
 
     val cropped = if (sourceRect.isWholeBitmap(width, height)) {
         this
@@ -131,7 +245,7 @@ internal fun Bitmap.nuvioScaleToFitBitmap(
                 scaledWidth.toFloat(),
                 scaledHeight.toFloat(),
             ),
-            samplingMode = NuvioDesktopDownsampleSampling,
+            samplingMode = nuvioDesktopImageSamplingMode.scaleSampling,
             paint = paint,
             strict = true,
         )
@@ -171,12 +285,13 @@ private fun Bitmap.fillSourceRect(
     return Rect.makeLTRB(left, top, left + cropWidth, top + cropHeight)
 }
 
-private fun Bitmap.nuvioScaleToFillBitmapWithJvmLanczos(
+private fun Bitmap.nuvioScaleToFillBitmapWithJvmFilter(
     widthPx: Int,
     heightPx: Int,
     sourceRect: Rect,
 ): Bitmap? {
-    if (!shouldUseJvmLanczosResize(widthPx, heightPx)) return null
+    val filter = nuvioDesktopImageSamplingMode.jvmFilterOrNull() ?: return null
+    if (!shouldUseJvmResize(widthPx, heightPx)) return null
 
     val source = nuvioToBufferedImage() ?: return null
     val cropX = sourceRect.left.roundToInt().coerceIn(0, source.width - 1)
@@ -190,42 +305,50 @@ private fun Bitmap.nuvioScaleToFillBitmapWithJvmLanczos(
     return runCatching {
         val cropped = source.getSubimage(cropX, cropY, cropWidth, cropHeight)
         cropped
-            .nuvioLanczosResize(widthPx, heightPx)
+            .nuvioResize(widthPx, heightPx, filter)
             .nuvioToSkiaBitmap()
             ?.also {
                 nuvioImageDebug(
-                    "Lanczos fill ${width}x$height crop ${cropWidth}x$cropHeight@$cropX,$cropY -> ${widthPx}x$heightPx",
+                    "${nuvioDesktopImageSamplingCacheKey} fill ${width}x$height " +
+                        "crop ${cropWidth}x$cropHeight@$cropX,$cropY -> ${widthPx}x$heightPx",
                 )
             }
     }.onFailure { error ->
-        nuvioImageDebug("Lanczos fill failed ${width}x$height -> ${widthPx}x$heightPx: ${error.message}")
+        nuvioImageDebug(
+            "${nuvioDesktopImageSamplingCacheKey} fill failed ${width}x$height -> " +
+                "${widthPx}x$heightPx: ${error.message}",
+        )
     }.getOrNull()
 }
 
-private fun Bitmap.nuvioScaleToBitmapWithJvmLanczos(
+private fun Bitmap.nuvioScaleToBitmapWithJvmFilter(
     widthPx: Int,
     heightPx: Int,
 ): Bitmap? {
-    if (!shouldUseJvmLanczosResize(widthPx, heightPx)) return null
+    val filter = nuvioDesktopImageSamplingMode.jvmFilterOrNull() ?: return null
+    if (!shouldUseJvmResize(widthPx, heightPx)) return null
     return runCatching {
         nuvioToBufferedImage()
-            ?.nuvioLanczosResize(widthPx, heightPx)
+            ?.nuvioResize(widthPx, heightPx, filter)
             ?.nuvioToSkiaBitmap()
             ?.also {
-                nuvioImageDebug("Lanczos fit ${width}x$height -> ${widthPx}x$heightPx")
+                nuvioImageDebug("${nuvioDesktopImageSamplingCacheKey} fit ${width}x$height -> ${widthPx}x$heightPx")
             }
     }.onFailure { error ->
-        nuvioImageDebug("Lanczos fit failed ${width}x$height -> ${widthPx}x$heightPx: ${error.message}")
+        nuvioImageDebug(
+            "${nuvioDesktopImageSamplingCacheKey} fit failed ${width}x$height -> " +
+                "${widthPx}x$heightPx: ${error.message}",
+        )
     }.getOrNull()
 }
 
-private fun shouldUseJvmLanczosResize(
+private fun shouldUseJvmResize(
     widthPx: Int,
     heightPx: Int,
 ): Boolean =
-    widthPx <= MaxJvmLanczosTargetDimensionPx &&
-        heightPx <= MaxJvmLanczosTargetDimensionPx &&
-        widthPx.toLong() * heightPx.toLong() <= MaxJvmLanczosTargetPixels
+    widthPx <= MaxJvmResizeTargetDimensionPx &&
+        heightPx <= MaxJvmResizeTargetDimensionPx &&
+        widthPx.toLong() * heightPx.toLong() <= MaxJvmResizeTargetPixels
 
 private fun Bitmap.nuvioToBufferedImage(): BufferedImage? {
     if (width <= 0 || height <= 0) return null
@@ -246,14 +369,15 @@ private fun Bitmap.nuvioToBufferedImage(): BufferedImage? {
     return output
 }
 
-private fun BufferedImage.nuvioLanczosResize(
+private fun BufferedImage.nuvioResize(
     widthPx: Int,
     heightPx: Int,
+    filter: ResampleFilter,
 ): BufferedImage {
     if (width == widthPx && height == heightPx) return this
 
     val resample = ResampleOp(widthPx, heightPx)
-    resample.setFilter(ResampleFilters.getLanczos3Filter())
+    resample.setFilter(filter)
     return resample.filter(nuvioToArgbImage(), null).nuvioToArgbImage()
 }
 
@@ -320,7 +444,7 @@ private fun Bitmap.nuvioDrawToBitmap(
             image = image,
             src = sourceRect,
             dst = Rect.makeWH(widthPx.toFloat(), heightPx.toFloat()),
-            samplingMode = NuvioDesktopCropSampling,
+            samplingMode = nuvioDesktopImageSamplingMode.cropSampling,
             paint = paint,
             strict = true,
         )
@@ -340,17 +464,27 @@ private fun Bitmap.nuvioScalePixelsToBitmap(
     if (width == widthPx && height == heightPx) return this
 
     val output = Bitmap()
-    output.allocN32Pixels(widthPx, heightPx)
-    val pixels = output.peekPixels() ?: return null
+    if (!output.allocN32Pixels(widthPx, heightPx)) return null
     val image = Image.makeFromBitmap(this)
+    val canvas = Canvas(output)
+    val paint = Paint().apply {
+        isAntiAlias = true
+        isDither = true
+    }
     return try {
-        val scaled = image.scalePixels(
-            dst = pixels,
-            samplingMode = NuvioDesktopDownsampleSampling,
-            cache = false,
+        output.erase(0x00000000)
+        canvas.drawImageRect(
+            image = image,
+            src = Rect.makeWH(width.toFloat(), height.toFloat()),
+            dst = Rect.makeWH(widthPx.toFloat(), heightPx.toFloat()),
+            samplingMode = nuvioDesktopImageSamplingMode.scaleSampling,
+            paint = paint,
+            strict = true,
         )
-        if (scaled) output else null
+        output
     } finally {
+        paint.close()
+        canvas.close()
         image.close()
     }
 }
@@ -361,7 +495,7 @@ private fun Rect.isWholeBitmap(widthPx: Int, heightPx: Int): Boolean =
         abs(right - widthPx) < SourceRectEpsilon &&
         abs(bottom - heightPx) < SourceRectEpsilon
 
-private fun nuvioImageDebug(message: String) {
+internal fun nuvioImageDebug(message: String) {
     if (NuvioImageDebugLogging) {
         println("NuvioImage: $message")
     }

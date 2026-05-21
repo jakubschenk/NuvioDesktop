@@ -238,7 +238,7 @@ private fun TabletMovieInfoPanel(
                     .fillMaxWidth()
                     .height(120.dp),
                 contentScale = ContentScale.Fit,
-                useDesktopImagePainterWorkaround = false,
+                useDesktopImagePrescale = false,
             )
         } else if (title.isNotBlank()) {
             Text(
@@ -300,7 +300,7 @@ private fun TabletEpisodeInfoPanel(
                     .fillMaxWidth()
                     .height(120.dp),
                 contentScale = ContentScale.Fit,
-                useDesktopImagePainterWorkaround = false,
+                useDesktopImagePrescale = false,
             )
         } else {
             Text(

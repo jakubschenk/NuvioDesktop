@@ -5,4 +5,5 @@ import coil3.compose.AsyncImagePainter
 
 internal actual fun AsyncImagePainter.State.withNuvioImagePainterWorkaround(
     filterQuality: FilterQuality,
+    preferDirectDraw: Boolean,
 ): AsyncImagePainter.State = this

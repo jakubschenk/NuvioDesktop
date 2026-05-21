@@ -894,7 +894,7 @@ fun MetaDetailsScreen(
                                                 .heightIn(min = 124.dp, max = 202.dp),
                                             alignment = Alignment.CenterStart,
                                             contentScale = ContentScale.Fit,
-                                            useDesktopImagePainterWorkaround = false,
+                                            useDesktopImagePrescale = false,
                                         )
                                     } else {
                                         Text(

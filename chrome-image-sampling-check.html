@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuvio Chrome Image Sampling Check</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, Segoe UI, system-ui, sans-serif;
+      background: #111318;
+      color: #edf0f5;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #111318;
+    }
+
+    header,
+    main {
+      width: min(1280px, calc(100vw - 48px));
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 24px 0 12px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    p {
+      margin: 0;
+      color: #aeb6c3;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) repeat(2, 96px) repeat(3, 150px);
+      gap: 10px;
+      align-items: end;
+      padding: 16px 0 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: #aeb6c3;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    input,
+    select,
+    button {
+      height: 36px;
+      border: 1px solid #2c3340;
+      border-radius: 6px;
+      background: #1a1e26;
+      color: #edf0f5;
+      font: inherit;
+      font-size: 13px;
+    }
+
+    input,
+    select {
+      padding: 0 10px;
+    }
+
+    button {
+      padding: 0 12px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: #596579;
+      background: #222833;
+    }
+
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 16px;
+      color: #c6ccd7;
+      font-size: 13px;
+    }
+
+    .previewGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      align-items: start;
+      padding-bottom: 32px;
+    }
+
+    .panel {
+      min-width: 0;
+    }
+
+    .panelTitle {
+      margin-bottom: 8px;
+      color: #c6ccd7;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .viewport {
+      display: grid;
+      place-items: center;
+      min-height: 620px;
+      overflow: auto;
+      border: 1px solid #2c3340;
+      background:
+        linear-gradient(45deg, #171b22 25%, transparent 25%),
+        linear-gradient(-45deg, #171b22 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #171b22 75%),
+        linear-gradient(-45deg, transparent 75%, #171b22 75%),
+        #111318;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+      background-size: 24px 24px;
+    }
+
+    #sampleImg,
+    #sampleBackground {
+      display: block;
+      flex: 0 0 auto;
+      background-color: #050608;
+    }
+
+    #sampleBackground {
+      background-repeat: no-repeat;
+    }
+
+    @media (max-width: 1100px) {
+      header,
+      main {
+        width: min(100vw - 28px, 820px);
+      }
+
+      .controls {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .previewGrid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Chrome Image Sampling Check</h1>
+    <p>Use this in Chrome at 100% zoom to render the same URL, box size, fit, position, and CSS image-rendering mode that Nuvio is trying to match.</p>
+  </header>
+
+  <main>
+    <section class="controls" aria-label="Image controls">
+      <label>
+        Image URL
+        <input id="url" type="url" spellcheck="false" value="https://images.metahub.space/poster/medium/tt0203259/img">
+      </label>
+      <label>
+        CSS width
+        <input id="width" type="number" min="1" step="1" value="300">
+      </label>
+      <label>
+        CSS height
+        <input id="height" type="number" min="1" step="1" value="450">
+      </label>
+      <label>
+        Fit
+        <select id="fit">
+          <option value="cover">cover</option>
+          <option value="contain">contain</option>
+          <option value="fill">fill/stretch</option>
+        </select>
+      </label>
+      <label>
+        Position
+        <select id="position">
+          <option value="center center">center center</option>
+          <option value="center top">center top</option>
+          <option value="center bottom">center bottom</option>
+          <option value="left center">left center</option>
+          <option value="right center">right center</option>
+        </select>
+      </label>
+      <label>
+        image-rendering
+        <select id="rendering">
+          <option value="auto">auto</option>
+          <option value="smooth">smooth</option>
+          <option value="crisp-edges">crisp-edges</option>
+          <option value="pixelated">pixelated</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="presets" aria-label="Size presets">
+      <button type="button" data-width="300" data-height="450" data-fit="cover" data-position="center center">Poster 300x450</button>
+      <button type="button" data-width="424" data-height="239" data-fit="cover" data-position="center center">Landscape 424x239</button>
+      <button type="button" data-width="1920" data-height="760" data-fit="cover" data-position="center top">Hero 1920x760</button>
+      <button type="button" data-width="1280" data-height="512" data-fit="cover" data-position="center top">Hero 1280x512</button>
+    </section>
+
+    <section id="meta" class="meta" aria-live="polite"></section>
+
+    <section class="previewGrid">
+      <div class="panel">
+        <div class="panelTitle">img object-fit</div>
+        <div class="viewport">
+          <img id="sampleImg" alt="">
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panelTitle">css background-size</div>
+        <div class="viewport">
+          <div id="sampleBackground"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const ids = ["url", "width", "height", "fit", "position", "rendering"];
+    const controls = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+    const sampleImg = document.getElementById("sampleImg");
+    const sampleBackground = document.getElementById("sampleBackground");
+    const meta = document.getElementById("meta");
+
+    const params = new URLSearchParams(window.location.search);
+    for (const id of ids) {
+      const value = params.get(id);
+      if (value !== null) controls[id].value = value;
+    }
+
+    function normalizeFit(value) {
+      return value === "fill" ? "fill" : value;
+    }
+
+    function update() {
+      const url = controls.url.value.trim();
+      const width = Math.max(1, Number.parseInt(controls.width.value, 10) || 1);
+      const height = Math.max(1, Number.parseInt(controls.height.value, 10) || 1);
+      const fit = normalizeFit(controls.fit.value);
+      const position = controls.position.value;
+      const rendering = controls.rendering.value;
+
+      sampleImg.src = url;
+      sampleImg.style.width = `${width}px`;
+      sampleImg.style.height = `${height}px`;
+      sampleImg.style.objectFit = fit;
+      sampleImg.style.objectPosition = position;
+      sampleImg.style.imageRendering = rendering;
+
+      sampleBackground.style.width = `${width}px`;
+      sampleBackground.style.height = `${height}px`;
+      sampleBackground.style.backgroundImage = `url("${url.replaceAll('"', "%22")}")`;
+      sampleBackground.style.backgroundSize = fit === "fill" ? "100% 100%" : fit;
+      sampleBackground.style.backgroundPosition = position;
+      sampleBackground.style.imageRendering = rendering;
+
+      const dpr = window.devicePixelRatio || 1;
+      meta.innerHTML = [
+        `Chrome DPR: <strong>${dpr.toFixed(3)}</strong>`,
+        `CSS box: <strong>${width}x${height}</strong>`,
+        `Estimated physical box: <strong>${Math.round(width * dpr)}x${Math.round(height * dpr)}</strong>`,
+        `Fit: <strong>${fit}</strong>`,
+        `Position: <strong>${position}</strong>`,
+      ].join("");
+
+      const next = new URLSearchParams();
+      for (const id of ids) next.set(id, controls[id].value);
+      window.history.replaceState(null, "", `${window.location.pathname}?${next.toString()}`);
+    }
+
+    for (const control of Object.values(controls)) {
+      control.addEventListener("input", update);
+      control.addEventListener("change", update);
+    }
+
+    for (const button of document.querySelectorAll("button[data-width]")) {
+      button.addEventListener("click", () => {
+        controls.width.value = button.dataset.width;
+        controls.height.value = button.dataset.height;
+        controls.fit.value = button.dataset.fit;
+        controls.position.value = button.dataset.position;
+        update();
+      });
+    }
+
+    window.addEventListener("resize", update);
+    update();
+  </script>
+</body>
+</html>

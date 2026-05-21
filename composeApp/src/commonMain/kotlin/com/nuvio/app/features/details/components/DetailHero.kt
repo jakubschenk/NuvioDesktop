@@ -115,7 +115,7 @@ fun DetailHero(
                                 .height(if (isTablet) 72.dp else 80.dp),
                             alignment = Alignment.Center,
                             contentScale = ContentScale.Fit,
-                            useDesktopImagePainterWorkaround = false,
+                            useDesktopImagePrescale = false,
                         )
                     } else {
                         Text(

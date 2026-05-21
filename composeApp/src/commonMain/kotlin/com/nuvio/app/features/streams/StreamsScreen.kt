@@ -383,7 +383,7 @@ fun StreamsScreen(
                                 .width(220.dp)
                                 .height(48.dp),
                             contentScale = ContentScale.Fit,
-                            useDesktopImagePainterWorkaround = false,
+                            useDesktopImagePrescale = false,
                         )
                     }
                     CircularProgressIndicator(
@@ -761,7 +761,7 @@ private fun MovieHeroBlock(
                     .height(80.dp)
                     .fillMaxWidth(0.85f),
                 contentScale = ContentScale.Fit,
-                useDesktopImagePainterWorkaround = false,
+                useDesktopImagePrescale = false,
             )
         } else {
             Text(
