@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -88,7 +89,9 @@ import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.appIconPainter
 import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.nuvioTypeScale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
@@ -142,26 +145,31 @@ private fun rememberLiveDisplayedPositionMs(
         if (!animateDisplayedPosition || !playbackSnapshot.isPlaying || playbackSnapshot.durationMs <= 0L) {
             return@LaunchedEffect
         }
-        while (true) {
-            val nowEpochMs = if (usesAnimatedPlayerChrome) {
+        if (usesAnimatedPlayerChrome) {
+            while (true) {
                 val frameNanos = withFrameNanos { it }
                 frameRateCounter.record(frameNanos) {
                     "ticker=frame-clock playing=${playbackSnapshot.isPlaying} " +
                         "speed=${playerPerfOneDecimal(playbackSnapshot.playbackSpeed.toDouble())} " +
                         "durationMs=${playbackSnapshot.durationMs}"
                 }
-                PlayerWallClock.nowEpochMs()
-            } else {
-                delay(PlayerChromeFrameIntervalMs)
-                val nowMs = PlayerWallClock.nowEpochMs()
-                frameRateCounter.record(nowMs * 1_000_000L) {
-                    "ticker=timer playing=${playbackSnapshot.isPlaying} " +
-                        "speed=${playerPerfOneDecimal(playbackSnapshot.playbackSpeed.toDouble())} " +
-                        "durationMs=${playbackSnapshot.durationMs}"
-                }
-                nowMs
+                frameEpochMs = PlayerWallClock.nowEpochMs()
             }
-            frameEpochMs = nowEpochMs
+        } else {
+            withContext(Dispatchers.Default) {
+                while (true) {
+                    delay(PlayerChromeFrameIntervalMs)
+                    val nowMs = PlayerWallClock.nowEpochMs()
+                    frameRateCounter.record(nowMs * 1_000_000L) {
+                        "ticker=background-timer playing=${playbackSnapshot.isPlaying} " +
+                            "speed=${playerPerfOneDecimal(playbackSnapshot.playbackSpeed.toDouble())} " +
+                            "durationMs=${playbackSnapshot.durationMs}"
+                    }
+                    Snapshot.withMutableSnapshot {
+                        frameEpochMs = nowMs
+                    }
+                }
+            }
         }
     }
 
