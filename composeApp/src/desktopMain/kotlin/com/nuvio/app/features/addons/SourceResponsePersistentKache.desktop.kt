@@ -18,10 +18,17 @@ internal actual object ApiKacheClock {
 }
 
 internal actual object ApiRequestTraceLog {
+    private const val envFlag = "NUVIO_NETWORK_TRACE"
+    private const val propertyFlag = "nuvio.network.trace"
     private const val maxLogBytes = 5L * 1024L * 1024L
     private val logLock = Any()
+    private val enabled: Boolean by lazy {
+        isEnabled(System.getenv(envFlag)) || isEnabled(System.getProperty(propertyFlag))
+    }
 
     actual fun append(line: String) {
+        if (!enabled) return
+
         synchronized(logLock) {
             runCatching {
                 traceLogFiles().forEach { file ->
@@ -55,6 +62,12 @@ internal actual object ApiRequestTraceLog {
             ),
         ).distinct().onEach { file ->
             file.parent.createDirectories()
+        }
+
+    private fun isEnabled(value: String?): Boolean =
+        when (value?.trim()?.lowercase()) {
+            "1", "true", "yes", "on" -> true
+            else -> false
         }
 }
 
