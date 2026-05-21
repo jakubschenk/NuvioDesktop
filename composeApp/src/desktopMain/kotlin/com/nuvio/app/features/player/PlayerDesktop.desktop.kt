@@ -2,14 +2,10 @@
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.currentCompositionLocalContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -17,14 +13,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.awt.ComposePanel
 import androidx.compose.ui.awt.ComposeWindow
-import androidx.compose.ui.awt.RenderSettings
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import com.nuvio.app.desktop.DesktopBorderlessFullscreenController
 import com.nuvio.app.LocalDesktopWindow
@@ -42,37 +32,25 @@ import com.nuvio.app.core.sync.encodeSyncStringSet
 import com.nuvio.app.desktop.DesktopPreferences
 import com.nuvio.app.desktop.DesktopRuntimeLog
 import com.nuvio.app.features.player.desktop.DesktopPlayerSurfaceHost
-import com.nuvio.app.features.player.desktop.mpv.MpvDesktopSurfaceMode
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.streams.AddonStreamGroup
 import com.nuvio.app.features.streams.StreamItem
 import java.awt.Cursor
-import java.awt.EventQueue
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import java.awt.Point
 import java.awt.Toolkit
-import java.awt.Window
-import java.awt.event.ComponentAdapter
-import java.awt.event.ComponentEvent
 import java.awt.event.KeyEvent
 import java.awt.image.BufferedImage
 import java.util.Locale
-import java.util.concurrent.atomic.AtomicBoolean
-import javax.swing.JWindow
-import javax.swing.Timer
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import kotlin.math.roundToInt
-import java.awt.Color as AwtColor
 
 private val isMacOS: Boolean by lazy {
     System.getProperty("os.name")?.lowercase()?.contains("mac") == true
 }
-
-private const val DefaultPlayerOverlayRepaintHz = 120
 
 @Composable
 actual fun PlatformPlayerSurface(
@@ -1180,338 +1158,6 @@ actual fun BindPlayerKeyboardShortcuts(
         }
     }
 }
-
-@Composable
-actual fun PlayerOverlayLayer(
-    layoutSize: IntSize,
-    modifier: Modifier,
-    content: @Composable BoxScope.() -> Unit,
-) {
-    if (!usesOwnedPlayerOverlayWindow() || layoutSize.width <= 0 || layoutSize.height <= 0) {
-        Box(
-            modifier = modifier,
-            content = content,
-        )
-        return
-    }
-
-    var boundsInWindow by remember { mutableStateOf<IntRect?>(null) }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .onGloballyPositioned { coordinates ->
-                val bounds = coordinates.boundsInWindow()
-                boundsInWindow = IntRect(
-                    left = bounds.left.roundToInt(),
-                    top = bounds.top.roundToInt(),
-                    right = bounds.right.roundToInt(),
-                    bottom = bounds.bottom.roundToInt(),
-                )
-            },
-    )
-
-    DesktopOwnedPlayerOverlayWindow(
-        boundsInWindow = boundsInWindow,
-        modifier = modifier,
-        content = content,
-    )
-}
-
-@Composable
-private fun DesktopOwnedPlayerOverlayWindow(
-    boundsInWindow: IntRect?,
-    modifier: Modifier,
-    content: @Composable BoxScope.() -> Unit,
-) {
-    val owner = LocalDesktopWindow.current
-    val compositionLocalContext = currentCompositionLocalContext
-    val latestBounds by rememberUpdatedState(boundsInWindow)
-    val latestModifier by rememberUpdatedState(modifier)
-    val latestContent by rememberUpdatedState(content)
-    val latestCompositionLocalContext by rememberUpdatedState(compositionLocalContext)
-
-    val overlay = remember(owner) {
-        owner?.let(::DesktopPlayerOverlayWindow)
-    }
-
-    DisposableEffect(overlay) {
-        val currentOverlay = overlay ?: return@DisposableEffect onDispose {}
-        currentOverlay.panel.setContent {
-            CompositionLocalProvider(latestCompositionLocalContext) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(OverlayHitTestColor)
-                        .then(latestModifier),
-                    content = latestContent,
-                )
-            }
-        }
-        onDispose {
-            currentOverlay.dispose()
-        }
-    }
-
-    DisposableEffect(overlay, owner) {
-        val currentOverlay = overlay ?: return@DisposableEffect onDispose {}
-        val currentOwner = owner ?: return@DisposableEffect onDispose {}
-        val listener = object : ComponentAdapter() {
-            override fun componentMoved(event: ComponentEvent) {
-                currentOverlay.updateBounds(latestBounds)
-            }
-
-            override fun componentResized(event: ComponentEvent) {
-                currentOverlay.updateBounds(latestBounds)
-            }
-
-            override fun componentShown(event: ComponentEvent) {
-                currentOverlay.updateBounds(latestBounds)
-            }
-
-            override fun componentHidden(event: ComponentEvent) {
-                currentOverlay.hide()
-            }
-        }
-        currentOwner.addComponentListener(listener)
-        onDispose {
-            currentOwner.removeComponentListener(listener)
-        }
-    }
-
-    SideEffect {
-        overlay?.updateBounds(boundsInWindow)
-    }
-}
-
-@OptIn(ExperimentalComposeUiApi::class)
-private class DesktopPlayerOverlayWindow(
-    private val owner: Window,
-) {
-    @Volatile
-    private var disposed: Boolean = false
-
-    @Volatile
-    private var pendingBounds: IntRect? = null
-
-    private val updateQueued = AtomicBoolean(false)
-    private val renderConfig = desktopPlayerOverlayRenderConfig(owner)
-
-    val panel: ComposePanel = ComposePanel(
-        renderSettings = renderConfig.renderSettings,
-    ).apply {
-        isOpaque = false
-        background = OverlayHitTestAwtColor
-        isFocusable = true
-    }
-
-    private val window = JWindow(owner).apply {
-        type = Window.Type.POPUP
-        background = OverlayHitTestAwtColor
-        rootPane.isOpaque = false
-        rootPane.background = OverlayHitTestAwtColor
-        contentPane = panel
-        focusableWindowState = true
-        isAutoRequestFocus = false
-    }
-
-    private val repaintTimer: Timer? = renderConfig.repaintHz?.let { repaintHz ->
-        Timer((1000.0 / repaintHz).roundToInt().coerceAtLeast(1)) {
-            if (!disposed && window.isVisible && panel.isShowing) {
-                panel.repaint()
-            }
-        }.apply {
-            isRepeats = true
-            setCoalesce(true)
-        }
-    }
-
-    init {
-        DesktopRuntimeLog.info(
-            "playerOverlay renderer=${renderConfig.name} repaintHz=${renderConfig.repaintHz?.toString() ?: "off"}",
-        )
-    }
-
-    fun updateBounds(boundsInWindow: IntRect?) {
-        if (disposed) return
-        pendingBounds = boundsInWindow
-        if (EventQueue.isDispatchThread()) {
-            updateQueued.set(false)
-            updateBoundsOnEventQueue(pendingBounds)
-            return
-        }
-        if (updateQueued.compareAndSet(false, true)) {
-            EventQueue.invokeLater {
-                updateQueued.set(false)
-                if (!disposed) {
-                    updateBoundsOnEventQueue(pendingBounds)
-                }
-            }
-        }
-    }
-
-    private fun updateBoundsOnEventQueue(boundsInWindow: IntRect?) {
-        if (disposed) return
-        if (boundsInWindow == null || boundsInWindow.width <= 0 || boundsInWindow.height <= 0 || !owner.isShowing) {
-            hideOnEventQueue()
-            return
-        }
-
-        val origin = runCatching {
-            (owner as? ComposeWindow)?.contentPane?.locationOnScreen ?: owner.locationOnScreen
-        }.getOrElse {
-            hideOnEventQueue()
-            return
-        }
-
-        val x = origin.x + boundsInWindow.left
-        val y = origin.y + boundsInWindow.top
-        val width = boundsInWindow.width.coerceAtLeast(1)
-        val height = boundsInWindow.height.coerceAtLeast(1)
-        if (
-            window.x != x ||
-            window.y != y ||
-            window.width != width ||
-            window.height != height
-        ) {
-            window.setBounds(x, y, width, height)
-            panel.setBounds(0, 0, width, height)
-            panel.revalidate()
-        }
-        if (!window.isVisible) {
-            window.isVisible = true
-            window.toFront()
-            DesktopRuntimeLog.info("playerOverlay visible bounds=${width}x$height at $x,$y")
-        }
-        startRepaintPump()
-    }
-
-    fun hide() {
-        if (EventQueue.isDispatchThread()) {
-            hideOnEventQueue()
-        } else {
-            EventQueue.invokeLater {
-                if (!disposed) {
-                    hideOnEventQueue()
-                }
-            }
-        }
-    }
-
-    private fun hideOnEventQueue() {
-        stopRepaintPump()
-        if (window.isVisible) {
-            window.isVisible = false
-            DesktopRuntimeLog.info("playerOverlay hidden")
-        }
-    }
-
-    fun dispose() {
-        if (disposed) return
-        disposed = true
-        pendingBounds = null
-        val disposeOnEventQueue = {
-            runCatching {
-                hideOnEventQueue()
-                panel.isVisible = false
-            }.onFailure {
-                DesktopRuntimeLog.error("playerOverlay hide before dispose failed", it)
-            }
-            runCatching {
-                panel.dispose()
-            }.onFailure {
-                DesktopRuntimeLog.error("playerOverlay panel dispose failed", it)
-            }
-            runCatching {
-                window.dispose()
-            }.onFailure {
-                DesktopRuntimeLog.error("playerOverlay window dispose failed", it)
-            }
-            DesktopRuntimeLog.info("playerOverlay disposed")
-        }
-        if (EventQueue.isDispatchThread()) {
-            disposeOnEventQueue()
-        } else {
-            runCatching {
-                EventQueue.invokeAndWait { disposeOnEventQueue() }
-            }.onFailure {
-                DesktopRuntimeLog.error("playerOverlay synchronous dispose failed", it)
-                EventQueue.invokeLater { disposeOnEventQueue() }
-            }
-        }
-    }
-
-    private fun startRepaintPump() {
-        val timer = repaintTimer ?: return
-        if (!timer.isRunning) {
-            timer.start()
-        }
-    }
-
-    private fun stopRepaintPump() {
-        repaintTimer?.stop()
-    }
-}
-
-@OptIn(ExperimentalComposeUiApi::class)
-private fun desktopPlayerOverlayRenderConfig(owner: Window): DesktopPlayerOverlayRenderConfig {
-    val renderer = System.getenv("NUVIO_PLAYER_OVERLAY_RENDERER")
-        ?.trim()
-        ?.lowercase(Locale.US)
-        ?.replace('_', '-')
-    return when (renderer) {
-        "skia", "skia-surface", "angle" -> DesktopPlayerOverlayRenderConfig(
-            name = "skia",
-            renderSettings = RenderSettings.SkiaSurface(),
-            repaintHz = null,
-        )
-
-        else -> DesktopPlayerOverlayRenderConfig(
-            name = "swing",
-            renderSettings = RenderSettings.SwingGraphics(),
-            repaintHz = desktopPlayerOverlayRepaintHz(owner),
-        )
-    }
-}
-
-@OptIn(ExperimentalComposeUiApi::class)
-private data class DesktopPlayerOverlayRenderConfig(
-    val name: String,
-    val renderSettings: RenderSettings,
-    val repaintHz: Int?,
-)
-
-private fun desktopPlayerOverlayRepaintHz(owner: Window): Int? {
-    val configured = System.getenv("NUVIO_PLAYER_OVERLAY_REPAINT_HZ")
-        ?.trim()
-        ?.takeIf(String::isNotBlank)
-    if (configured != null) {
-        return when (configured.lowercase(Locale.US)) {
-            "0", "off", "false", "no", "disabled" -> null
-            else -> configured.toIntOrNull()?.coerceIn(30, 240)
-        }
-    }
-    val displayRefreshRate = owner
-        .graphicsConfiguration
-        ?.device
-        ?.displayMode
-        ?.refreshRate
-        ?.takeIf { it > 0 }
-    return (displayRefreshRate ?: DefaultPlayerOverlayRepaintHz).coerceIn(30, 240)
-}
-
-private val OverlayHitTestAwtColor = AwtColor(0, 0, 0, 1)
-private val OverlayHitTestColor = Color.Black.copy(alpha = 1f / 255f)
-
-private fun usesOwnedPlayerOverlayWindow(): Boolean {
-    if (!isWindowsDesktopPlayerOverlay()) return false
-    if (System.getProperty("compose.interop.blending").equals("true", ignoreCase = true)) return false
-    return MpvDesktopSurfaceMode.resolve() == MpvDesktopSurfaceMode.NativeWindow
-}
-
-private fun isWindowsDesktopPlayerOverlay(): Boolean =
-    System.getProperty("os.name")
-        ?.lowercase(Locale.US)
-        ?.contains("windows") == true
 
 private val PressRepeatKeybindActions = setOf(
     "seek_forward_10s",
