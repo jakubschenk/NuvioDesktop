@@ -28,6 +28,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,10 +86,12 @@ import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
 import com.nuvio.app.isIos
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -368,9 +371,14 @@ fun PlayerScreen(
             if (!playbackSnapshot.isPlaying || !controlsVisible || playerControlsLocked || scrubbingPositionMs != null) {
                 return@LaunchedEffect
             }
-            while (true) {
-                playerChromeFrameEpochMs = WatchProgressClock.nowEpochMs()
-                delay(PlayerChromeFrameIntervalMs)
+            withContext(Dispatchers.Default) {
+                while (true) {
+                    delay(PlayerChromeFrameIntervalMs)
+                    val nowMs = WatchProgressClock.nowEpochMs()
+                    Snapshot.withMutableSnapshot {
+                        playerChromeFrameEpochMs = nowMs
+                    }
+                }
             }
         }
 
