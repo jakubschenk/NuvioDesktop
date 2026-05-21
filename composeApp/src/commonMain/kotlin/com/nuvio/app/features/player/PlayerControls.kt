@@ -86,6 +86,7 @@ import kotlin.math.roundToInt
 private val PlayerVolumeSliderTouchHeight = 34.dp
 private const val PlayerVolumeSliderIdleScaleY = 0.72f
 private const val PlayerVolumeKeyboardStep = 0.05f
+private const val PlayerVolumeDragCommitIntervalMs = 33L
 
 @Composable
 internal fun PlayerControlsShell(
@@ -128,6 +129,8 @@ internal fun PlayerControlsShell(
     horizontalSafePadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
 ) {
+    PlayerPerfCompositionProbe("player-controls-shell")
+
     Box(modifier = modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -547,6 +550,7 @@ private fun ProgressControls(
     val aspectRatioPainter = appIconPainter(AppIconResource.PlayerAspectRatio)
     val subtitlesPainter = appIconPainter(AppIconResource.PlayerSubtitles)
     val audioPainter = appIconPainter(AppIconResource.PlayerAudioFilled)
+    val seekDragEventCounter = remember { PlayerPerfEventRateCounter("player-seek-drag") }
     var showVolumeSlider by remember { mutableStateOf(false) }
 
     Column(modifier = modifier) {
@@ -556,7 +560,13 @@ private fun ProgressControls(
                 .height(metrics.sliderTouchHeight)
                 .graphicsLayer(scaleY = metrics.sliderScaleY),
             value = displayedPositionMs.coerceIn(0L, durationMs).toFloat(),
-            onValueChange = { value -> onScrubChange(value.toLong()) },
+            onValueChange = { value ->
+                val targetMs = value.toLong()
+                seekDragEventCounter.record {
+                    "targetMs=$targetMs durationMs=$durationMs"
+                }
+                onScrubChange(targetMs)
+            },
             onValueChangeFinished = { onScrubFinished(displayedPositionMs.coerceIn(0L, durationMs)) },
             valueRange = 0f..durationMs.toFloat(),
         )
@@ -658,20 +668,28 @@ private fun PlayerVolumeSlider(
     onVolumeChange: (Float) -> Unit,
     onMuteClick: () -> Unit,
 ) {
-    val percentage = (volumeLevel.fraction * 100f).roundToInt().coerceIn(0, 100)
     val focusRequester = remember { FocusRequester() }
     val onVolumeChangeState = rememberUpdatedState(onVolumeChange)
     var isHovered by remember { mutableStateOf(false) }
     var isFocused by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
+    var localDragVolume by remember { mutableStateOf<Float?>(null) }
+    var lastDragCommitMs by remember { mutableStateOf(0L) }
+    val volumeEventCounter = remember { PlayerPerfEventRateCounter("player-volume-slider") }
     val coercedVolume = volumeLevel.fraction.coerceIn(0f, 1f)
-    val sliderScaleY by animateFloatAsState(
-        targetValue = if (isHovered || isFocused || isDragging) 1f else PlayerVolumeSliderIdleScaleY,
-        label = "player_volume_slider_scale",
-    )
+    val displayedVolume = localDragVolume ?: coercedVolume
+    val percentage = (displayedVolume * 100f).roundToInt().coerceIn(0, 100)
+    val sliderScaleY = if (isHovered || isFocused || isDragging) 1f else PlayerVolumeSliderIdleScaleY
 
-    fun commitVolume(value: Float) {
-        onVolumeChangeState.value(value.coerceIn(0f, 1f))
+    fun commitVolume(
+        value: Float,
+        force: Boolean = true,
+    ) {
+        val target = value.coerceIn(0f, 1f)
+        val nowMs = PlayerWallClock.nowEpochMs()
+        if (!force && nowMs - lastDragCommitMs < PlayerVolumeDragCommitIntervalMs) return
+        lastDragCommitMs = nowMs
+        onVolumeChangeState.value(target)
     }
 
     Row(
@@ -706,12 +724,12 @@ private fun PlayerVolumeSlider(
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (event.key) {
                         Key.DirectionLeft -> {
-                            commitVolume(coercedVolume - PlayerVolumeKeyboardStep)
+                            commitVolume(displayedVolume - PlayerVolumeKeyboardStep)
                             true
                         }
 
                         Key.DirectionRight -> {
-                            commitVolume(coercedVolume + PlayerVolumeKeyboardStep)
+                            commitVolume(displayedVolume + PlayerVolumeKeyboardStep)
                             true
                         }
 
@@ -728,6 +746,8 @@ private fun PlayerVolumeSlider(
                 }
                 .onPointerEvent(PointerEventType.Release) {
                     isDragging = false
+                    localDragVolume?.let { commitVolume(it) }
+                    localDragVolume = null
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -735,12 +755,21 @@ private fun PlayerVolumeSlider(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer(scaleY = sliderScaleY),
-                value = coercedVolume,
+                value = displayedVolume,
                 onValueChange = { value ->
                     isDragging = true
-                    commitVolume(value)
+                    val target = value.coerceIn(0f, 1f)
+                    localDragVolume = target
+                    volumeEventCounter.record {
+                        "valuePct=${(target * 100f).roundToInt()} muted=${volumeLevel.isMuted}"
+                    }
+                    commitVolume(target, force = false)
                 },
-                onValueChangeFinished = { isDragging = false },
+                onValueChangeFinished = {
+                    isDragging = false
+                    localDragVolume?.let { commitVolume(it) }
+                    localDragVolume = null
+                },
                 valueRange = 0f..1f,
             )
         }
