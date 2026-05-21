@@ -36,7 +36,11 @@ internal object DesktopRuntimeLog {
     fun initialize(enabled: Boolean = false) {
         debugEnabled = enabled ||
             System.getProperty("nuvio.debugLogs").isTruthy() ||
-            System.getenv("NUVIO_DEBUG_LOGS").isTruthy()
+            System.getenv("NUVIO_DEBUG_LOGS").isTruthy() ||
+            System.getProperty("nuvio.player.perfLogs").isTruthy() ||
+            System.getProperty("nuvio.player.perfTrace").isTruthy() ||
+            System.getenv("NUVIO_PLAYER_PERF_LOGS").isTruthy() ||
+            System.getenv("NUVIO_PLAYER_PERF_TRACE").isTruthy()
         initialized = true
         trimExistingLogIfNeeded()
         if (debugEnabled) {
