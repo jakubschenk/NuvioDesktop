@@ -86,6 +86,7 @@ import kotlin.math.roundToInt
 private const val PlaybackProgressPersistIntervalMs = 60_000L
 private const val PlayerControlsAutoHideDelayMs = 3_500L
 private const val PlayerCursorAutoHideDelayMs = 700L
+private const val PlayerPointerActivityThrottleMs = 250L
 private const val PlayerLockedOverlayDurationMs = 2_000L
 private const val PlayerLeftGestureBoundary = 0.4f
 private const val PlayerRightGestureBoundary = 0.6f
@@ -110,6 +111,18 @@ private fun sliderOverlayBottomPadding(metrics: PlayerLayoutMetrics) =
 private enum class PlayerSideGesture {
     Brightness,
     Volume,
+}
+
+private class PlayerPointerActivityGate {
+    private var lastEmitEpochMs: Long = 0L
+
+    fun shouldEmit(nowEpochMs: Long): Boolean {
+        if (lastEmitEpochMs == 0L || nowEpochMs - lastEmitEpochMs >= PlayerPointerActivityThrottleMs) {
+            lastEmitEpochMs = nowEpochMs
+            return true
+        }
+        return false
+    }
 }
 
 private enum class PlayerSeekDirection {
@@ -179,6 +192,7 @@ fun PlayerScreen(
     initialProgressFraction: Float? = null,
 ) {
     LockPlayerToLandscape()
+    PlayerPerfCompositionProbe("player-screen")
     val playerSettingsUiState by remember {
         PlayerSettingsRepository.ensureLoaded()
         PlayerSettingsRepository.uiState
@@ -222,10 +236,14 @@ fun PlayerScreen(
         var isHovering by remember { mutableStateOf(false) }
         var cursorVisible by remember { mutableStateOf(true) }
         var pointerActivitySerial by remember { mutableStateOf(0) }
+        val pointerActivityGate = remember { PlayerPointerActivityGate() }
         fun revealPlayerChrome() {
+            val wasHidden = !controlsVisible || !cursorVisible
             controlsVisible = true
             cursorVisible = true
-            pointerActivitySerial += 1
+            if (wasHidden || pointerActivityGate.shouldEmit(WatchProgressClock.nowEpochMs())) {
+                pointerActivitySerial += 1
+            }
         }
         val setControlsVisibleFromHover = rememberUpdatedState { shouldShow: Boolean ->
             if (shouldShow && !playerControlsLocked) {

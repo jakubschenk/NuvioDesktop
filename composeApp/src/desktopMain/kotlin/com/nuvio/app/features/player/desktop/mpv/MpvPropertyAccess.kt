@@ -8,6 +8,11 @@ internal fun MPVHandle.getMpvIntProperty(name: String): Int? =
         value.toIntOrNull() ?: value.toDoubleOrNull()?.toInt()
     }.getOrNull()
 
+internal fun MPVHandle.getMpvDoubleProperty(name: String): Double? =
+    runCatching {
+        getPropertyString(name).toDoubleOrNull()
+    }.getOrNull()
+
 internal fun MPVHandle.getMpvStringPropertyOrNull(name: String): String? =
     runCatching { getPropertyString(name) }.getOrNull()
 

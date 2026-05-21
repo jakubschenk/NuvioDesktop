@@ -9,6 +9,7 @@ import com.nuvio.app.features.player.AudioTrack
 import com.nuvio.app.features.player.PlayerAudioLevel
 import com.nuvio.app.features.player.PlayerEngineController
 import com.nuvio.app.features.player.PlayerResizeMode
+import com.nuvio.app.features.player.PlayerRuntimeTrace
 import com.nuvio.app.features.player.SubtitleStyleState
 import com.nuvio.app.features.player.SubtitleTrack
 import com.nuvio.app.features.player.desktop.DesktopPlayerBackend
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
@@ -47,6 +49,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.roundToInt
@@ -98,6 +101,7 @@ internal class MpvDesktopPlayerBackend private constructor(
     init {
         configurePresentationDefaults()
         observePlayerState()
+        startPerformanceSampler()
         DesktopRuntimeLog.info(
             "MPV backend created id=$id surfaceMode=$surfaceMode " +
                 "runtime=${runtime.directory?.safePath() ?: "none"}",
@@ -278,6 +282,59 @@ internal class MpvDesktopPlayerBackend private constructor(
                 stateFlow.value = mapped
             }
         }.launchIn(scope)
+    }
+
+    private fun startPerformanceSampler() {
+        if (!PlayerRuntimeTrace.perfEnabled) return
+        scope.launch {
+            PlayerRuntimeTrace.perf(
+                "mpvSampler start backend=$id surfaceMode=$surfaceMode runtime=${runtime.directory?.safePath() ?: "none"}",
+            )
+            while (!closing && !nativeClosed) {
+                delay(2_000L)
+                val snapshot = withOpenMpvCall<String?>(null) {
+                    runCatching { mpvPerformanceSnapshotForLog() }
+                        .getOrElse { throwable ->
+                            "readFailed=${throwable::class.simpleName}:${throwable.message ?: "unknown"}"
+                        }
+                }
+                if (snapshot != null) {
+                    PlayerRuntimeTrace.perf(
+                        "mpv backend=$id session=${currentRequest?.sessionKey ?: "none"} $snapshot",
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mpvPerformanceSnapshotForLog(): String {
+        val handle = player.impl
+        val phase = stateFlow.value.phase
+        return buildString {
+            append("state=${player.getCurrentPlaybackState()}")
+            append(" phase=$phase")
+            append(" posMs=${player.currentPositionMillis.value}")
+            append(" durationMs=${durationMs() ?: -1}")
+            append(" vo=${handle.perfString("current-vo")}")
+            append(" voConfigured=${handle.perfString("vo-configured")}")
+            append(" hwdec=${handle.perfString("hwdec-current")}")
+            append(" codec=${handle.perfString("video-codec")}")
+            append(" video=${handle.perfInt("video-params/w")}x${handle.perfInt("video-params/h")}")
+            append(" containerFps=${handle.perfDouble("container-fps")}")
+            append(" vfFps=${handle.perfDouble("estimated-vf-fps")}")
+            append(" displayFps=${handle.perfDouble("display-fps")}")
+            append(" estimatedDisplayFps=${handle.perfDouble("estimated-display-fps")}")
+            append(" displaySync=${handle.perfString("display-sync-active")}")
+            append(" speed=${handle.perfDouble("speed")}")
+            append(" pause=${handle.perfString("pause")}")
+            append(" buffering=${handle.perfString("cache-buffering-state")}")
+            append(" cacheSec=${handle.perfDouble("demuxer-cache-duration")}")
+            append(" drops=${handle.perfInt("frame-drop-count")}")
+            append(" decoderDrops=${handle.perfInt("decoder-frame-drop-count")}")
+            append(" voDrops=${handle.perfInt("vo-drop-frame-count")}")
+            append(" mistimed=${handle.perfInt("mistimed-frame-count")}")
+            append(" avsync=${handle.perfDouble("avsync")}")
+        }
     }
 
     private fun fail(error: DesktopPlayerError) {
@@ -815,3 +872,18 @@ private fun Color.toMpvColorString(): String {
 }
 
 private fun Int.hex(): String = toString(16).padStart(2, '0').uppercase()
+
+private fun MPVHandle.perfString(name: String): String =
+    getMpvStringPropertyOrNull(name)
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+        ?: "-"
+
+private fun MPVHandle.perfInt(name: String): String =
+    getMpvIntProperty(name)?.toString() ?: "-"
+
+private fun MPVHandle.perfDouble(name: String): String =
+    getMpvDoubleProperty(name)?.let(::formatMpvDouble) ?: "-"
+
+private fun formatMpvDouble(value: Double): String =
+    String.format(Locale.US, "%.3f", value)

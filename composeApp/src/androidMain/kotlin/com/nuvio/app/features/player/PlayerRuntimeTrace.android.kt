@@ -5,6 +5,8 @@ import android.util.Log
 internal actual object PlayerRuntimeTrace {
     private const val Tag = "NuvioPlayerScreen"
 
+    actual val perfEnabled: Boolean = false
+
     actual fun info(message: String) {
         Log.i(Tag, message)
     }
@@ -12,4 +14,6 @@ internal actual object PlayerRuntimeTrace {
     actual fun warn(message: String) {
         Log.w(Tag, message)
     }
+
+    actual fun perf(message: String) = Unit
 }

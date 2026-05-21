@@ -1,6 +1,5 @@
 package com.nuvio.app.features.player
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -91,6 +91,7 @@ import com.nuvio.app.core.ui.nuvioTypeScale
 import kotlinx.coroutines.delay
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -103,6 +104,11 @@ private val PlayerVolumeSliderWidth = 112.dp
 private val PlayerVolumeSliderTouchHeight = 34.dp
 private const val PlayerVolumeSliderIdleScaleY = 0.72f
 private const val PlayerVolumeKeyboardStep = 0.05f
+private const val PlayerVolumeDragCommitIntervalMs = 33L
+private const val PlayerSeekHoverPreviewStepPx = 3
+private const val PlayerChromeFrameIntervalMs = 8L
+private const val PlayerSeekPendingPositionHoldMs = 450L
+private const val PlayerSeekPendingPositionToleranceMs = 1_250L
 
 private fun PlayerPlaybackSnapshot.displayPositionAt(
     snapshotEpochMs: Long,
@@ -124,6 +130,7 @@ private fun rememberLiveDisplayedPositionMs(
     animateDisplayedPosition: Boolean,
 ): Long {
     var frameEpochMs by remember { mutableStateOf(PlayerWallClock.nowEpochMs()) }
+    val frameRateCounter = remember { PlayerPerfFrameRateCounter("player-controls-live-position") }
 
     LaunchedEffect(
         animateDisplayedPosition,
@@ -136,8 +143,25 @@ private fun rememberLiveDisplayedPositionMs(
             return@LaunchedEffect
         }
         while (true) {
-            withFrameNanos { }
-            frameEpochMs = PlayerWallClock.nowEpochMs()
+            val nowEpochMs = if (usesAnimatedPlayerChrome) {
+                val frameNanos = withFrameNanos { it }
+                frameRateCounter.record(frameNanos) {
+                    "ticker=frame-clock playing=${playbackSnapshot.isPlaying} " +
+                        "speed=${playerPerfOneDecimal(playbackSnapshot.playbackSpeed.toDouble())} " +
+                        "durationMs=${playbackSnapshot.durationMs}"
+                }
+                PlayerWallClock.nowEpochMs()
+            } else {
+                delay(PlayerChromeFrameIntervalMs)
+                val nowMs = PlayerWallClock.nowEpochMs()
+                frameRateCounter.record(nowMs * 1_000_000L) {
+                    "ticker=timer playing=${playbackSnapshot.isPlaying} " +
+                        "speed=${playerPerfOneDecimal(playbackSnapshot.playbackSpeed.toDouble())} " +
+                        "durationMs=${playbackSnapshot.durationMs}"
+                }
+                nowMs
+            }
+            frameEpochMs = nowEpochMs
         }
     }
 
@@ -190,12 +214,45 @@ internal fun PlayerControlsShell(
     horizontalSafePadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
 ) {
+    PlayerPerfCompositionProbe("player-controls-shell")
+
+    var chromeScrubPositionMs by remember { mutableStateOf<Long?>(null) }
+    var pendingSeekPositionMs by remember { mutableStateOf<Long?>(null) }
+
+    LaunchedEffect(displayedPositionMs, pendingSeekPositionMs) {
+        val pendingPositionMs = pendingSeekPositionMs ?: return@LaunchedEffect
+        if (abs(displayedPositionMs - pendingPositionMs) <= PlayerSeekPendingPositionToleranceMs) {
+            pendingSeekPositionMs = null
+            return@LaunchedEffect
+        }
+        delay(PlayerSeekPendingPositionHoldMs)
+        if (pendingSeekPositionMs == pendingPositionMs) {
+            pendingSeekPositionMs = null
+        }
+    }
+
     val liveDisplayedPositionMs = rememberLiveDisplayedPositionMs(
         playbackSnapshot = playbackSnapshot,
         displayedPositionMs = displayedPositionMs,
         snapshotEpochMs = snapshotEpochMs,
-        animateDisplayedPosition = animateDisplayedPosition,
+        animateDisplayedPosition = animateDisplayedPosition &&
+            chromeScrubPositionMs == null &&
+            pendingSeekPositionMs == null,
     )
+    val chromeDisplayedPositionMs = chromeScrubPositionMs
+        ?: pendingSeekPositionMs
+        ?: liveDisplayedPositionMs
+    val onChromeScrubChange: (Long) -> Unit = { positionMs ->
+        chromeScrubPositionMs = positionMs
+        if (usesAnimatedPlayerChrome) {
+            onScrubChange(positionMs)
+        }
+    }
+    val onChromeScrubFinished: (Long) -> Unit = { positionMs ->
+        chromeScrubPositionMs = null
+        pendingSeekPositionMs = positionMs
+        onScrubFinished(positionMs)
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         Box(
@@ -235,7 +292,7 @@ internal fun PlayerControlsShell(
         ) {
             PlayerHeader(
                 metrics = metrics,
-                displayedPositionMs = liveDisplayedPositionMs,
+                displayedPositionMs = chromeDisplayedPositionMs,
                 durationMs = playbackSnapshot.durationMs,
                 onBack = onBack,
                 modifier = Modifier
@@ -257,13 +314,13 @@ internal fun PlayerControlsShell(
                 episodeNumber = episodeNumber,
                 episodeTitle = episodeTitle,
                 playbackSnapshot = playbackSnapshot,
-                displayedPositionMs = liveDisplayedPositionMs,
+                displayedPositionMs = chromeDisplayedPositionMs,
                 metrics = metrics,
                 resizeMode = resizeMode,
                 isFullscreenSupported = isFullscreenSupported,
                 isFullscreen = isFullscreen,
-                onScrubChange = onScrubChange,
-                onScrubFinished = onScrubFinished,
+                onScrubChange = onChromeScrubChange,
+                onScrubFinished = onChromeScrubFinished,
                 onTogglePlayback = onTogglePlayback,
                 onSeekBack = onSeekBack,
                 onSeekForward = onSeekForward,
@@ -725,14 +782,22 @@ private fun PlayerVolumeControl(
     var isHovered by remember { mutableStateOf(false) }
     var isFocused by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
+    var localDragVolume by remember { mutableStateOf<Float?>(null) }
+    var lastDragCommitMs by remember { mutableStateOf(0L) }
+    val volumeEventCounter = remember { PlayerPerfEventRateCounter("player-volume-slider") }
     val coercedVolume = volumeLevel.coerceIn(0f, 1f)
-    val sliderScaleY by animateFloatAsState(
-        targetValue = if (isHovered || isFocused || isDragging) 1f else PlayerVolumeSliderIdleScaleY,
-        label = "player_volume_slider_scale",
-    )
+    val displayedVolume = localDragVolume ?: coercedVolume
+    val sliderScaleY = if (isHovered || isFocused || isDragging) 1f else PlayerVolumeSliderIdleScaleY
 
-    fun commitVolume(value: Float) {
-        onVolumeChangeState.value?.invoke(value.coerceIn(0f, 1f))
+    fun commitVolume(
+        value: Float,
+        force: Boolean = true,
+    ) {
+        val target = value.coerceIn(0f, 1f)
+        val nowMs = PlayerWallClock.nowEpochMs()
+        if (!force && nowMs - lastDragCommitMs < PlayerVolumeDragCommitIntervalMs) return
+        lastDragCommitMs = nowMs
+        onVolumeChangeState.value?.invoke(target)
     }
 
     Row(
@@ -757,12 +822,12 @@ private fun PlayerVolumeControl(
                     if (!volumeEnabled || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (event.key) {
                         Key.DirectionLeft -> {
-                            commitVolume(coercedVolume - PlayerVolumeKeyboardStep)
+                            commitVolume(displayedVolume - PlayerVolumeKeyboardStep)
                             true
                         }
 
                         Key.DirectionRight -> {
-                            commitVolume(coercedVolume + PlayerVolumeKeyboardStep)
+                            commitVolume(displayedVolume + PlayerVolumeKeyboardStep)
                             true
                         }
 
@@ -781,6 +846,8 @@ private fun PlayerVolumeControl(
                 }
                 .onPointerEvent(PointerEventType.Release) {
                     isDragging = false
+                    localDragVolume?.let { commitVolume(it) }
+                    localDragVolume = null
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -788,12 +855,21 @@ private fun PlayerVolumeControl(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer(scaleY = sliderScaleY),
-                value = coercedVolume,
+                value = displayedVolume,
                 onValueChange = { value ->
                     isDragging = true
-                    commitVolume(value)
+                    val target = value.coerceIn(0f, 1f)
+                    localDragVolume = target
+                    volumeEventCounter.record {
+                        "valuePct=${(target * 100f).roundToInt()} muted=$isMuted"
+                    }
+                    commitVolume(target, force = false)
                 },
-                onValueChangeFinished = { isDragging = false },
+                onValueChangeFinished = {
+                    isDragging = false
+                    localDragVolume?.let { commitVolume(it) }
+                    localDragVolume = null
+                },
                 valueRange = 0f..1f,
                 enabled = volumeEnabled,
             )
@@ -816,14 +892,11 @@ private fun PlayerToolbarIconButton(
     customContent: (@Composable () -> Unit)? = null,
 ) {
     var isHovered by remember { mutableStateOf(false) }
-    val backgroundAlpha by animateFloatAsState(
-        targetValue = when {
-            isActive -> 0.24f
-            isHovered -> 0.16f
-            else -> 0.001f
-        },
-        label = "player_toolbar_button_bg",
-    )
+    val backgroundAlpha = when {
+        isActive -> 0.24f
+        isHovered -> 0.16f
+        else -> 0.001f
+    }
 
     Box(
         modifier = modifier
@@ -878,26 +951,27 @@ private fun PlayerSeekBar(
     var isHovered by remember { mutableStateOf(false) }
     var isFocused by remember { mutableStateOf(false) }
     var isScrubbing by remember { mutableStateOf(false) }
-    var seekBarWidthPx by remember { mutableStateOf(0) }
-    var hoverFraction by remember { mutableStateOf<Float?>(null) }
+    var seekBarWidthPx by remember { mutableIntStateOf(0) }
+    var hoverPreviewX by remember { mutableIntStateOf(-1) }
+    val seekDragEventCounter = remember { PlayerPerfEventRateCounter("player-seek-drag") }
     val density = LocalDensity.current
     val onScrubChangeState = rememberUpdatedState(onScrubChange)
     val onScrubFinishedState = rememberUpdatedState(onScrubFinished)
     val coercedDurationMs = durationMs.coerceAtLeast(1L)
     val coercedPositionMs = positionMs.coerceIn(0L, coercedDurationMs)
-    val sliderScaleY by animateFloatAsState(
-        targetValue = if (isHovered || isFocused) 1f else idleScaleY,
-        label = "player_seek_slider_scale",
-    )
+    val sliderScaleY = if (isHovered || isFocused) 1f else idleScaleY
 
     fun positionToMs(x: Float, width: Float): Long {
         if (width <= 0f) return coercedPositionMs
         return ((x / width).coerceIn(0f, 1f) * coercedDurationMs).roundToLong()
     }
 
-    fun updateHoverFraction(x: Float) {
-        val width = seekBarWidthPx.takeIf { it > 0 }?.toFloat() ?: return
-        hoverFraction = (x / width).coerceIn(0f, 1f)
+    fun updateHoverPreview(x: Float) {
+        val width = seekBarWidthPx.takeIf { it > 0 } ?: return
+        val nextX = x.roundToInt().coerceIn(0, width)
+        if (hoverPreviewX < 0 || abs(nextX - hoverPreviewX) >= PlayerSeekHoverPreviewStepPx) {
+            hoverPreviewX = nextX
+        }
     }
 
     fun commitSeek(targetMs: Long) {
@@ -931,14 +1005,14 @@ private fun PlayerSeekBar(
             }
             .onPointerEvent(PointerEventType.Enter) { event ->
                 isHovered = true
-                event.changes.firstOrNull()?.position?.x?.let(::updateHoverFraction)
+                event.changes.firstOrNull()?.position?.x?.let(::updateHoverPreview)
             }
             .onPointerEvent(PointerEventType.Move) { event ->
-                event.changes.firstOrNull()?.position?.x?.let(::updateHoverFraction)
+                event.changes.firstOrNull()?.position?.x?.let(::updateHoverPreview)
             }
             .onPointerEvent(PointerEventType.Exit) {
                 isHovered = false
-                hoverFraction = null
+                hoverPreviewX = -1
             }
             .pointerInput(coercedDurationMs) {
                 awaitEachGesture {
@@ -949,6 +1023,9 @@ private fun PlayerSeekBar(
                     try {
                         var latestTargetMs = positionToMs(down.position.x, width)
                         onScrubChangeState.value(latestTargetMs)
+                        seekDragEventCounter.record {
+                            "targetMs=$latestTargetMs durationMs=$coercedDurationMs"
+                        }
                         down.consume()
 
                         while (true) {
@@ -957,6 +1034,9 @@ private fun PlayerSeekBar(
                             if (!change.pressed) break
                             latestTargetMs = positionToMs(change.position.x, width)
                             onScrubChangeState.value(latestTargetMs)
+                            seekDragEventCounter.record {
+                                "targetMs=$latestTargetMs durationMs=$coercedDurationMs"
+                            }
                             change.consume()
                         }
 
@@ -968,7 +1048,7 @@ private fun PlayerSeekBar(
             },
         contentAlignment = Alignment.Center,
     ) {
-        val previewFraction = hoverFraction
+        val previewX = hoverPreviewX.takeIf { it >= 0 }
         val previewThumbOffsetPx = with(density) { (PlayerSeekHoverThumbSize / 2).roundToPx() }
         Slider(
             modifier = Modifier
@@ -979,13 +1059,13 @@ private fun PlayerSeekBar(
             onValueChangeFinished = {},
             valueRange = 0f..coercedDurationMs.toFloat(),
         )
-        if (previewFraction != null && !isScrubbing && seekBarWidthPx > 0) {
+        if (previewX != null && !isScrubbing && seekBarWidthPx > 0) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .offset {
                         IntOffset(
-                            x = (seekBarWidthPx * previewFraction).roundToInt() - previewThumbOffsetPx,
+                            x = previewX - previewThumbOffsetPx,
                             y = 0,
                         )
                     }
