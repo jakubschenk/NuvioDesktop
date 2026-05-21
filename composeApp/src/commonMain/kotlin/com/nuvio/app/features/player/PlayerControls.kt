@@ -47,11 +47,13 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -81,12 +83,20 @@ import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.nuvioTypeScale
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private val PlayerVolumeSliderTouchHeight = 34.dp
 private const val PlayerVolumeSliderIdleScaleY = 0.72f
 private const val PlayerVolumeKeyboardStep = 0.05f
 private const val PlayerVolumeDragCommitIntervalMs = 33L
+private const val PlayerVolumeRenderEpsilon = 0.001f
+
+private class PlayerVolumeDragCoalescer {
+    var pendingVolume: Float? = null
+    var lastPreviewPercent: Int? = null
+    var lastCommitMs: Long = 0L
+}
 
 @Composable
 internal fun PlayerControlsShell(
@@ -680,7 +690,7 @@ private fun PlayerVolumeSlider(
     var isFocused by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var localDragVolume by remember { mutableStateOf<Float?>(null) }
-    var lastDragCommitMs by remember { mutableStateOf(0L) }
+    val dragCoalescer = remember { PlayerVolumeDragCoalescer() }
     val volumeEventCounter = remember { PlayerPerfEventRateCounter("player-volume-slider") }
     val coercedVolume = volumeLevel.fraction.coerceIn(0f, 1f)
     val displayedVolume = localDragVolume ?: coercedVolume
@@ -693,9 +703,15 @@ private fun PlayerVolumeSlider(
     ) {
         val target = value.coerceIn(0f, 1f)
         val nowMs = PlayerWallClock.nowEpochMs()
-        if (!force && nowMs - lastDragCommitMs < PlayerVolumeDragCommitIntervalMs) return
-        lastDragCommitMs = nowMs
+        if (!force && nowMs - dragCoalescer.lastCommitMs < PlayerVolumeDragCommitIntervalMs) return
+        if (!force) {
+            val targetPercent = (target * 100f).roundToInt()
+            if (dragCoalescer.lastPreviewPercent == targetPercent) return
+            dragCoalescer.lastPreviewPercent = targetPercent
+        }
+        dragCoalescer.lastCommitMs = nowMs
         if (force) {
+            dragCoalescer.lastPreviewPercent = null
             onVolumeChangeState.value(target)
         } else {
             (onVolumePreviewChangeState.value ?: onVolumeChangeState.value)(target)
@@ -704,9 +720,30 @@ private fun PlayerVolumeSlider(
 
     fun finishVolumeDrag() {
         isDragging = false
-        val finalVolume = localDragVolume ?: return
+        val finalVolume = dragCoalescer.pendingVolume ?: localDragVolume ?: return
+        dragCoalescer.pendingVolume = null
         localDragVolume = null
         commitVolume(finalVolume)
+    }
+
+    LaunchedEffect(isDragging) {
+        if (!isDragging) {
+            dragCoalescer.pendingVolume = null
+            dragCoalescer.lastPreviewPercent = null
+            return@LaunchedEffect
+        }
+        while (true) {
+            withFrameNanos { }
+            val target = dragCoalescer.pendingVolume ?: continue
+            dragCoalescer.pendingVolume = null
+            if (localDragVolume == null || abs((localDragVolume ?: 0f) - target) >= PlayerVolumeRenderEpsilon) {
+                localDragVolume = target
+            }
+            volumeEventCounter.record {
+                "valuePct=${(target * 100f).roundToInt()} muted=${volumeLevel.isMuted}"
+            }
+            commitVolume(target, force = false)
+        }
     }
 
     Row(
@@ -774,11 +811,7 @@ private fun PlayerVolumeSlider(
                 onValueChange = { value ->
                     isDragging = true
                     val target = value.coerceIn(0f, 1f)
-                    localDragVolume = target
-                    volumeEventCounter.record {
-                        "valuePct=${(target * 100f).roundToInt()} muted=${volumeLevel.isMuted}"
-                    }
-                    commitVolume(target, force = false)
+                    dragCoalescer.pendingVolume = target
                 },
                 onValueChangeFinished = {
                     finishVolumeDrag()
