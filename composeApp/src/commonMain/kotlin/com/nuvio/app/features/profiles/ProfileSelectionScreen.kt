@@ -46,9 +46,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -60,6 +60,8 @@ import com.nuvio.app.core.ui.AsyncImage
 import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.ui.NuvioImageFilterQuality
+import com.nuvio.app.core.ui.desktopClickablePointer
+import com.nuvio.app.core.ui.nuvioVerticalGradientBackground
 import com.nuvio.app.core.ui.rememberSizedImageRequest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -102,19 +104,24 @@ fun ProfileSelectionScreen(
     }
 
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val gradientTint = MaterialTheme.colorScheme.primaryContainer
+    val surfaceTint = MaterialTheme.colorScheme.surfaceVariant
+    val profileGradientStops = remember(backgroundColor, gradientTint, surfaceTint) {
+        arrayOf(
+            0.00f to backgroundColor,
+            0.16f to lerp(backgroundColor, surfaceTint, 0.04f),
+            0.36f to lerp(backgroundColor, surfaceTint, 0.14f),
+            0.58f to lerp(backgroundColor, gradientTint, 0.20f),
+            0.78f to lerp(backgroundColor, gradientTint, 0.34f),
+            1.00f to lerp(backgroundColor, gradientTint, 0.45f),
+        )
+    }
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
-                    ),
-                ),
-            )
+            .nuvioVerticalGradientBackground(profileGradientStops)
             .padding(top = statusBarTop),
     ) {
         val isTabletLayout = maxWidth >= 768.dp
@@ -256,6 +263,7 @@ fun ProfileSelectionScreen(
                         else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                         shape = RoundedCornerShape(24.dp),
                     )
+                    .desktopClickablePointer()
                     .clickable { isEditMode = !isEditMode }
                     .padding(horizontal = 24.dp, vertical = 10.dp),
             ) {
@@ -333,6 +341,7 @@ private fun ProfileAvatarCard(
                 translationY = animOffset.value
             }
             .clip(RoundedCornerShape(20.dp))
+            .desktopClickablePointer()
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -488,6 +497,7 @@ private fun AddProfileCard(
                 translationY = animOffset.value
             }
             .clip(RoundedCornerShape(20.dp))
+            .desktopClickablePointer()
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,

@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.NuvioActionLabel
 import com.nuvio.app.core.ui.NuvioToastController
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.features.home.HomeCatalogSettingsItem
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.components.HomeEmptyStateCard
@@ -185,6 +186,7 @@ private fun HeroSourcesDropdown(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 14.dp)
+                .desktopClickablePointer()
                 .clickable { onExpandedChange(!expanded) },
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {

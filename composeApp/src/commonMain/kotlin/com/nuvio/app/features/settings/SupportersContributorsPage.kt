@@ -53,6 +53,7 @@ import com.nuvio.app.core.ui.AsyncImage
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.NuvioSurfaceCard
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.features.addons.httpRequestRaw
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -561,6 +562,7 @@ private fun CommunityTabRow(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(999.dp))
+                    .desktopClickablePointer()
                     .clickable { onSelectTab(tab) },
                 color = if (isSelected) {
                     MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
@@ -674,6 +676,7 @@ private fun ContributorRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -721,6 +724,7 @@ private fun SupporterRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

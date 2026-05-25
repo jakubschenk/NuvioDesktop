@@ -52,7 +52,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -73,7 +72,10 @@ import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.NuvioIconActionButton
 import com.nuvio.app.core.ui.NuvioImageFilterQuality
 import com.nuvio.app.core.ui.TraktListPickerDialog
+import com.nuvio.app.core.ui.desktopClickablePointer
+import com.nuvio.app.core.ui.nuvioHorizontalGradientBackground
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
+import com.nuvio.app.core.ui.nuvioVerticalGradientBackground
 import com.nuvio.app.features.details.components.DetailActionButtons
 import com.nuvio.app.features.details.components.CommentDetailSheet
 import com.nuvio.app.features.details.components.DetailAdditionalInfoSection
@@ -819,14 +821,12 @@ fun MetaDetailsScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color.Black.copy(alpha = 0.52f),
-                                                Color.Black.copy(alpha = 0.18f),
-                                                Color.Black.copy(alpha = 0.34f),
-                                                Color.Black.copy(alpha = 0.76f),
-                                            ),
+                                    .nuvioHorizontalGradientBackground(
+                                        listOf(
+                                            Color.Black.copy(alpha = 0.52f),
+                                            Color.Black.copy(alpha = 0.18f),
+                                            Color.Black.copy(alpha = 0.34f),
+                                            Color.Black.copy(alpha = 0.76f),
                                         ),
                                     ),
                             )
@@ -1186,14 +1186,12 @@ fun MetaDetailsScreen(
                                     .graphicsLayer {
                                         translationY = heroHeightPx.toFloat() - scrollState.value
                                     }
-                                    .background(
-                                        Brush.verticalGradient(
-                                            colors = listOf(
-                                                blendColor.copy(alpha = 0.98f),
-                                                blendColor.copy(alpha = 0.84f),
-                                                blendColor.copy(alpha = 0.52f),
-                                                Color.Transparent,
-                                            ),
+                                    .nuvioVerticalGradientBackground(
+                                        listOf(
+                                            blendColor.copy(alpha = 0.98f),
+                                            blendColor.copy(alpha = 0.84f),
+                                            blendColor.copy(alpha = 0.52f),
+                                            Color.Transparent,
                                         ),
                                     ),
                             )
@@ -1681,6 +1679,7 @@ private fun TabbedSectionGroup(
                         },
                         maxLines = 1,
                         modifier = Modifier
+                            .desktopClickablePointer()
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,

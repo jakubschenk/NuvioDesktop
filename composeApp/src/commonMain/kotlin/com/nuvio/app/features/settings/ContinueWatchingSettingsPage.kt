@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.features.home.components.ContinueWatchingStylePreview
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingSectionStyle
@@ -230,6 +231,7 @@ private fun ContinueWatchingStyleOption(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .desktopClickablePointer()
             .clickable(onClick = onClick),
         color = if (selected) {
             MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
@@ -355,6 +357,7 @@ private fun ContinueWatchingSortModeDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .desktopClickablePointer()
                                 .clickable { onModeSelected(mode) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,

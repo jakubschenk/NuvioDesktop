@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.i18n.localizedByteUnit
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioScreenHeader
+import com.nuvio.app.core.ui.desktopClickablePointer
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
@@ -166,6 +167,7 @@ private fun LazyListScope.downloadsRootContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .desktopClickablePointer()
                     .clickable { onOpenShow(item.parentMetaId) },
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceContainer,
@@ -306,6 +308,7 @@ private fun DownloadRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
+            .desktopClickablePointer(item.isPlayable)
             .clickable(enabled = item.isPlayable, onClick = onOpen),
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -350,7 +353,10 @@ private fun DownloadRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     when (item.status) {
                         DownloadStatus.Downloading -> {
-                            IconButton(onClick = onPause) {
+                            IconButton(
+                                onClick = onPause,
+                                modifier = Modifier.desktopClickablePointer(),
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Pause,
                                     contentDescription = stringResource(Res.string.compose_action_pause),
@@ -358,7 +364,10 @@ private fun DownloadRow(
                             }
                         }
                         DownloadStatus.Paused -> {
-                            IconButton(onClick = onResume) {
+                            IconButton(
+                                onClick = onResume,
+                                modifier = Modifier.desktopClickablePointer(),
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.PlayArrow,
                                     contentDescription = stringResource(Res.string.action_resume),
@@ -366,7 +375,10 @@ private fun DownloadRow(
                             }
                         }
                         DownloadStatus.Failed -> {
-                            IconButton(onClick = onRetry) {
+                            IconButton(
+                                onClick = onRetry,
+                                modifier = Modifier.desktopClickablePointer(),
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Refresh,
                                     contentDescription = stringResource(Res.string.action_retry),
@@ -374,7 +386,10 @@ private fun DownloadRow(
                             }
                         }
                         DownloadStatus.Completed -> {
-                            IconButton(onClick = onOpen) {
+                            IconButton(
+                                onClick = onOpen,
+                                modifier = Modifier.desktopClickablePointer(),
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.PlayArrow,
                                     contentDescription = stringResource(Res.string.action_play),
@@ -382,7 +397,10 @@ private fun DownloadRow(
                             }
                         }
                     }
-                    IconButton(onClick = onDelete) {
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.desktopClickablePointer(),
+                    ) {
                         Icon(
                             imageVector = Icons.Rounded.Delete,
                             contentDescription = stringResource(Res.string.action_delete),

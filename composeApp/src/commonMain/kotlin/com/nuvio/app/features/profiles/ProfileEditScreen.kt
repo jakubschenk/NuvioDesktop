@@ -55,6 +55,7 @@ import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.NuvioStatusModal
 import com.nuvio.app.core.ui.NuvioSurfaceCard
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.rememberSizedImageRequest
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
@@ -537,6 +538,7 @@ private fun AvatarChoiceItem(
                 color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
                 shape = CircleShape,
             )
+            .desktopClickablePointer()
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

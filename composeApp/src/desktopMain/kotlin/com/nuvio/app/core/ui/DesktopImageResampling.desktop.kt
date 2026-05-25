@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
+import com.nuvio.app.desktop.DesktopRuntimeLog
 import com.mortennobel.imagescaling.ResampleFilters
 import com.mortennobel.imagescaling.ResampleFilter
 import com.mortennobel.imagescaling.ResampleOp
@@ -121,7 +122,7 @@ internal val nuvioDesktopImageSamplingMode: NuvioDesktopImageSamplingMode by laz
         "jvm_triangle", "triangle" -> NuvioDesktopImageSamplingMode.JvmTriangle
         "jvm_hamming", "hamming", "chromium_hamming", "hamming1" -> NuvioDesktopImageSamplingMode.JvmHamming
         else -> {
-            println("NuvioImage: unknown sampling mode '$raw', falling back to lanczos3")
+            DesktopRuntimeLog.warn("NuvioImage: unknown sampling mode '$raw', falling back to lanczos3")
             NuvioDesktopImageSamplingMode.Lanczos3
         }
     }.also { mode ->
@@ -497,7 +498,7 @@ private fun Rect.isWholeBitmap(widthPx: Int, heightPx: Int): Boolean =
 
 internal fun nuvioImageDebug(message: String) {
     if (NuvioImageDebugLogging) {
-        println("NuvioImage: $message")
+        DesktopRuntimeLog.info("NuvioImage: $message")
     }
 }
 

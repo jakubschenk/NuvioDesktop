@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.NuvioModalBottomSheet
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.features.trakt.TraktCommentReview
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -111,6 +112,7 @@ fun CommentDetailSheet(
                                 if (canGoBack) MaterialTheme.colorScheme.surfaceVariant
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                             )
+                            .desktopClickablePointer(canGoBack)
                             .then(if (canGoBack) Modifier.clickable(onClick = onPrevious) else Modifier),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -137,6 +139,7 @@ fun CommentDetailSheet(
                                 if (canGoForward) MaterialTheme.colorScheme.surfaceVariant
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                             )
+                            .desktopClickablePointer(canGoForward)
                             .then(if (canGoForward) Modifier.clickable(onClick = onNext) else Modifier),
                         contentAlignment = Alignment.Center,
                     ) {

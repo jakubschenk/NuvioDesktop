@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.desktopClickablePointer
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
@@ -163,6 +164,7 @@ fun PinEntryDialog(
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
+                            .desktopClickablePointer()
                             .clickable(onClick = onForgotPin)
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                     )
@@ -236,6 +238,7 @@ private fun PinKeypad(
                                     .size(64.dp)
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .desktopClickablePointer()
                                     .clickable(onClick = onBackspace),
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -253,6 +256,7 @@ private fun PinKeypad(
                                     .size(64.dp)
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .desktopClickablePointer()
                                     .clickable { onDigit(key) },
                                 contentAlignment = Alignment.Center,
                             ) {

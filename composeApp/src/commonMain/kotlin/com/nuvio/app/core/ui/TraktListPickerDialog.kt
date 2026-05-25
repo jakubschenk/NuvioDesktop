@@ -153,6 +153,7 @@ fun TraktListPickerDialog(
                     Button(
                         onClick = onDismiss,
                         enabled = !isPending,
+                        modifier = Modifier.desktopClickablePointer(!isPending),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = MaterialTheme.colorScheme.onSurface,
@@ -163,6 +164,7 @@ fun TraktListPickerDialog(
                     Button(
                         onClick = onSave,
                         enabled = !isPending,
+                        modifier = Modifier.desktopClickablePointer(!isPending),
                     ) {
                         if (isPending) {
                             CircularProgressIndicator(

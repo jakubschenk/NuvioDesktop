@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.features.player.KeybindEntry
 import com.nuvio.app.features.player.KeybindsConfig
 import com.nuvio.app.features.player.KeybindsStorage
@@ -325,6 +326,7 @@ private fun KeybindRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(horizontal = if (isTablet) 20.dp else 16.dp, vertical = if (isTablet) 14.dp else 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,

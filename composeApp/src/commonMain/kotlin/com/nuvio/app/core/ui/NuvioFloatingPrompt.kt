@@ -230,7 +230,9 @@ fun NuvioFloatingPrompt(
                         ) {
                             FilledIconButton(
                                 onClick = actionWithHaptic,
-                                modifier = Modifier.size(42.dp),
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .desktopClickablePointer(),
                                 shape = CircleShape,
                             ) {
                                 Icon(

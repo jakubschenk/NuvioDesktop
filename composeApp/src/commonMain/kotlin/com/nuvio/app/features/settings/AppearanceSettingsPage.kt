@@ -44,6 +44,7 @@ import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
 import com.nuvio.app.core.ui.NuvioBottomSheetDivider
 import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.labelRes
 import com.nuvio.app.core.ui.ThemeColors
 import kotlinx.coroutines.launch
@@ -304,6 +305,7 @@ private fun ThemeChip(
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .then(
                 if (isSelected) {

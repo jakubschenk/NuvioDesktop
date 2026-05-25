@@ -66,6 +66,7 @@ import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.NuvioSectionLabel
 import com.nuvio.app.core.ui.NuvioSurfaceCard
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.core.ui.PlatformBackHandler
 import com.nuvio.app.features.home.PosterShape
@@ -212,6 +213,7 @@ fun CollectionEditorScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .desktopClickablePointer()
                             .clickable { CollectionEditorRepository.setPinToTop(!state.pinToTop) },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
@@ -295,6 +297,7 @@ fun CollectionEditorScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .desktopClickablePointer()
                             .clickable { CollectionEditorRepository.setShowAllTab(!state.showAllTab) },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
@@ -1695,6 +1698,7 @@ private fun PickerOptionRow(
             .fillMaxWidth()
             .clip(rowShape)
             .background(bgColor)
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1967,6 +1971,7 @@ private fun FolderEditorToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .desktopClickablePointer()
             .clickable { onCheckedChange(!checked) },
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -2169,6 +2174,7 @@ private fun FolderCatalogSourceCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .desktopClickablePointer()
                         .clickable(onClick = onOpenGenrePicker),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
@@ -2410,6 +2416,7 @@ private fun GenrePickerOptionRow(
             .clip(RoundedCornerShape(10.dp))
             .background(bgColor)
             .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,

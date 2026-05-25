@@ -65,6 +65,7 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.AsyncImage
 import com.nuvio.app.core.ui.desktopContextMenuPointer
+import com.nuvio.app.core.ui.desktopClickablePointer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
@@ -152,6 +153,7 @@ fun ProfileSwitcherTab(
                         null
                     },
             )
+            .desktopClickablePointer()
             .pointerInput(profiles) {
                 detectTapGestures(
                     onTap = { onClick() },
@@ -303,6 +305,7 @@ private fun PopupAddProfileBubble(
                 scaleY = itemScale.value
             }
             .clip(RoundedCornerShape(16.dp))
+            .desktopClickablePointer()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -392,6 +395,7 @@ private fun PopupProfileBubble(
                 scaleY = itemScale.value * pressScale
             }
             .clip(RoundedCornerShape(16.dp))
+            .desktopClickablePointer()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -627,6 +631,7 @@ private fun InlinePinEntry(
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
+                .desktopClickablePointer()
                 .clickable(onClick = onCancel)
                 .padding(horizontal = 16.dp, vertical = 6.dp),
         )
@@ -660,6 +665,7 @@ private fun CompactPinKeypad(
                                     .size(48.dp)
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .desktopClickablePointer()
                                     .clickable(onClick = onBackspace),
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -677,6 +683,7 @@ private fun CompactPinKeypad(
                                     .size(48.dp)
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .desktopClickablePointer()
                                     .clickable { onDigit(key) },
                                 contentAlignment = Alignment.Center,
                             ) {

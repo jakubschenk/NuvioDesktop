@@ -1079,6 +1079,7 @@ private fun ExternalPlayerSelectionDialog(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .desktopClickablePointer()
                                     .clickable { onPlayerSelected(player.id) },
                                 shape = RoundedCornerShape(12.dp),
                                 color = containerColor,
@@ -1173,6 +1174,7 @@ private fun LanguageSelectionDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .desktopClickablePointer()
                                 .clickable { onSelect(option.value) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -1260,6 +1262,7 @@ private fun ReuseCacheDurationDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .desktopClickablePointer()
                                 .clickable { onDurationSelected(hours) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -1351,6 +1354,7 @@ private fun DecoderPriorityDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .desktopClickablePointer()
                                 .clickable { onPrioritySelected(priority) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -1438,6 +1442,7 @@ private fun HoldToSpeedValueDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .desktopClickablePointer()
                                 .clickable { onSpeedSelected(speed) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -1531,6 +1536,7 @@ private fun LibassRenderTypeDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .desktopClickablePointer()
                                 .clickable { onRenderTypeSelected(value) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -1634,6 +1640,7 @@ private fun StreamAutoPlayModeDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .desktopClickablePointer()
                                 .clickable { onModeSelected(mode) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -1761,6 +1768,7 @@ private fun StreamAutoPlaySourceDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .desktopClickablePointer()
                                 .clickable { onSourceSelected(source) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -1856,6 +1864,7 @@ private fun StreamAutoPlayProviderSelectionDialog(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .desktopClickablePointer()
                         .clickable { selected = emptySet() },
                     shape = RoundedCornerShape(12.dp),
                     color = allContainerColor,
@@ -1910,6 +1919,7 @@ private fun StreamAutoPlayProviderSelectionDialog(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .desktopClickablePointer()
                                     .clickable {
                                         selected = if (isSelected) selected - item else selected + item
                                     },
@@ -2321,6 +2331,7 @@ private fun NextEpisodeThresholdModeDialog(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .desktopClickablePointer()
                             .clickable { onSelect(mode) },
                         shape = RoundedCornerShape(12.dp),
                         color = containerColor,

@@ -43,6 +43,7 @@ import com.nuvio.app.core.ui.NuvioInputField
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
 import com.nuvio.app.core.ui.NuvioScreenHeader
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
@@ -226,7 +227,10 @@ fun SearchScreen(
                                 placeholder = stringResource(Res.string.compose_search_placeholder),
                                 trailingContent = if (query.isNotBlank()) {
                                     {
-                                        IconButton(onClick = { SearchRepository.updateQuery("") }) {
+                                        IconButton(
+                                            onClick = { SearchRepository.updateQuery("") },
+                                            modifier = Modifier.desktopClickablePointer(),
+                                        ) {
                                             Icon(
                                                 imageVector = Icons.Rounded.Close,
                                                 contentDescription = stringResource(Res.string.compose_search_clear),
@@ -405,6 +409,7 @@ private fun SearchRecentRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .desktopClickablePointer()
             .clickable(onClick = onSearchPress)
             .padding(vertical = 2.dp)
             .background(
@@ -438,7 +443,10 @@ private fun SearchRecentRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        IconButton(onClick = onRemovePress) {
+        IconButton(
+            onClick = onRemovePress,
+            modifier = Modifier.desktopClickablePointer(),
+        ) {
             Icon(
                 imageVector = Icons.Rounded.Close,
                 contentDescription = stringResource(Res.string.compose_search_remove_recent_search),

@@ -83,6 +83,16 @@ internal actual fun platformSettingsSearchEntries(): List<SettingsSearchEntry> {
             target = SettingsSearchTarget.Page(SettingsPage.Playback),
         ),
         SettingsSearchEntry(
+            key = "desktop-renderer",
+            title = "Renderer",
+            description = "Select OpenGL, ANGLE, or Direct3D for Compose rendering. Requires restart.",
+            page = playbackPage,
+            section = playbackDecoderSection,
+            category = generalCategory,
+            icon = Icons.Rounded.Memory,
+            target = SettingsSearchTarget.Page(SettingsPage.Playback),
+        ),
+        SettingsSearchEntry(
             key = "desktop-debug-logs",
             // Mirrors the DebugLogsSettingsSection header + row; Desktop-local copy in
             // build 61 that is only rendered on Desktop (see desktopMain actual).

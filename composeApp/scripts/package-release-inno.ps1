@@ -25,6 +25,7 @@ $ErrorActionPreference = "Stop"
 
 # Resolve paths
 $appDirResolved = (Resolve-Path $AppDir).Path
+New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 $outputDirResolved = (Resolve-Path $OutputDir).Path
 $setupIconResolved = (Resolve-Path $SetupIcon).Path
 $appIconResolved = (Resolve-Path $AppIcon).Path
@@ -92,7 +93,6 @@ end;
 "@
 
 Write-Host "Writing ISS to $issPath"
-New-Item -ItemType Directory -Force -Path $outputDirResolved | Out-Null
 Set-Content -LiteralPath $issPath -Value $issContent -Encoding UTF8
 
 # Locate Inno Setup compiler

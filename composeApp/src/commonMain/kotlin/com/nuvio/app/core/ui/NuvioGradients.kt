@@ -1,11 +1,10 @@
 package com.nuvio.app.core.ui
 
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Modifier
 
-fun nuvioOverlayGradientBrush(): Brush = Brush.linearGradient(
-    colorStops = arrayOf(
+private fun nuvioOverlayGradientStops(): Array<Pair<Float, Color>> =
+    arrayOf(
         0f to Color(0xFF21113B),
         0.12f to Color(0xFF21113B),
         0.24f to Color(0xFF1A0E2F),
@@ -14,7 +13,10 @@ fun nuvioOverlayGradientBrush(): Brush = Brush.linearGradient(
         0.58f to Color(0xFF050408),
         0.64f to Color.Black,
         1f to Color.Black,
-    ),
-    start = Offset(0f, 0f),
-    end = Offset(1000f, 1600f),
-)
+    )
+
+fun Modifier.nuvioOverlayGradientBackground(): Modifier =
+    nuvioPlatformLinearGradientBackground(
+        colorStops = nuvioOverlayGradientStops(),
+        axis = NuvioLinearGradientAxis.DiagonalDown,
+    )

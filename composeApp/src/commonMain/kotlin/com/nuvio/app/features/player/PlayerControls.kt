@@ -59,7 +59,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
@@ -89,6 +88,7 @@ import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.appIconPainter
 import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.nuvioTypeScale
+import com.nuvio.app.core.ui.nuvioVerticalGradientBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -276,12 +276,10 @@ internal fun PlayerControlsShell(
                 .fillMaxWidth()
                 .height(160.dp)
                 .align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.7f),
-                            Color.Transparent,
-                        ),
+                .nuvioVerticalGradientBackground(
+                    listOf(
+                        Color.Black.copy(alpha = 0.7f),
+                        Color.Transparent,
                     ),
                 ),
         )
@@ -291,12 +289,10 @@ internal fun PlayerControlsShell(
                 .fillMaxWidth()
                 .height(320.dp)
                 .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.7f),
-                        ),
+                .nuvioVerticalGradientBackground(
+                    listOf(
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.7f),
                     ),
                 ),
         )
@@ -1153,12 +1149,10 @@ internal fun LockedPlayerOverlay(
                 .fillMaxWidth()
                 .height(220.dp)
                 .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.72f),
-                        ),
+                .nuvioVerticalGradientBackground(
+                    listOf(
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.72f),
                     ),
                 ),
         )

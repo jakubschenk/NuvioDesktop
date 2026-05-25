@@ -72,6 +72,10 @@ import com.nuvio.app.features.home.components.rememberContinueWatchingLayout
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
+private const val HomeNextUpMetadataEnrichmentLimit = 8
+private const val HomeNextUpMetadataEnrichmentConcurrency = 2
+private const val HomeContinueWatchingVisibleMetadataBudget = 8
+
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
@@ -193,14 +197,37 @@ fun HomeScreen(
         )
     }
     var nextUpItemsBySeries by remember(activeProfileId) { mutableStateOf<Map<String, Pair<Long, ContinueWatchingItem>>>(emptyMap()) }
+    var cachedNextUpMissKeys by remember(activeProfileId) { mutableStateOf(emptySet<String>()) }
 
     var cachedSnapshots by remember(activeProfileId) {
         mutableStateOf(emptyList<CachedNextUpItem>() to emptyList<CachedInProgressItem>())
     }
     LaunchedEffect(activeProfileId) {
-        cachedSnapshots = withContext(Dispatchers.Default) {
-            ContinueWatchingEnrichmentCache.getSnapshots()
+        val snapshot = withContext(Dispatchers.Default) {
+            ContinueWatchingEnrichmentCache.getSnapshot()
         }
+        cachedSnapshots = snapshot.nextUp to snapshot.inProgress
+        cachedNextUpMissKeys = snapshot.nextUpMissKeys
+    }
+
+    val nextUpMetadataCandidates = remember(
+        completedSeriesCandidates,
+        visibleContinueWatchingEntries,
+        cachedNextUpMissKeys,
+        continueWatchingPreferences.isVisible,
+        continueWatchingPreferences.dismissedNextUpKeys,
+        continueWatchingPreferences.upNextFromFurthestEpisode,
+        continueWatchingPreferences.showUnairedNextUp,
+    ) {
+        visibleNextUpMetadataCandidates(
+            completedSeriesCandidates = completedSeriesCandidates,
+            visibleEntries = visibleContinueWatchingEntries,
+            nextUpMissKeys = cachedNextUpMissKeys,
+            isContinueWatchingVisible = continueWatchingPreferences.isVisible,
+            dismissedNextUpKeys = continueWatchingPreferences.dismissedNextUpKeys,
+            upNextFromFurthestEpisode = continueWatchingPreferences.upNextFromFurthestEpisode,
+            showUnairedNextUp = continueWatchingPreferences.showUnairedNextUp,
+        )
     }
     val cachedNextUpItems = remember(
         cachedSnapshots.first,
@@ -347,11 +374,12 @@ fun HomeScreen(
     }
 
     LaunchedEffect(
-        completedSeriesCandidates,
+        nextUpMetadataCandidates,
         metaProviderKey,
         continueWatchingPreferences.showUnairedNextUp,
+        continueWatchingPreferences.dismissedNextUpKeys,
     ) {
-        if (completedSeriesCandidates.isEmpty()) {
+        if (nextUpMetadataCandidates.isEmpty()) {
             nextUpItemsBySeries = emptyMap()
             return@LaunchedEffect
         }
@@ -359,29 +387,62 @@ fun HomeScreen(
         if (metaProviderKey.isEmpty()) return@LaunchedEffect
 
         val todayIsoDate = CurrentDateProvider.todayIsoDate()
-        val semaphore = Semaphore(4)
-        val results = completedSeriesCandidates.map { completedEntry ->
+        val semaphore = Semaphore(HomeNextUpMetadataEnrichmentConcurrency)
+        val fetchResults = nextUpMetadataCandidates.map { completedEntry ->
+            val missKey = completedEntry.nextUpMissKey(
+                showUnairedNextUp = continueWatchingPreferences.showUnairedNextUp,
+            )
             async {
                 semaphore.withPermit {
                     val meta = MetaDetailsRepository.fetch(
                         type = completedEntry.content.type,
                         id = completedEntry.content.id,
-                    ) ?: return@withPermit null
+                    ) ?: return@withPermit NextUpMetadataFetchResult(
+                        contentId = completedEntry.content.id,
+                        missKey = missKey,
+                        item = null,
+                        cacheMiss = true,
+                    )
                     val nextEpisode = meta.nextReleasedEpisodeAfter(
                         seasonNumber = completedEntry.seasonNumber,
                         episodeNumber = completedEntry.episodeNumber,
                         todayIsoDate = todayIsoDate,
                         showUnairedNextUp = continueWatchingPreferences.showUnairedNextUp,
-                    ) ?: return@withPermit null
+                    ) ?: return@withPermit NextUpMetadataFetchResult(
+                        contentId = completedEntry.content.id,
+                        missKey = missKey,
+                        item = null,
+                        cacheMiss = true,
+                    )
                     val item = completedEntry.toContinueWatchingSeed(meta)
                         .toUpNextContinueWatchingItem(nextEpisode)
                     if (nextUpDismissKey(item.parentMetaId, item.nextUpSeedSeasonNumber, item.nextUpSeedEpisodeNumber) in continueWatchingPreferences.dismissedNextUpKeys) {
-                        return@withPermit null
+                        return@withPermit NextUpMetadataFetchResult(
+                            contentId = completedEntry.content.id,
+                            missKey = missKey,
+                            item = null,
+                            cacheMiss = false,
+                        )
                     }
-                    completedEntry.content.id to (completedEntry.markedAtEpochMs to item)
+                    NextUpMetadataFetchResult(
+                        contentId = completedEntry.content.id,
+                        missKey = missKey,
+                        item = completedEntry.markedAtEpochMs to item,
+                        cacheMiss = false,
+                    )
                 }
             }
-        }.awaitAll().filterNotNull().toMap()
+        }.awaitAll()
+        val results = fetchResults
+            .mapNotNull { result -> result.item?.let { item -> result.contentId to item } }
+            .toMap()
+        val hitMissKeys = fetchResults
+            .filter { result -> result.item != null }
+            .mapTo(mutableSetOf()) { result -> result.missKey }
+        val missedKeys = fetchResults
+            .filter { result -> result.cacheMiss }
+            .mapTo(mutableSetOf()) { result -> result.missKey }
+        val nextUpMissKeys = (cachedNextUpMissKeys - hitMissKeys + missedKeys)
         nextUpItemsBySeries = results
 
         val nextUpCache = results.mapNotNull { (contentId, pair) ->
@@ -433,7 +494,11 @@ fun HomeScreen(
             ContinueWatchingEnrichmentCache.saveSnapshots(
                 nextUp = nextUpCache,
                 inProgress = inProgressCache,
+                nextUpMissKeys = nextUpMissKeys,
             )
+        }
+        if (nextUpMissKeys != cachedNextUpMissKeys) {
+            cachedNextUpMissKeys = nextUpMissKeys
         }
     }
 
@@ -785,6 +850,13 @@ private data class CompletedSeriesCandidate(
     val markedAtEpochMs: Long,
 )
 
+private data class NextUpMetadataFetchResult(
+    val contentId: String,
+    val missKey: String,
+    val item: Pair<Long, ContinueWatchingItem>?,
+    val cacheMiss: Boolean,
+)
+
 private data class ContinueWatchingStreamPrefetchTarget(
     val type: String,
     val videoId: String,
@@ -797,6 +869,65 @@ private data class HomeContinueWatchingCandidate(
     val item: ContinueWatchingItem,
     val isProgressEntry: Boolean,
 )
+
+private fun visibleNextUpMetadataCandidates(
+    completedSeriesCandidates: List<CompletedSeriesCandidate>,
+    visibleEntries: List<WatchProgressEntry>,
+    nextUpMissKeys: Set<String>,
+    isContinueWatchingVisible: Boolean,
+    dismissedNextUpKeys: Set<String>,
+    upNextFromFurthestEpisode: Boolean,
+    showUnairedNextUp: Boolean,
+): List<CompletedSeriesCandidate> {
+    if (!isContinueWatchingVisible || completedSeriesCandidates.isEmpty()) return emptyList()
+
+    val visibleSeriesIds = visibleEntries
+        .asSequence()
+        .filter { entry -> entry.parentMetaType.isSeriesTypeForContinueWatching() }
+        .map { entry -> entry.parentMetaId }
+        .filter(String::isNotBlank)
+        .toSet()
+    val sortedCandidates = completedSeriesCandidates
+        .asSequence()
+        .filterNot { candidate ->
+            nextUpDismissKey(
+                candidate.content.id,
+                candidate.seasonNumber,
+                candidate.episodeNumber,
+            ) in dismissedNextUpKeys
+        }
+        .filterNot { candidate -> candidate.nextUpMissKey(showUnairedNextUp) in nextUpMissKeys }
+        .sortedByDescending { candidate -> candidate.markedAtEpochMs }
+        .toList()
+
+    val replacementCandidates = if (upNextFromFurthestEpisode) {
+        sortedCandidates.filter { candidate -> candidate.content.id in visibleSeriesIds }
+    } else {
+        emptyList()
+    }
+    val replacementSeriesIds = replacementCandidates.mapTo(mutableSetOf()) { candidate -> candidate.content.id }
+    val visibleEntryCount = visibleEntries
+        .distinctBy { entry -> entry.parentMetaId.ifBlank { entry.videoId } }
+        .size
+    val remainingVisibleSlots = (HomeContinueWatchingVisibleMetadataBudget - visibleEntryCount).coerceAtLeast(0)
+    val overflowCandidates = sortedCandidates
+        .filter { candidate -> candidate.content.id !in replacementSeriesIds }
+        .filter { candidate -> upNextFromFurthestEpisode || candidate.content.id !in visibleSeriesIds }
+        .take(remainingVisibleSlots)
+
+    return (replacementCandidates + overflowCandidates)
+        .distinctBy { candidate -> candidate.content.id }
+        .take(HomeNextUpMetadataEnrichmentLimit)
+}
+
+private fun CompletedSeriesCandidate.nextUpMissKey(showUnairedNextUp: Boolean): String =
+    buildString {
+        append(content.type.trim())
+        append("|")
+        append(nextUpDismissKey(content.id, seasonNumber, episodeNumber))
+        append("|unaired=")
+        append(showUnairedNextUp)
+    }
 
 private fun CompletedSeriesCandidate.toContinueWatchingSeed(meta: com.nuvio.app.features.details.MetaDetails) =
     WatchProgressEntry(

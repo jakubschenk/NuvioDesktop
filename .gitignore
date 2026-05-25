@@ -44,8 +44,17 @@ skills-lock.json
 .github/workflows/claude-pr-fix.yml
 .github/workflows/claude-pr-review.yml
 composeApp/desktop-icons/
+!composeApp/desktop-icons/
+composeApp/desktop-icons/*
+!composeApp/desktop-icons/nuvio-windows.ico
+!composeApp/desktop-icons/nuvio-installer.ico
+!composeApp/desktop-icons/nuvio-installer-sidebar.png
+!composeApp/desktop-icons/nuvio-installer-banner.bmp
 composeApp/src/androidMain/res/mipmap-xhdpi/nuvio-windows.ico
 composeApp/src/windowsPackageResources/
+!composeApp/src/windowsPackageResources/
+composeApp/src/windowsPackageResources/*
+!composeApp/src/windowsPackageResources/.gitkeep
 composeApp/scripts/package-release-inno.ps1
 .env
 composeApp/runtime-config/release.properties

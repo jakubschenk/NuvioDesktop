@@ -135,6 +135,7 @@ import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
 import com.nuvio.app.core.ui.NativeNavigationTab
 import com.nuvio.app.core.ui.NativeTabBridge
 import com.nuvio.app.core.ui.desktopContextMenuPointer
+import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.isLiquidGlassNativeTabBarSupported
 import com.nuvio.app.core.ui.localizedContinueWatchingSubtitle
 import com.nuvio.app.features.auth.AuthScreen
@@ -2398,6 +2399,7 @@ private fun TabletFloatingTopBar(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .desktopClickablePointer()
                     .clickable(
                         interactionSource = outsideDismissInteractionSource,
                         indication = null,
@@ -2568,7 +2570,10 @@ private fun TabletFloatingTopBar(
                                     .focusRequester(searchFocusRequester),
                                 trailingContent = if (searchQuery.isNotBlank()) {
                                     {
-                                        IconButton(onClick = { SearchRepository.updateQuery("") }) {
+                                        IconButton(
+                                            onClick = { SearchRepository.updateQuery("") },
+                                            modifier = Modifier.desktopClickablePointer(),
+                                        ) {
                                             Icon(
                                                 imageVector = Icons.Rounded.Close,
                                                 contentDescription = stringResource(Res.string.compose_search_clear),
@@ -2666,6 +2671,7 @@ private fun TabletSearchRecentRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .background(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
@@ -2691,7 +2697,9 @@ private fun TabletSearchRecentRow(
         )
         IconButton(
             onClick = onRemove,
-            modifier = Modifier.size(32.dp),
+            modifier = Modifier
+                .size(32.dp)
+                .desktopClickablePointer(),
         ) {
             Icon(
                 imageVector = Icons.Rounded.Close,
@@ -2715,6 +2723,7 @@ private fun TabletTopIconButton(
         modifier = modifier
             .size(44.dp)
             .clip(RoundedCornerShape(999.dp))
+            .desktopClickablePointer()
             .clickable(onClick = onClick),
         color = if (selected) {
             MaterialTheme.colorScheme.primaryContainer
@@ -2764,6 +2773,7 @@ private fun ProfileSelectorButton(
         Surface(
             modifier = Modifier
                 .desktopContextMenuPointer { menuExpanded = true }
+                .desktopClickablePointer()
                 .clickable(onClick = onClick),
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
             shape = RoundedCornerShape(999.dp),
@@ -2802,7 +2812,7 @@ private fun ProfileSelectorButton(
 
                 NuvioDropdownMenuItem(
                     text = profileLabel,
-                    textModifier = Modifier.widthIn(min = 128.dp, max = 220.dp),
+                    textModifier = Modifier.widthIn(max = 220.dp),
                     selected = isActive,
                     onClick = {
                         menuExpanded = false
@@ -2850,7 +2860,7 @@ private fun ProfileSelectorButton(
 
             NuvioDropdownMenuItem(
                 text = stringResource(Res.string.profile_manage_profiles),
-                textModifier = Modifier.widthIn(min = 128.dp, max = 220.dp),
+                textModifier = Modifier.widthIn(max = 220.dp),
                 onClick = {
                     menuExpanded = false
                     onEditProfilesClick()
@@ -2860,6 +2870,7 @@ private fun ProfileSelectorButton(
                         imageVector = Icons.Rounded.Edit,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
+                        tint = Color.White,
                     )
                 },
             )
@@ -2878,7 +2889,9 @@ private fun TabletTopPillItem(
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(999.dp),
         tonalElevation = if (selected) 2.dp else 0.dp,
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier
+            .desktopClickablePointer()
+            .clickable(onClick = onClick),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),

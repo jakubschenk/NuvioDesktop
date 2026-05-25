@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 import java.io.File
 import java.util.Properties
+import java.util.zip.ZipFile
 import javax.imageio.ImageIO
 
 abstract class GenerateRuntimeConfigsTask : DefaultTask() {
@@ -583,13 +584,18 @@ val packageWindowsNativeRuntime = tasks.register<Copy>("packageWindowsNativeRunt
     val mediampNativeBuildDir = mediampRootDir.resolve("mediamp-mpv/build-ci")
     val mediampPrebuiltDir = mediampRootDir.resolve("mediamp-mpv/libmpv/lib/windows/x86_64")
     val system32Dir = File(System.getenv("WINDIR") ?: "C:/Windows", "System32")
-    val appDir = layout.buildDirectory.dir("compose/binaries/main-release/app/Nuvio/app")
-    val nativeDir = appDir.map { it.dir("native") }
-    val launcherDir = layout.buildDirectory.dir("compose/binaries/main-release/app/Nuvio")
+    val releaseAppImageDir = layout.buildDirectory.dir("compose/binaries/main-release/app/Nuvio")
+    val releaseAppDir = releaseAppImageDir.map { it.dir("app") }
+    val releaseNativeDir = releaseAppDir.map { it.dir("native") }
+    val appImageDirs = listOf(
+        layout.buildDirectory.dir("compose/binaries/main/app/Nuvio"),
+        releaseAppImageDir,
+    )
 
     group = "compose desktop"
-    description = "Copies MediaMP/MPV native DLLs into the Windows app image and points java.library.path at them."
+    description = "Copies MediaMP/MPV and ANGLE native DLLs into the Windows app images."
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    outputs.upToDateWhen { false }
 
     from(mediampNativeBuildDir) {
         include("*.dll")
@@ -605,76 +611,168 @@ val packageWindowsNativeRuntime = tasks.register<Copy>("packageWindowsNativeRunt
         include("VCRUNTIME140.dll", "vcruntime140.dll")
         include("VCRUNTIME140_1.dll", "vcruntime140_1.dll")
     }
-    into(nativeDir)
+    into(releaseNativeDir)
 
     doLast {
-        val appDirectory = appDir.get().asFile
-        val nativeDirectory = nativeDir.get().asFile
-        val launcherDirectory = launcherDir.get().asFile
-        val cfgFile = appDirectory.resolve("Nuvio.cfg")
-        if (!cfgFile.isFile) return@doLast
-
-        val libraryPathOption = "java-options=-Djava.library.path=\$APPDIR/native"
-        val lines = cfgFile.readLines()
-        var replaced = false
-        val patchedLines = lines.map { line ->
-            if (line.startsWith("java-options=-Djava.library.path=")) {
-                replaced = true
-                libraryPathOption
-            } else {
-                line
-            }
-        }.toMutableList()
-        if (!replaced) {
-            val javaOptionsIndex = patchedLines.indexOf("[JavaOptions]")
-            if (javaOptionsIndex >= 0) {
-                patchedLines.add(javaOptionsIndex + 1, libraryPathOption)
-            } else {
-                patchedLines.add("")
-                patchedLines.add("[JavaOptions]")
-                patchedLines.add(libraryPathOption)
-            }
-        }
-        cfgFile.writeText(patchedLines.joinToString(System.lineSeparator()) + System.lineSeparator())
-
-        nativeDirectory.listFiles { file -> file.isFile && file.extension.equals("dll", ignoreCase = true) }
-            .orEmpty()
-            .forEach { dll ->
-                dll.copyTo(launcherDirectory.resolve(dll.name), overwrite = true)
-            }
-
-        val requiredDlls = listOf(
-            "mediampv.dll",
-            "libmpv-2.dll",
-            "avcodec-61.dll",
-            "avformat-61.dll",
-            "avutil-59.dll",
-            "swscale-8.dll",
-            "vulkan-1.dll",
-            "MSVCP140.dll",
-            "VCRUNTIME140.dll",
-            "VCRUNTIME140_1.dll",
-        )
         fun File.hasDll(name: String): Boolean =
             listFiles { file -> file.isFile && file.name.equals(name, ignoreCase = true) }?.isNotEmpty() == true
 
-        val missingFromNative = requiredDlls.filterNot { nativeDirectory.hasDll(it) }
-        val missingFromLauncher = requiredDlls.filterNot { launcherDirectory.hasDll(it) }
-        check(missingFromNative.isEmpty()) {
-            "Windows native runtime is incomplete in ${nativeDirectory.absolutePath}: missing ${missingFromNative.joinToString()}"
+        fun copyDlls(
+            sourceDir: File,
+            targetDir: File,
+            include: (File) -> Boolean = { file -> file.extension.equals("dll", ignoreCase = true) },
+        ) {
+            if (!sourceDir.isDirectory) return
+            targetDir.mkdirs()
+            sourceDir.listFiles { file -> file.isFile && include(file) }
+                .orEmpty()
+                .forEach { source ->
+                    val target = targetDir.resolve(source.name)
+                    if (!target.isFile) {
+                        source.copyTo(target)
+                    }
+                }
         }
-        check(missingFromLauncher.isEmpty()) {
-            "Windows launcher native fallback is incomplete in ${launcherDirectory.absolutePath}: missing ${missingFromLauncher.joinToString()}"
+
+        fun installRuntimeDlls(nativeDirectory: File) {
+            copyDlls(mediampNativeBuildDir, nativeDirectory)
+            copyDlls(mediampNativeBuildDir.resolve("Release"), nativeDirectory)
+            copyDlls(mediampPrebuiltDir, nativeDirectory)
+            val runtimeDlls = setOf("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")
+            copyDlls(system32Dir, nativeDirectory) { file ->
+                file.name.lowercase() in runtimeDlls
+            }
+        }
+
+        fun extractAngleRuntime(appDirectory: File, nativeDirectory: File) {
+            val angleRuntimeJar = appDirectory
+                .listFiles { file ->
+                    file.isFile &&
+                        file.name.startsWith("skiko-awt-runtime-angle-windows-x64") &&
+                        file.extension.equals("jar", ignoreCase = true)
+                }
+                .orEmpty()
+                .firstOrNull()
+            check(angleRuntimeJar != null) {
+                "Windows ANGLE runtime jar is missing from ${appDirectory.absolutePath}"
+            }
+            nativeDirectory.mkdirs()
+            ZipFile(angleRuntimeJar).use { zipFile ->
+                listOf("libEGL.dll", "libGLESv2.dll").forEach { dllName ->
+                    val entry = zipFile.getEntry(dllName)
+                    check(entry != null) {
+                        "Windows ANGLE runtime jar ${angleRuntimeJar.absolutePath} is missing $dllName"
+                    }
+                    zipFile.getInputStream(entry).use { input ->
+                        nativeDirectory.resolve(dllName).outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
+            }
+        }
+
+        fun copyBundledSkikoRuntime(appDirectory: File, nativeDirectory: File) {
+            listOf("skiko-windows-x64.dll", "icudtl.dat").forEach { fileName ->
+                val source = appDirectory.resolve(fileName)
+                check(source.isFile) {
+                    "Windows Skiko runtime file $fileName is missing from ${appDirectory.absolutePath}"
+                }
+                nativeDirectory.mkdirs()
+                source.copyTo(nativeDirectory.resolve(source.name), overwrite = true)
+            }
+        }
+
+        fun patchLauncherConfig(cfgFile: File) {
+            val patchedLines = cfgFile.readLines()
+                .filterNot { line ->
+                    line.startsWith("java-options=-Djava.library.path=") ||
+                        line.startsWith("java-options=-Dskiko.library.path=")
+                }
+                .toMutableList()
+            if ("[JavaOptions]" !in patchedLines) {
+                patchedLines.add("")
+                patchedLines.add("[JavaOptions]")
+            }
+            cfgFile.writeText(patchedLines.joinToString(System.lineSeparator()) + System.lineSeparator())
+        }
+
+        fun patchAppImage(launcherDirectory: File) {
+            val appDirectory = launcherDirectory.resolve("app")
+            val nativeDirectory = appDirectory.resolve("native")
+            val cfgFile = appDirectory.resolve("Nuvio.cfg")
+            if (!cfgFile.isFile) return
+
+            installRuntimeDlls(nativeDirectory)
+            extractAngleRuntime(appDirectory, nativeDirectory)
+            copyBundledSkikoRuntime(appDirectory, nativeDirectory)
+            patchLauncherConfig(cfgFile)
+
+            nativeDirectory.listFiles { file -> file.isFile && file.extension.equals("dll", ignoreCase = true) }
+                .orEmpty()
+                .forEach { dll ->
+                    dll.copyTo(launcherDirectory.resolve(dll.name), overwrite = true)
+                }
+            nativeDirectory.resolve("icudtl.dat")
+                .copyTo(launcherDirectory.resolve("icudtl.dat"), overwrite = true)
+
+            val requiredDlls = listOf(
+                "mediampv.dll",
+                "libmpv-2.dll",
+                "avcodec-61.dll",
+                "avformat-61.dll",
+                "avutil-59.dll",
+                "swscale-8.dll",
+                "vulkan-1.dll",
+                "MSVCP140.dll",
+                "VCRUNTIME140.dll",
+                "VCRUNTIME140_1.dll",
+                "skiko-windows-x64.dll",
+                "libEGL.dll",
+                "libGLESv2.dll",
+            )
+
+            val missingFromNative = requiredDlls.filterNot { nativeDirectory.hasDll(it) }
+            val missingFromLauncher = requiredDlls.filterNot { launcherDirectory.hasDll(it) }
+            check(nativeDirectory.resolve("icudtl.dat").isFile) {
+                "Windows native runtime is incomplete in ${nativeDirectory.absolutePath}: missing icudtl.dat"
+            }
+            check(launcherDirectory.resolve("icudtl.dat").isFile) {
+                "Windows launcher native fallback is incomplete in ${launcherDirectory.absolutePath}: missing icudtl.dat"
+            }
+            check(missingFromNative.isEmpty()) {
+                "Windows native runtime is incomplete in ${nativeDirectory.absolutePath}: missing ${missingFromNative.joinToString()}"
+            }
+            check(missingFromLauncher.isEmpty()) {
+                "Windows launcher native fallback is incomplete in ${launcherDirectory.absolutePath}: missing ${missingFromLauncher.joinToString()}"
+            }
+        }
+
+        appImageDirs.forEach { appImageDir ->
+            patchAppImage(appImageDir.get().asFile)
         }
     }
 }
 
-tasks.matching { it.name == "createReleaseDistributable" }.configureEach {
+tasks.matching {
+    it.name == "createDistributable" ||
+        it.name == "createReleaseDistributable"
+}.configureEach {
     finalizedBy(packageWindowsNativeRuntime)
 }
 
+tasks.matching {
+    it.name == "runDistributable" ||
+        it.name == "runReleaseDistributable"
+}.configureEach {
+    dependsOn(packageWindowsNativeRuntime)
+}
+
 packageWindowsNativeRuntime.configure {
-    mustRunAfter(tasks.matching { it.name == "createReleaseDistributable" })
+    mustRunAfter(tasks.matching {
+        it.name == "createDistributable" ||
+            it.name == "createReleaseDistributable"
+    })
 }
 
 val windowsPackageResourcesSource = layout.projectDirectory.dir("src/windowsPackageResources").asFile

@@ -52,7 +52,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -72,6 +71,7 @@ import com.nuvio.app.core.ui.NuvioDropdownMenu
 import com.nuvio.app.core.ui.NuvioDropdownMenuItem
 import com.nuvio.app.core.ui.NuvioImageFilterQuality
 import com.nuvio.app.core.ui.NuvioProgressBar
+import com.nuvio.app.core.ui.nuvioVerticalGradientBackground
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaEpisodeCardStyle
 import com.nuvio.app.features.details.MetaVideo
@@ -827,14 +827,12 @@ private fun EpisodeHorizontalCard(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.10f),
-                            Color.Black.copy(alpha = 0.42f),
-                            Color.Black.copy(alpha = 0.78f),
-                        ),
+                .nuvioVerticalGradientBackground(
+                    listOf(
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.10f),
+                        Color.Black.copy(alpha = 0.42f),
+                        Color.Black.copy(alpha = 0.78f),
                     ),
                 ),
         )

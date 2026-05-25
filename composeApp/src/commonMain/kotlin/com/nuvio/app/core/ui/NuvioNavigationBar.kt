@@ -99,6 +99,7 @@ private class NuvioNavigationBarScopeImpl(
                     .fillMaxWidth()
                     .weight(1f, fill = false)
                     .clip(RoundedCornerShape(16.dp))
+                    .desktopClickablePointer()
                     .selectable(
                         selected = selected,
                         enabled = true,
@@ -133,6 +134,7 @@ private class NuvioNavigationBarScopeImpl(
                     .fillMaxWidth()
                     .weight(1f, fill = false)
                     .clip(RoundedCornerShape(16.dp))
+                    .desktopClickablePointer()
                     .selectable(
                         selected = selected,
                         enabled = true,
@@ -162,6 +164,7 @@ private class NuvioNavigationBarScopeImpl(
                     .fillMaxWidth()
                     .weight(1f, fill = false)
                     .clip(RoundedCornerShape(16.dp))
+                    .desktopClickablePointer()
                     .selectable(
                         selected = selected,
                         enabled = true,

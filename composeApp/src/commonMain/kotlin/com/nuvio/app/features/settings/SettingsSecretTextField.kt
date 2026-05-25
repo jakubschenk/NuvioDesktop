@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import com.nuvio.app.core.ui.desktopClickablePointer
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.settings_hide_secret
 import nuvio.composeapp.generated.resources.settings_show_secret
@@ -48,7 +49,10 @@ internal fun SettingsSecretTextField(
         },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         trailingIcon = {
-            IconButton(onClick = { visible = !visible }) {
+            IconButton(
+                onClick = { visible = !visible },
+                modifier = Modifier.desktopClickablePointer(),
+            ) {
                 Icon(
                     imageVector = if (visible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
                     contentDescription = stringResource(

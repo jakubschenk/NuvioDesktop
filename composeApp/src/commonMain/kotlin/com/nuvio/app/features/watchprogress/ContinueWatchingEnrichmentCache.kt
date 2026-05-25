@@ -47,10 +47,23 @@ data class CachedInProgressItem(
     val progressPercent: Float? = null,
 )
 
+internal data class ContinueWatchingEnrichmentSnapshot(
+    val nextUp: List<CachedNextUpItem> = emptyList(),
+    val inProgress: List<CachedInProgressItem> = emptyList(),
+    val nextUpMissKeys: Set<String> = emptySet(),
+)
+
+@Serializable
+private data class CachedNextUpMiss(
+    val key: String,
+    val cachedAtEpochMs: Long,
+)
+
 @Serializable
 private data class CachedEnrichmentPayload(
     val nextUp: List<CachedNextUpItem> = emptyList(),
     val inProgress: List<CachedInProgressItem> = emptyList(),
+    val nextUpMisses: List<CachedNextUpMiss> = emptyList(),
 )
 
 internal object ContinueWatchingEnrichmentCache {
@@ -60,6 +73,7 @@ internal object ContinueWatchingEnrichmentCache {
     }
 
     private const val storageKey = "cw_enrichment_cache"
+    private const val nextUpMissTtlMs = 5L * 60L * 1000L
 
     fun getNextUpSnapshot(): List<CachedNextUpItem> =
         loadPayload()?.nextUp ?: emptyList()
@@ -67,17 +81,49 @@ internal object ContinueWatchingEnrichmentCache {
     fun getInProgressSnapshot(): List<CachedInProgressItem> =
         loadPayload()?.inProgress ?: emptyList()
 
-    fun getSnapshots(): Pair<List<CachedNextUpItem>, List<CachedInProgressItem>> {
+    fun getNextUpMissSnapshot(nowEpochMs: Long = WatchProgressClock.nowEpochMs()): Set<String> =
+        loadPayload()?.nextUpMisses.activeMissKeys(nowEpochMs)
+
+    fun getSnapshot(nowEpochMs: Long = WatchProgressClock.nowEpochMs()): ContinueWatchingEnrichmentSnapshot {
         val payload = loadPayload()
-        return (payload?.nextUp ?: emptyList()) to (payload?.inProgress ?: emptyList())
+        return ContinueWatchingEnrichmentSnapshot(
+            nextUp = payload?.nextUp ?: emptyList(),
+            inProgress = payload?.inProgress ?: emptyList(),
+            nextUpMissKeys = payload?.nextUpMisses.activeMissKeys(nowEpochMs),
+        )
+    }
+
+    fun getSnapshots(): Pair<List<CachedNextUpItem>, List<CachedInProgressItem>> {
+        val snapshot = getSnapshot()
+        return snapshot.nextUp to snapshot.inProgress
     }
 
     fun saveSnapshots(
         nextUp: List<CachedNextUpItem>,
         inProgress: List<CachedInProgressItem>,
+        nextUpMissKeys: Set<String> = getNextUpMissSnapshot(),
+        nowEpochMs: Long = WatchProgressClock.nowEpochMs(),
     ) {
+        val payload = loadPayload()
+        val activeExistingMisses = payload?.nextUpMisses
+            .orEmpty()
+            .activeMissesByKey(nowEpochMs)
+        val nextUpMisses = nextUpMissKeys
+            .asSequence()
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinct()
+            .sorted()
+            .map { key -> activeExistingMisses[key] ?: CachedNextUpMiss(key = key, cachedAtEpochMs = nowEpochMs) }
+            .toList()
         val encoded = runCatching {
-            json.encodeToString(CachedEnrichmentPayload(nextUp = nextUp, inProgress = inProgress))
+            json.encodeToString(
+                CachedEnrichmentPayload(
+                    nextUp = nextUp,
+                    inProgress = inProgress,
+                    nextUpMisses = nextUpMisses,
+                ),
+            )
         }.getOrNull() ?: return
         ContinueWatchingEnrichmentStorage.savePayload(ProfileScopedKey.of(storageKey), encoded)
     }
@@ -89,4 +135,14 @@ internal object ContinueWatchingEnrichmentCache {
             json.decodeFromString<CachedEnrichmentPayload>(raw)
         }.getOrNull()
     }
+
+    private fun List<CachedNextUpMiss>?.activeMissKeys(nowEpochMs: Long): Set<String> =
+        activeMissesByKey(nowEpochMs).keys
+
+    private fun List<CachedNextUpMiss>?.activeMissesByKey(nowEpochMs: Long): Map<String, CachedNextUpMiss> =
+        orEmpty()
+            .asSequence()
+            .filter { miss -> miss.key.isNotBlank() }
+            .filter { miss -> nowEpochMs - miss.cachedAtEpochMs in 0..nextUpMissTtlMs }
+            .associateBy { miss -> miss.key }
 }

@@ -62,7 +62,6 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -91,6 +90,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.nuvioVerticalGradientBackground
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
@@ -638,14 +638,12 @@ private fun MobileStreamsLayout(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(132.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        streamBlendColor.copy(alpha = 0.98f),
-                                        streamBlendColor.copy(alpha = 0.84f),
-                                        streamBlendColor.copy(alpha = 0.52f),
-                                        Color.Transparent,
-                                    ),
+                            .nuvioVerticalGradientBackground(
+                                listOf(
+                                    streamBlendColor.copy(alpha = 0.98f),
+                                    streamBlendColor.copy(alpha = 0.84f),
+                                    streamBlendColor.copy(alpha = 0.52f),
+                                    Color.Transparent,
                                 ),
                             ),
                     )
@@ -815,17 +813,13 @@ private fun EpisodeHeroBlock(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color.Transparent,
-                            0.58f to Color.Transparent,
-                            0.8f to Color.Black.copy(alpha = 0.42f),
-                            0.93f to heroBlendColor.copy(alpha = 0.84f),
-                            1.0f to heroBlendColor.copy(alpha = 0.97f),
-                        ),
-                        startY = 0f,
-                        endY = Float.POSITIVE_INFINITY,
+                .nuvioVerticalGradientBackground(
+                    arrayOf(
+                        0.0f to Color.Transparent,
+                        0.58f to Color.Transparent,
+                        0.8f to Color.Black.copy(alpha = 0.42f),
+                        0.93f to heroBlendColor.copy(alpha = 0.84f),
+                        1.0f to heroBlendColor.copy(alpha = 0.97f),
                     ),
                 ),
         )

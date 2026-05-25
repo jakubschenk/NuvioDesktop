@@ -63,6 +63,7 @@ fun AudioTrackModal(
         Box(
             modifier = modifier
                 .fillMaxSize()
+                .desktopClickablePointer()
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },

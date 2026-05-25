@@ -48,7 +48,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -61,7 +60,9 @@ import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.AsyncImage
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.desktopClickablePointer
+import com.nuvio.app.core.ui.nuvioHorizontalGradientBackground
 import com.nuvio.app.core.ui.nuvioTypeScale
+import com.nuvio.app.core.ui.nuvioVerticalGradientBackground
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_player_close
 import nuvio.composeapp.generated.resources.compose_player_episode_code_full
@@ -132,14 +133,12 @@ internal fun OpeningOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.3f),
-                                Color.Black.copy(alpha = 0.6f),
-                                Color.Black.copy(alpha = 0.8f),
-                                Color.Black.copy(alpha = 0.9f),
-                            ),
+                    .nuvioVerticalGradientBackground(
+                        listOf(
+                            Color.Black.copy(alpha = 0.3f),
+                            Color.Black.copy(alpha = 0.6f),
+                            Color.Black.copy(alpha = 0.8f),
+                            Color.Black.copy(alpha = 0.9f),
                         ),
                     ),
             )
@@ -332,13 +331,11 @@ internal fun PauseMetadataOverlay(
 ) {
     BoxWithConstraints(
         modifier = modifier
-            .background(
-                Brush.horizontalGradient(
-                    colors = listOf(
-                        Color.Black.copy(alpha = 0.85f),
-                        Color.Black.copy(alpha = 0.45f),
-                        Color.Transparent,
-                    ),
+            .nuvioHorizontalGradientBackground(
+                listOf(
+                    Color.Black.copy(alpha = 0.85f),
+                    Color.Black.copy(alpha = 0.45f),
+                    Color.Transparent,
                 ),
             ),
     ) {

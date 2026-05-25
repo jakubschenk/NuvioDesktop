@@ -55,10 +55,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.auth.AuthRepository
-import com.nuvio.app.core.ui.nuvioOverlayGradientBrush
 import com.nuvio.app.core.ui.NuvioPrimaryButton
 import com.nuvio.app.core.ui.NuvioSurfaceCard
 import com.nuvio.app.core.ui.NuvioWordmarkImage
+import com.nuvio.app.core.ui.desktopClickablePointer
+import com.nuvio.app.core.ui.nuvioOverlayGradientBackground
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_auth_already_have_account
@@ -99,7 +100,7 @@ fun AuthScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(brush = nuvioOverlayGradientBrush()),
+                .nuvioOverlayGradientBackground(),
         )
         Column(
             modifier = Modifier
@@ -219,7 +220,10 @@ fun AuthScreen(
                         },
                     ),
                     trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        IconButton(
+                            onClick = { passwordVisible = !passwordVisible },
+                            modifier = Modifier.desktopClickablePointer(),
+                        ) {
                             Icon(
                                 imageVector = if (passwordVisible) Icons.Rounded.VisibilityOff
                                 else Icons.Rounded.Visibility,
@@ -315,10 +319,12 @@ fun AuthScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clickable {
-                                isSignUp = !isSignUp
-                                AuthRepository.clearError()
-                            },
+                            modifier = Modifier
+                                .desktopClickablePointer()
+                                .clickable {
+                                    isSignUp = !isSignUp
+                                    AuthRepository.clearError()
+                                },
                         )
                     }
                 }
@@ -358,7 +364,8 @@ fun AuthScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
+                    .height(52.dp)
+                    .desktopClickablePointer(!isLoading),
                 enabled = !isLoading,
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(

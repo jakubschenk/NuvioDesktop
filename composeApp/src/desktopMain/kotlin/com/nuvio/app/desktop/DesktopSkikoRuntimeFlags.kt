@@ -1,10 +1,12 @@
 package com.nuvio.app.desktop
 
+import java.io.File
 import java.util.Locale
 
 internal object DesktopSkikoRuntimeFlags {
     private const val DefaultRenderApi = "OPENGL"
-    // Skiko's ANGLE backend requests EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE on Windows.
+    // ANGLE is the preferred Windows baseline because it maps to D3D11 and has
+    // wider legacy-driver coverage than the D3D12 Direct3D backend.
     private const val PreferredWindowsRenderApi = "ANGLE"
     private const val DefaultWindowsGpuResourceCacheLimit = "256M"
 
@@ -14,9 +16,11 @@ internal object DesktopSkikoRuntimeFlags {
         val renderApi = firstEnv("NUVIO_SKIKO_RENDER_API", "SKIKO_RENDER_API")
             ?.normalizeRenderApi()
             ?: System.getProperty("skiko.renderApi")?.normalizeRenderApi()
+            ?: DesktopRendererSettings.loadPreferredRenderApi()?.propertyValue
             ?: defaultRenderApi()
         setProperty("skiko.renderApi", renderApi, applied)
         setNoEraseBackgroundFlags(applied)
+        configureSkikoLibraryPath(applied)
         if (renderApi == "ANGLE") {
             val explicitAngleEnabled = firstEnv("NUVIO_SKIKO_ANGLE_ENABLED")
                 ?.let(::normalizeBoolean)
@@ -51,12 +55,13 @@ internal object DesktopSkikoRuntimeFlags {
             applied = applied,
             normalize = { it.uppercase(Locale.US) },
         )
-        setPropertyFromEnv(
-            property = "skiko.vsync.enabled",
-            envNames = arrayOf("NUVIO_SKIKO_VSYNC_ENABLED", "NUVIO_SKIKO_VSYNC"),
-            applied = applied,
-            normalize = ::normalizeBoolean,
-        )
+        val explicitVsync = firstEnv("NUVIO_SKIKO_VSYNC_ENABLED", "NUVIO_SKIKO_VSYNC")
+            ?.let(::normalizeBoolean)
+            ?: System.getProperty("skiko.vsync.enabled")?.let(::normalizeBoolean)
+        when {
+            explicitVsync != null -> setProperty("skiko.vsync.enabled", explicitVsync, applied)
+            isWindowsGpuRenderApi(renderApi) -> setProperty("skiko.vsync.enabled", "true", applied)
+        }
         setPropertyFromEnv(
             property = "skiko.vsync.framelimit.fallback.enabled",
             envNames = arrayOf("NUVIO_SKIKO_VSYNC_FALLBACK_ENABLED", "NUVIO_SKIKO_VSYNC_FALLBACK"),
@@ -112,6 +117,66 @@ internal object DesktopSkikoRuntimeFlags {
             ?: "true"
         setProperty("sun.awt.noerasebackground", awtNoErase, applied)
     }
+
+    private fun configureSkikoLibraryPath(applied: MutableList<String>) {
+        val envPath = firstEnv("NUVIO_SKIKO_LIBRARY_PATH")
+        if (envPath != null) {
+            setProperty("skiko.library.path", envPath, applied)
+            return
+        }
+
+        val existingPath = System.getProperty("skiko.library.path")
+            ?.trim()
+            ?.takeIf(String::isNotBlank)
+            ?.takeUnless { value -> value.contains('$') }
+        if (existingPath != null) {
+            setProperty("skiko.library.path", existingPath, applied)
+            return
+        }
+
+        if (!isWindows()) return
+
+        val nativeDir = skikoNativeDirCandidates()
+            .firstOrNull { candidate ->
+                candidate.resolve("skiko-windows-x64.dll").isFile &&
+                    candidate.resolve("libEGL.dll").isFile &&
+                    candidate.resolve("libGLESv2.dll").isFile
+            }
+            ?: return
+        setProperty("skiko.library.path", nativeDir.absolutePath, applied)
+    }
+
+    private fun skikoNativeDirCandidates(): List<File> =
+        buildList {
+            System.getProperty("compose.application.resources.dir")
+                ?.trim()
+                ?.takeIf(String::isNotBlank)
+                ?.let(::File)
+                ?.parentFile
+                ?.resolve("native")
+                ?.let(::add)
+
+            javaLibraryPathEntries().map(::File).forEach { entry ->
+                add(entry)
+                add(entry.resolve("native"))
+            }
+
+            System.getProperty("user.dir")
+                ?.trim()
+                ?.takeIf(String::isNotBlank)
+                ?.let(::File)
+                ?.let { userDir ->
+                    add(userDir.resolve("app/native"))
+                    add(userDir.resolve("native"))
+                }
+        }.distinctBy { it.absolutePath.lowercase(Locale.US) }
+
+    private fun javaLibraryPathEntries(): List<String> =
+        System.getProperty("java.library.path")
+            ?.split(File.pathSeparatorChar)
+            ?.map(String::trim)
+            ?.filter(String::isNotEmpty)
+            .orEmpty()
 
     private fun setPropertyFromEnv(
         property: String,
@@ -186,6 +251,9 @@ internal object DesktopSkikoRuntimeFlags {
         } else {
             null
         }
+
+    private fun isWindowsGpuRenderApi(renderApi: String): Boolean =
+        isWindows() && renderApi.uppercase(Locale.US).replace('-', '_') in setOf("ANGLE", "DIRECT3D")
 
     private fun isWindows(): Boolean =
         System.getProperty("os.name")

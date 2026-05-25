@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.PosterCardStyleUiState
 import com.nuvio.app.core.ui.landscapePosterHeightForWidth
 import com.nuvio.app.core.ui.landscapePosterWidth
+import com.nuvio.app.core.ui.nuvioVerticalGradientBackground
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 
 @Composable
@@ -91,14 +92,12 @@ fun HomeSkeletonHero(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.02f),
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.12f),
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.34f),
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.78f),
-                            ),
+                    .nuvioVerticalGradientBackground(
+                        listOf(
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.02f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.12f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.34f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.78f),
                         ),
                     ),
             )
@@ -108,12 +107,10 @@ fun HomeSkeletonHero(
                     .fillMaxWidth()
                     .height(layout.bottomFadeHeight)
                     .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.background.copy(alpha = 0f),
-                                MaterialTheme.colorScheme.background,
-                            ),
+                    .nuvioVerticalGradientBackground(
+                        listOf(
+                            MaterialTheme.colorScheme.background.copy(alpha = 0f),
+                            MaterialTheme.colorScheme.background,
                         ),
                     ),
             )

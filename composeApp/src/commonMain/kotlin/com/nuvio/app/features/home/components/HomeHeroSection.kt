@@ -34,7 +34,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -49,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AsyncImage
 import com.nuvio.app.core.ui.desktopClickablePointer
+import com.nuvio.app.core.ui.nuvioVerticalGradientBackground
 import com.nuvio.app.core.ui.withTmdbImageSize
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.features.home.MetaPreview
@@ -131,8 +131,8 @@ fun HomeHeroSection(
         val heroWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
         val heroHeightPx = with(LocalDensity.current) { layout.heroHeight.toPx() }
         val backgroundColor = MaterialTheme.colorScheme.background
-        val heroScrimBrush = remember(backgroundColor) { heroScrimBrush(backgroundColor) }
-        val heroBottomFadeBrush = remember(backgroundColor) { heroBottomFadeBrush(backgroundColor) }
+        val heroScrimStops = remember(backgroundColor) { heroScrimStops(backgroundColor) }
+        val heroBottomFadeStops = remember(backgroundColor) { heroBottomFadeStops(backgroundColor) }
         val currentPage = pagerState.currentPage.coerceIn(items.indices)
         val visiblePages = listOf(
             currentPage,
@@ -200,7 +200,7 @@ fun HomeHeroSection(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(heroScrimBrush),
+                        .nuvioVerticalGradientBackground(heroScrimStops),
                 )
 
                 Box(
@@ -208,7 +208,7 @@ fun HomeHeroSection(
                         .fillMaxWidth()
                         .height(layout.bottomFadeHeight)
                         .align(Alignment.BottomCenter)
-                        .background(heroBottomFadeBrush),
+                        .nuvioVerticalGradientBackground(heroBottomFadeStops),
                 )
 
                 Column(
@@ -274,6 +274,7 @@ fun HomeHeroSection(
                                 val activeFraction = heroPageVisibility(pagerState, index)
                                 Box(
                                     modifier = Modifier
+                                        .desktopClickablePointer()
                                         .clickable {
                                             coroutineScope.launch {
                                                 pagerState.animateScrollToPage(index)
@@ -322,33 +323,29 @@ private fun MetaPreview.heroLogoImageUrl(): String? =
         ?.takeIf(String::isNotBlank)
         ?.withTmdbImageSize("original")
 
-private fun heroScrimBrush(backgroundColor: Color): Brush =
-    Brush.verticalGradient(
-        colorStops = arrayOf(
-            0.00f to backgroundColor.copy(alpha = 0.015f),
-            0.12f to backgroundColor.copy(alpha = 0.035f),
-            0.24f to backgroundColor.copy(alpha = 0.075f),
-            0.36f to backgroundColor.copy(alpha = 0.145f),
-            0.50f to backgroundColor.copy(alpha = 0.250f),
-            0.64f to backgroundColor.copy(alpha = 0.390f),
-            0.78f to backgroundColor.copy(alpha = 0.575f),
-            0.90f to backgroundColor.copy(alpha = 0.735f),
-            1.00f to backgroundColor.copy(alpha = 0.840f),
-        ),
+private fun heroScrimStops(backgroundColor: Color): Array<Pair<Float, Color>> =
+    arrayOf(
+        0.00f to backgroundColor.copy(alpha = 0.015f),
+        0.12f to backgroundColor.copy(alpha = 0.035f),
+        0.24f to backgroundColor.copy(alpha = 0.075f),
+        0.36f to backgroundColor.copy(alpha = 0.145f),
+        0.50f to backgroundColor.copy(alpha = 0.250f),
+        0.64f to backgroundColor.copy(alpha = 0.390f),
+        0.78f to backgroundColor.copy(alpha = 0.575f),
+        0.90f to backgroundColor.copy(alpha = 0.735f),
+        1.00f to backgroundColor.copy(alpha = 0.840f),
     )
 
-private fun heroBottomFadeBrush(backgroundColor: Color): Brush =
-    Brush.verticalGradient(
-        colorStops = arrayOf(
-            0.00f to backgroundColor.copy(alpha = 0.000f),
-            0.16f to backgroundColor.copy(alpha = 0.025f),
-            0.32f to backgroundColor.copy(alpha = 0.080f),
-            0.48f to backgroundColor.copy(alpha = 0.180f),
-            0.64f to backgroundColor.copy(alpha = 0.360f),
-            0.78f to backgroundColor.copy(alpha = 0.610f),
-            0.90f to backgroundColor.copy(alpha = 0.830f),
-            1.00f to backgroundColor,
-        ),
+private fun heroBottomFadeStops(backgroundColor: Color): Array<Pair<Float, Color>> =
+    arrayOf(
+        0.00f to backgroundColor.copy(alpha = 0.000f),
+        0.16f to backgroundColor.copy(alpha = 0.025f),
+        0.32f to backgroundColor.copy(alpha = 0.080f),
+        0.48f to backgroundColor.copy(alpha = 0.180f),
+        0.64f to backgroundColor.copy(alpha = 0.360f),
+        0.78f to backgroundColor.copy(alpha = 0.610f),
+        0.90f to backgroundColor.copy(alpha = 0.830f),
+        1.00f to backgroundColor,
     )
 
 @Composable

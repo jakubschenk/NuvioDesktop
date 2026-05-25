@@ -42,7 +42,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -59,6 +58,7 @@ import coil3.request.ImageRequest
 import com.nuvio.app.core.i18n.localizedShortMonthName
 import com.nuvio.app.core.ui.landscapePosterHeightForWidth
 import com.nuvio.app.core.ui.landscapePosterWidth
+import com.nuvio.app.core.ui.nuvioVerticalGradientBackground
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.features.details.components.DetailPosterRailSection
 import com.nuvio.app.features.home.MetaPreview
@@ -227,14 +227,12 @@ private fun PersonDetailContent(
         }
     }
 
-    val accentGradient = remember(accentColor) {
-        Brush.verticalGradient(
-            colorStops = arrayOf(
-                0.0f to accentColor.copy(alpha = 0.18f),
-                0.15f to accentColor.copy(alpha = 0.10f),
-                0.30f to accentColor.copy(alpha = 0.04f),
-                0.50f to Color.Transparent,
-            ),
+    val accentGradientStops = remember(accentColor) {
+        arrayOf(
+            0.0f to accentColor.copy(alpha = 0.18f),
+            0.15f to accentColor.copy(alpha = 0.10f),
+            0.30f to accentColor.copy(alpha = 0.04f),
+            0.50f to Color.Transparent,
         )
     }
 
@@ -246,7 +244,7 @@ private fun PersonDetailContent(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(accentGradient),
+                .nuvioVerticalGradientBackground(accentGradientStops),
         )
 
         AnimatedVisibility(
@@ -496,14 +494,12 @@ private fun PersonDetailSkeleton(
     } else {
         null
     }
-    val accentGradient = remember(accentColor) {
-        Brush.verticalGradient(
-            colorStops = arrayOf(
-                0.0f to accentColor.copy(alpha = 0.18f),
-                0.15f to accentColor.copy(alpha = 0.10f),
-                0.30f to accentColor.copy(alpha = 0.04f),
-                0.50f to Color.Transparent,
-            ),
+    val accentGradientStops = remember(accentColor) {
+        arrayOf(
+            0.0f to accentColor.copy(alpha = 0.18f),
+            0.15f to accentColor.copy(alpha = 0.10f),
+            0.30f to accentColor.copy(alpha = 0.04f),
+            0.50f to Color.Transparent,
         )
     }
 
@@ -515,7 +511,7 @@ private fun PersonDetailSkeleton(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(accentGradient),
+                .nuvioVerticalGradientBackground(accentGradientStops),
         )
 
         Column(

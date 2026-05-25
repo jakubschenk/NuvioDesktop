@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.desktopClickablePointer
 import kotlinx.coroutines.launch
 import kotlin.math.floor
 
@@ -166,6 +167,7 @@ fun SubmitIntroDialog(
                             .height(48.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .desktopClickablePointer(!isSubmitting)
                             .clickable(enabled = !isSubmitting, onClick = onDismiss),
                         contentAlignment = Alignment.Center
                     ) {
@@ -181,6 +183,7 @@ fun SubmitIntroDialog(
                             .height(48.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.primary)
+                            .desktopClickablePointer(!isSubmitting)
                             .clickable(enabled = !isSubmitting) {
                                 val start = parseTimeToSeconds(startTimeStr)
                                 val end = parseTimeToSeconds(endTimeStr)
@@ -242,6 +245,7 @@ private fun SegmentTypeButton(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+            .desktopClickablePointer()
             .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center
@@ -313,6 +317,7 @@ private fun TimeInputRow(
                 .height(48.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
+                .desktopClickablePointer()
                 .clickable(onClick = onCapture)
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center
