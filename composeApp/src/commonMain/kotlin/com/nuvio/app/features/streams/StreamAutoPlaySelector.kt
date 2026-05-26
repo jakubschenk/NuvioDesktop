@@ -39,7 +39,10 @@ object StreamAutoPlaySelector {
         selectedAddons: Set<String>,
         selectedPlugins: Set<String>,
         preferredBingeGroup: String? = null,
+        preferredAddonId: String? = null,
+        preferredAddonName: String? = null,
         preferBingeGroupInSelection: Boolean = false,
+        preferCurrentProviderInSelection: Boolean = false,
         bingeGroupOnly: Boolean = false,
         debridEnabled: Boolean = true,
         activeResolverProviderId: String? = null,
@@ -53,7 +56,10 @@ object StreamAutoPlaySelector {
             selectedAddons = selectedAddons,
             selectedPlugins = selectedPlugins,
             preferredBingeGroup = preferredBingeGroup,
+            preferredAddonId = preferredAddonId,
+            preferredAddonName = preferredAddonName,
             preferBingeGroupInSelection = preferBingeGroupInSelection,
+            preferCurrentProviderInSelection = preferCurrentProviderInSelection,
             bingeGroupOnly = bingeGroupOnly,
             debridEnabled = debridEnabled,
             activeResolverProviderId = activeResolverProviderId,
@@ -68,7 +74,10 @@ object StreamAutoPlaySelector {
         selectedAddons: Set<String>,
         selectedPlugins: Set<String>,
         preferredBingeGroup: String? = null,
+        preferredAddonId: String? = null,
+        preferredAddonName: String? = null,
         preferBingeGroupInSelection: Boolean = false,
+        preferCurrentProviderInSelection: Boolean = false,
         bingeGroupOnly: Boolean = false,
         debridEnabled: Boolean = true,
         activeResolverProviderId: String? = null,
@@ -116,7 +125,7 @@ object StreamAutoPlaySelector {
         if (mode == StreamAutoPlayMode.MANUAL) {
             return StreamAutoPlayEvaluation()
         }
-        val preferredStream = if (preferBingeGroupInSelection && targetBingeGroup.isNotEmpty()) {
+        val preferredBingeGroupStream = if (preferBingeGroupInSelection && targetBingeGroup.isNotEmpty()) {
             candidateStreams.firstOrNull { stream ->
                 stream.behaviorHints.bingeGroup == targetBingeGroup &&
                     stream.isAutoPlayable(debridEnabled, activeResolverProviderId)
@@ -124,6 +133,23 @@ object StreamAutoPlaySelector {
         } else {
             null
         }
+        val targetAddonId = preferredAddonId?.trim().orEmpty()
+        val targetAddonName = preferredAddonName?.trim().orEmpty()
+        val preferredProviderStream = if (
+            preferredBingeGroupStream == null &&
+            preferCurrentProviderInSelection &&
+            (targetAddonId.isNotEmpty() || targetAddonName.isNotEmpty())
+        ) {
+            candidateStreams.firstOrNull { stream ->
+                val addonIdMatches = targetAddonId.isNotEmpty() && stream.addonId == targetAddonId
+                val addonNameMatches = targetAddonName.isNotEmpty() && stream.addonName == targetAddonName
+                stream.isAutoPlayable(debridEnabled, activeResolverProviderId) &&
+                    (addonIdMatches || addonNameMatches)
+            }
+        } else {
+            null
+        }
+        val preferredStream = preferredBingeGroupStream ?: preferredProviderStream
         val matchingStreams = when (mode) {
             StreamAutoPlayMode.MANUAL -> emptyList()
             StreamAutoPlayMode.FIRST_STREAM -> candidateStreams

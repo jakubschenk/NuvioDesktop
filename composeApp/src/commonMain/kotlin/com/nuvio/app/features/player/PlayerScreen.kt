@@ -97,8 +97,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
-import kotlin.math.ceil
-import kotlin.math.floor
 import kotlin.math.roundToLong
 import kotlin.math.roundToInt
 
@@ -114,7 +112,11 @@ private const val PlayerRightGestureBoundary = 0.6f
 private const val PlayerVerticalGestureSensitivity = 1f
 private const val PlayerChromeFrameIntervalMs = 8L
 private const val PlayerKeyboardVolumeStep = 0.05f
-private const val PlayerScrollVolumeStep = 0.05f
+private const val PlayerScrollVolumeStep = 0.025f
+private const val PlayerScrollVolumeApplyIntervalMs = 40L
+private const val PlayerScrollVolumePixelThreshold = 8f
+private const val PlayerScrollVolumePixelUnit = 120f
+private const val PlayerScrollVolumeMaxQueuedDelta = 0.06f
 /** Hard ceiling for next-episode stream search to prevent hanging forever. */
 private const val NEXT_EPISODE_HARD_TIMEOUT_MS = 120_000L
 private const val PlayerNextEpisodeStreamPollIntervalMs = 100L
@@ -163,16 +165,26 @@ private data class PlayerAccumulatedSeekState(
     val amountMs: Long,
 )
 
-private fun playerVolumeAfterScroll(currentVolume: Float, scrollY: Float): Float {
-    if (scrollY == 0f) return currentVolume.coerceIn(0f, 1f)
-    val currentStep = currentVolume.coerceIn(0f, 1f) / PlayerScrollVolumeStep
-    val nextStep = if (scrollY < 0f) {
-        floor(currentStep + 0.001f) + 1f
-    } else {
-        ceil(currentStep - 0.001f) - 1f
-    }
-    return (nextStep * PlayerScrollVolumeStep).coerceIn(0f, 1f)
+private class PlayerVolumeScrollAccumulator {
+    var pendingDelta = 0f
+    var lastAppliedEpochMs = 0L
+    var applyJob: Job? = null
 }
+
+private fun playerVolumeDeltaForScroll(scrollY: Float): Float {
+    if (scrollY == 0f) return 0f
+    val magnitude = abs(scrollY)
+    val scrollUnits = if (magnitude > PlayerScrollVolumePixelThreshold) {
+        (magnitude / PlayerScrollVolumePixelUnit).coerceAtMost(1f)
+    } else {
+        magnitude.coerceIn(0.05f, 1f)
+    }
+    val direction = if (scrollY < 0f) 1f else -1f
+    return direction * PlayerScrollVolumeStep * scrollUnits
+}
+
+private fun String?.normalizedPlayerPreference(): String? =
+    this?.trim()?.takeIf { it.isNotEmpty() }
 
 private fun PlayerPlaybackSnapshot.displayPositionAt(
     snapshotEpochMs: Long,
@@ -439,6 +451,7 @@ fun PlayerScreen(
             mutableStateOf<Float?>(initialPlayerAudioLevel.fraction)
         }
         val visiblePlayerAudioLevel = visibleVolumeLevel ?: rememberedPlayerAudioLevel
+        val volumeScrollAccumulator = remember { PlayerVolumeScrollAccumulator() }
 
         LaunchedEffect(parentMetaType, parentMetaId) {
             playerMetaVideos = MetaDetailsRepository.peek(parentMetaType, parentMetaId)?.videos ?: emptyList()
@@ -965,8 +978,32 @@ fun PlayerScreen(
         }
 
         fun handlePlayerVolumeScroll(scrollY: Float): Boolean {
-            if (scrollY == 0f) return false
-            setPlayerVolume(playerVolumeAfterScroll(visiblePlayerAudioLevel.fraction, scrollY))
+            val delta = playerVolumeDeltaForScroll(scrollY)
+            if (delta == 0f) return false
+
+            volumeScrollAccumulator.pendingDelta =
+                (volumeScrollAccumulator.pendingDelta + delta)
+                    .coerceIn(-PlayerScrollVolumeMaxQueuedDelta, PlayerScrollVolumeMaxQueuedDelta)
+
+            if (volumeScrollAccumulator.applyJob?.isActive == true) {
+                return true
+            }
+
+            val nowMs = WatchProgressClock.nowEpochMs()
+            val elapsedMs = nowMs - volumeScrollAccumulator.lastAppliedEpochMs
+            val delayMs = (PlayerScrollVolumeApplyIntervalMs - elapsedMs).coerceAtLeast(0L)
+            volumeScrollAccumulator.applyJob = scope.launch {
+                if (delayMs > 0L) {
+                    delay(delayMs)
+                }
+                val pendingDelta = volumeScrollAccumulator.pendingDelta
+                    .coerceIn(-PlayerScrollVolumeMaxQueuedDelta, PlayerScrollVolumeMaxQueuedDelta)
+                volumeScrollAccumulator.pendingDelta = 0f
+                volumeScrollAccumulator.lastAppliedEpochMs = WatchProgressClock.nowEpochMs()
+                if (abs(pendingDelta) >= 0.001f) {
+                    adjustVolume(pendingDelta)
+                }
+            }
             return true
         }
 
@@ -1421,8 +1458,19 @@ fun PlayerScreen(
             }
 
             // Determine preferred binge group from current stream (not cache)
-            val preferredBingeGroup = if (settings.streamAutoPlayPreferBingeGroup) {
-                currentStreamBingeGroup
+            val preferContinuationSource = settings.streamAutoPlayPreferBingeGroup
+            val preferredBingeGroup = if (preferContinuationSource) {
+                currentStreamBingeGroup.normalizedPlayerPreference()
+            } else {
+                null
+            }
+            val preferredAddonId = if (preferContinuationSource) {
+                activeProviderAddonId.normalizedPlayerPreference()
+            } else {
+                null
+            }
+            val preferredAddonName = if (preferContinuationSource) {
+                activeProviderName.normalizedPlayerPreference()
             } else {
                 null
             }
@@ -1437,7 +1485,8 @@ fun PlayerScreen(
 
                 val installedAddonNames = AddonRepository.uiState.value.addons
                     .enabledAddons()
-                    .map { it.displayTitle }
+                    .map { addon -> addon.displayTitle.ifBlank { addon.manifest?.name.orEmpty() } }
+                    .filter { it.isNotBlank() }
                     .toSet()
                 val debridSettings = DebridSettingsRepository.snapshot()
 
@@ -1475,7 +1524,10 @@ fun PlayerScreen(
                         selectedAddons = effectiveSelectedAddons,
                         selectedPlugins = effectiveSelectedPlugins,
                         preferredBingeGroup = preferredBingeGroup,
-                        preferBingeGroupInSelection = settings.streamAutoPlayPreferBingeGroup,
+                        preferredAddonId = preferredAddonId,
+                        preferredAddonName = preferredAddonName,
+                        preferBingeGroupInSelection = preferContinuationSource,
+                        preferCurrentProviderInSelection = preferContinuationSource,
                         bingeGroupOnly = bingeGroupOnlyManualMode,
                         debridEnabled = debridSettings.canResolvePlayableLinks,
                         activeResolverProviderId = debridSettings.activeResolverProviderId,

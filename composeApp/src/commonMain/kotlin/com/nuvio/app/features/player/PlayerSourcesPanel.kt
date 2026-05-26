@@ -212,6 +212,9 @@ fun PlayerSourcesPanel(
                                     itemsIndexed(
                                         items = streams,
                                         key = { index, stream -> "${stream.addonId}::${index}::${stream.url ?: stream.infoHash ?: stream.clientResolve?.infoHash ?: stream.name}" },
+                                        contentType = { _, stream ->
+                                            if (stream.isTorrentStream) "player_torrent_stream" else "player_direct_stream"
+                                        },
                                     ) { _, stream ->
                                         val isCurrent = isCurrentStream(
                                             stream = stream,
