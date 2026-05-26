@@ -116,7 +116,7 @@ private const val PlayerScrollVolumeStep = 0.025f
 private const val PlayerScrollVolumeApplyIntervalMs = 40L
 private const val PlayerScrollVolumePixelThreshold = 8f
 private const val PlayerScrollVolumePixelUnit = 120f
-private const val PlayerScrollVolumeMaxQueuedDelta = 0.06f
+private const val PlayerScrollVolumeMaxQueuedDelta = 0.1f
 /** Hard ceiling for next-episode stream search to prevent hanging forever. */
 private const val NEXT_EPISODE_HARD_TIMEOUT_MS = 120_000L
 private const val PlayerNextEpisodeStreamPollIntervalMs = 100L
@@ -177,7 +177,7 @@ private fun playerVolumeDeltaForScroll(scrollY: Float): Float {
     val scrollUnits = if (magnitude > PlayerScrollVolumePixelThreshold) {
         (magnitude / PlayerScrollVolumePixelUnit).coerceAtMost(1f)
     } else {
-        magnitude.coerceIn(0.05f, 1f)
+        (magnitude / PlayerScrollVolumePixelThreshold).coerceIn(0.35f, 1f)
     }
     val direction = if (scrollY < 0f) 1f else -1f
     return direction * PlayerScrollVolumeStep * scrollUnits
@@ -457,7 +457,7 @@ fun PlayerScreen(
             mutableStateOf<Float?>(initialPlayerAudioLevel.fraction)
         }
         val visiblePlayerAudioLevel = visibleVolumeLevel ?: rememberedPlayerAudioLevel
-        val volumeScrollAccumulator = remember { PlayerVolumeScrollAccumulator() }
+        val volumeScrollAccumulator = remember(activeSourceUrl) { PlayerVolumeScrollAccumulator() }
 
         LaunchedEffect(parentMetaType, contentType, parentMetaId) {
             playerMetaVideos = fetchPlayerMetaVideos(parentMetaType, contentType, parentMetaId)
@@ -961,6 +961,7 @@ fun PlayerScreen(
             val appliedLevel = playerController?.setVolume(target) ?: gestureController?.setVolume(target)
             if (appliedLevel != null) {
                 pendingPlayerVolumeTarget = null
+                syncPlayerAudioLevel(appliedLevel)
             }
         }
 
@@ -1023,8 +1024,10 @@ fun PlayerScreen(
             val controller = playerController ?: return@LaunchedEffect
             val target = pendingPlayerVolumeTarget ?: return@LaunchedEffect
             repeat(24) {
-                if (controller.setVolume(target) != null) {
+                val resolved = controller.setVolume(target)
+                if (resolved != null) {
                     pendingPlayerVolumeTarget = null
+                    syncPlayerAudioLevel(resolved)
                     return@LaunchedEffect
                 }
                 delay(75L)
@@ -2417,8 +2420,10 @@ fun PlayerScreen(
                     playerControllerSourceUrl = activeSourceUrl
                     val pendingVolumeTarget = pendingPlayerVolumeTarget
                     if (pendingVolumeTarget != null) {
-                        if (controller.setVolume(pendingVolumeTarget) != null) {
+                        val resolved = controller.setVolume(pendingVolumeTarget)
+                        if (resolved != null) {
                             pendingPlayerVolumeTarget = null
+                            syncPlayerAudioLevel(resolved)
                         }
                     } else {
                         syncPlayerAudioLevel(controller.currentVolume())
