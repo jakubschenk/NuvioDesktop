@@ -222,7 +222,9 @@ internal class NativeBridgeDesktopPlayerBackend private constructor(
                     error = pollState.error?.let { DesktopPlayerError.PlaybackFailed(backendName, it) },
                 )
                 updateDisplayWakeLock(nextState.phase)
-                stateFlow.value = nextState
+                if (stateFlow.value != nextState) {
+                    stateFlow.value = nextState
+                }
                 if (pollState.addonSubtitlesFetchRequested) onAddonSubtitlesFetchCallback?.invoke()
                 if (pollState.subtitleStyleChanged) {
                     val colorIndex = pollState.subtitleStyleColorIndex.coerceIn(0, SubtitleColorSwatches.lastIndex)

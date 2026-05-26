@@ -74,6 +74,7 @@ private const val ExternalSubtitleCodepage = "+utf-8"
 private const val EmbeddedSubtitleCodepage = "auto"
 private const val ExternalSubtitleAssOverride = "strip"
 private const val EmbeddedSubtitleAssOverride = "no"
+private const val DesktopPlaybackPositionBucketMs = 250L
 
 @OptIn(InternalMediampApi::class)
 internal class MpvDesktopPlayerBackend private constructor(
@@ -300,9 +301,14 @@ internal class MpvDesktopPlayerBackend private constructor(
                 !voReady && rawPhase == DesktopPlayerPhase.Ready -> DesktopPlayerPhase.Preparing
                 else -> rawPhase
             }
+            val uiPositionMs = if (phase == DesktopPlayerPhase.Playing) {
+                position.toPlaybackPositionBucket()
+            } else {
+                position.coerceAtLeast(0L)
+            }
             DesktopPlayerState(
                 phase = phase,
-                positionMs = position,
+                positionMs = uiPositionMs,
                 durationMs = props?.durationMillis?.takeIf { it > 0 } ?: 0L,
                 bufferedPositionMs = 0L,
                 playbackSpeed = player.features[PlaybackSpeed]?.value ?: 1.0f,
@@ -331,8 +337,10 @@ internal class MpvDesktopPlayerBackend private constructor(
             }
             if (!nativeClosed) {
                 updateDisplayWakeLock(mapped.phase)
-                stateFlow.value = mapped
-                DesktopRuntimeLog.info("[WP-STATE] phase=${mapped.phase} pos=${mapped.positionMs}ms dur=${mapped.durationMs}ms")
+                if (stateFlow.value != mapped) {
+                    stateFlow.value = mapped
+                    DesktopRuntimeLog.info("[WP-STATE] phase=${mapped.phase} pos=${mapped.positionMs}ms dur=${mapped.durationMs}ms")
+                }
             }
         }.launchIn(scope)
     }
@@ -1013,6 +1021,11 @@ internal class MpvDesktopPlayerBackend private constructor(
                 )
             }
     }
+}
+
+private fun Long.toPlaybackPositionBucket(): Long {
+    val normalized = coerceAtLeast(0L)
+    return normalized - (normalized % DesktopPlaybackPositionBucketMs)
 }
 
 private fun parseHeadersJson(headersJson: String?): Map<String, String> {
