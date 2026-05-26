@@ -67,6 +67,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -281,15 +282,17 @@ fun NuvioDropdownMenu(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    offset: DpOffset = DpOffset(0.dp, 6.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
+        offset = offset,
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
-            .padding(vertical = 6.dp),
+            .padding(vertical = 2.dp),
         shape = RoundedCornerShape(14.dp),
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
         tonalElevation = 6.dp,
@@ -326,7 +329,7 @@ fun NuvioDropdownMenuItem(
         },
         onClick = onClick,
         modifier = modifier
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = 4.dp, vertical = 1.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(
                 if (selected) {
@@ -339,6 +342,7 @@ fun NuvioDropdownMenuItem(
         enabled = enabled,
         leadingIcon = leadingIcon,
         trailingIcon = trailingIcon,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
         colors = MenuDefaults.itemColors(
             textColor = MaterialTheme.colorScheme.onSurface,
             leadingIconColor = if (selected) {
