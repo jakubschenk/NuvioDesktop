@@ -442,6 +442,7 @@ fun PlayerScreen(
         var nextEpisodeAutoPlaySourceName by remember { mutableStateOf<String?>(null) }
         var nextEpisodeAutoPlayCountdown by remember { mutableStateOf<Int?>(null) }
         var nextEpisodeAutoPlayJob by remember { mutableStateOf<Job?>(null) }
+        var nextEpisodeAutoPlayAttemptedVideoId by remember { mutableStateOf<String?>(null) }
         val initialPlayerAudioLevel = remember(activeSourceUrl) {
             PlayerSettingsRepository.initialVolumeFraction().let { fraction ->
                 PlayerAudioLevel(fraction = fraction, isMuted = fraction <= 0.001f)
@@ -784,6 +785,7 @@ fun PlayerScreen(
             showSourcesPanel = false
             showEpisodesPanel = false
             episodeStreamsPanelState = EpisodeStreamsPanelState()
+            nextEpisodeAutoPlayAttemptedVideoId = null
             PlayerStreamsRepository.clearEpisodeStreams()
         }
 
@@ -1295,6 +1297,7 @@ fun PlayerScreen(
             nextEpisodeAutoPlaySearching = false
             nextEpisodeAutoPlaySourceName = null
             nextEpisodeAutoPlayCountdown = null
+            nextEpisodeAutoPlayAttemptedVideoId = null
             PlayerStreamsRepository.clearEpisodeStreams()
             flushWatchProgress()
             val epVideoId = episode.id
@@ -1362,6 +1365,7 @@ fun PlayerScreen(
             nextEpisodeAutoPlaySearching = false
             nextEpisodeAutoPlaySourceName = null
             nextEpisodeAutoPlayCountdown = null
+            nextEpisodeAutoPlayAttemptedVideoId = null
             PlayerStreamsRepository.clearEpisodeStreams()
             flushWatchProgress()
 
@@ -1400,10 +1404,15 @@ fun PlayerScreen(
             revealPlayerChrome()
         }
 
-        fun playNextEpisode() {
-            val nextVideoId = nextEpisodeInfo?.videoId ?: return
+        fun playNextEpisode(force: Boolean = false) {
+            val info = nextEpisodeInfo ?: return
+            val nextVideoId = info.videoId
+            if (!force && nextEpisodeAutoPlayAttemptedVideoId == nextVideoId) return
             val nextVideo = allEpisodes.firstOrNull { video -> video.id == nextVideoId } ?: return
-            if (nextEpisodeInfo?.hasAired != true) return
+            if (info.hasAired != true) return
+            if (!force) {
+                nextEpisodeAutoPlayAttemptedVideoId = nextVideoId
+            }
 
             val downloadedNextEpisode = DownloadsRepository.findPlayableDownload(
                 parentMetaId = parentMetaId,
@@ -1699,12 +1708,13 @@ fun PlayerScreen(
                 currentSeason = curSeason,
                 currentEpisode = curEpisode,
             )
-            if (nextVideo == null || nextVideo.season == null || nextVideo.episode == null) return null
+            val nextSeason = nextVideo?.season ?: return null
+            val nextEpisode = nextVideo.episode ?: return null
             val hasAired = PlayerNextEpisodeRules.hasEpisodeAired(nextVideo.released)
             return NextEpisodeInfo(
                 videoId = nextVideo.id,
-                season = nextVideo.season!!,
-                episode = nextVideo.episode!!,
+                season = nextSeason,
+                episode = nextEpisode,
                 title = nextVideo.title,
                 thumbnail = nextVideo.thumbnail,
                 overview = nextVideo.overview,
@@ -1746,7 +1756,7 @@ fun PlayerScreen(
 
         fun openNextEpisodeOrEpisodes() {
             if (nextEpisodeInfo != null) {
-                playNextEpisode()
+                playNextEpisode(force = true)
                 return
             }
             scope.launch {
@@ -1756,7 +1766,7 @@ fun PlayerScreen(
                 }
                 nextEpisodeInfo = resolveNextEpisodeInfo(videos)
                 if (nextEpisodeInfo != null) {
-                    playNextEpisode()
+                    playNextEpisode(force = true)
                 } else {
                     openEpisodesPanel()
                 }
@@ -2107,7 +2117,11 @@ fun PlayerScreen(
 
         // Resolve next episode info when episodes list or current episode changes
         LaunchedEffect(allEpisodes, activeSeasonNumber, activeEpisodeNumber) {
-            nextEpisodeInfo = resolveNextEpisodeInfo(allEpisodes)
+            val resolvedNextEpisodeInfo = resolveNextEpisodeInfo(allEpisodes)
+            if (resolvedNextEpisodeInfo?.videoId != nextEpisodeInfo?.videoId) {
+                nextEpisodeAutoPlayAttemptedVideoId = null
+            }
+            nextEpisodeInfo = resolvedNextEpisodeInfo
         }
 
         // Show next episode card at threshold
