@@ -413,11 +413,16 @@ fun PlayerScreen(
         val sourceStreamsState by PlayerStreamsRepository.sourceState.collectAsStateWithLifecycle()
         val episodeStreamsRepoState by PlayerStreamsRepository.episodeStreamsState.collectAsStateWithLifecycle()
         val metaUiState by MetaDetailsRepository.uiState.collectAsStateWithLifecycle()
-        var playerMetaVideos by remember(parentMetaType, parentMetaId) {
-            mutableStateOf(MetaDetailsRepository.peek(parentMetaType, parentMetaId)?.videos ?: emptyList())
+        var playerMetaVideos by remember(parentMetaType, contentType, parentMetaId) {
+            mutableStateOf(peekPlayerMetaVideos(parentMetaType, contentType, parentMetaId))
         }
         val allEpisodes = remember(playerMetaVideos) { playerMetaVideos }
-        val isSeries = parentMetaType == "series"
+        val isSeries =
+            parentMetaType.isSeriesLikePlayerType() ||
+                contentType.isSeriesLikePlayerType() ||
+                activeSeasonNumber != null ||
+                activeEpisodeNumber != null ||
+                playerMetaVideos.hasEpisodeMetadata()
 
         // Skip intro/outro/recap state
         var skipIntervals by remember { mutableStateOf<List<SkipInterval>>(emptyList()) }
@@ -453,16 +458,17 @@ fun PlayerScreen(
         val visiblePlayerAudioLevel = visibleVolumeLevel ?: rememberedPlayerAudioLevel
         val volumeScrollAccumulator = remember { PlayerVolumeScrollAccumulator() }
 
-        LaunchedEffect(parentMetaType, parentMetaId) {
-            playerMetaVideos = MetaDetailsRepository.peek(parentMetaType, parentMetaId)?.videos ?: emptyList()
-            if (playerMetaVideos.isEmpty()) {
-                playerMetaVideos = MetaDetailsRepository.fetch(parentMetaType, parentMetaId)?.videos ?: emptyList()
-            }
+        LaunchedEffect(parentMetaType, contentType, parentMetaId) {
+            playerMetaVideos = fetchPlayerMetaVideos(parentMetaType, contentType, parentMetaId)
         }
 
-        LaunchedEffect(metaUiState.meta, parentMetaType, parentMetaId) {
+        LaunchedEffect(metaUiState.meta, parentMetaType, contentType, parentMetaId) {
             val currentMeta = metaUiState.meta ?: return@LaunchedEffect
-            if (currentMeta.type == parentMetaType && currentMeta.id == parentMetaId) {
+            val matchesPlayerMeta =
+                currentMeta.id == parentMetaId &&
+                    playerMetaLookupTypes(parentMetaType, contentType)
+                        .any { type -> currentMeta.type.equals(type, ignoreCase = true) }
+            if (matchesPlayerMeta) {
                 playerMetaVideos = currentMeta.videos
             }
         }
@@ -1684,6 +1690,34 @@ fun PlayerScreen(
             }
         }
 
+        fun resolveNextEpisodeInfo(videos: List<MetaVideo>): NextEpisodeInfo? {
+            if (!isSeries || videos.isEmpty()) return null
+            val curSeason = activeSeasonNumber ?: return null
+            val curEpisode = activeEpisodeNumber ?: return null
+            val nextVideo = PlayerNextEpisodeRules.resolveNextEpisode(
+                videos = videos,
+                currentSeason = curSeason,
+                currentEpisode = curEpisode,
+            )
+            if (nextVideo == null || nextVideo.season == null || nextVideo.episode == null) return null
+            val hasAired = PlayerNextEpisodeRules.hasEpisodeAired(nextVideo.released)
+            return NextEpisodeInfo(
+                videoId = nextVideo.id,
+                season = nextVideo.season!!,
+                episode = nextVideo.episode!!,
+                title = nextVideo.title,
+                thumbnail = nextVideo.thumbnail,
+                overview = nextVideo.overview,
+                released = nextVideo.released,
+                hasAired = hasAired,
+                unairedMessage = if (!hasAired) {
+                    "$airsPrefix ${nextVideo.released ?: tbaLabel}"
+                } else {
+                    null
+                },
+            )
+        }
+
         fun openSourcesPanel() {
             val type = contentType ?: parentMetaType
             val vid = activeVideoId ?: return
@@ -1702,12 +1736,31 @@ fun PlayerScreen(
             // Ensure meta is loaded for episodes
             if (allEpisodes.isEmpty()) {
                 scope.launch {
-                    playerMetaVideos = MetaDetailsRepository.fetch(parentMetaType, parentMetaId)?.videos ?: emptyList()
+                    playerMetaVideos = fetchPlayerMetaVideos(parentMetaType, contentType, parentMetaId)
                 }
             }
             showEpisodesPanel = true
             showSourcesPanel = false
             controlsVisible = false
+        }
+
+        fun openNextEpisodeOrEpisodes() {
+            if (nextEpisodeInfo != null) {
+                playNextEpisode()
+                return
+            }
+            scope.launch {
+                val videos = fetchPlayerMetaVideos(parentMetaType, contentType, parentMetaId)
+                if (videos.isNotEmpty()) {
+                    playerMetaVideos = videos
+                }
+                nextEpisodeInfo = resolveNextEpisodeInfo(videos)
+                if (nextEpisodeInfo != null) {
+                    playNextEpisode()
+                } else {
+                    openEpisodesPanel()
+                }
+            }
         }
 
         fun fetchAddonSubtitlesForActiveItem() {
@@ -2054,32 +2107,7 @@ fun PlayerScreen(
 
         // Resolve next episode info when episodes list or current episode changes
         LaunchedEffect(allEpisodes, activeSeasonNumber, activeEpisodeNumber) {
-            if (!isSeries || allEpisodes.isEmpty()) {
-                nextEpisodeInfo = null
-                return@LaunchedEffect
-            }
-            val curSeason = activeSeasonNumber ?: return@LaunchedEffect
-            val curEpisode = activeEpisodeNumber ?: return@LaunchedEffect
-            val nextVideo = PlayerNextEpisodeRules.resolveNextEpisode(
-                videos = allEpisodes,
-                currentSeason = curSeason,
-                currentEpisode = curEpisode,
-            )
-            nextEpisodeInfo = if (nextVideo != null && nextVideo.season != null && nextVideo.episode != null) {
-                NextEpisodeInfo(
-                    videoId = nextVideo.id,
-                    season = nextVideo.season!!,
-                    episode = nextVideo.episode!!,
-                    title = nextVideo.title,
-                    thumbnail = nextVideo.thumbnail,
-                    overview = nextVideo.overview,
-                    released = nextVideo.released,
-                    hasAired = PlayerNextEpisodeRules.hasEpisodeAired(nextVideo.released),
-                    unairedMessage = if (!PlayerNextEpisodeRules.hasEpisodeAired(nextVideo.released)) {
-                        "$airsPrefix ${nextVideo.released ?: tbaLabel}"
-                    } else null,
-                )
-            } else null
+            nextEpisodeInfo = resolveNextEpisodeInfo(allEpisodes)
         }
 
         // Show next episode card at threshold
@@ -2163,7 +2191,7 @@ fun PlayerScreen(
                 cyclePlaybackSpeed = ::cyclePlaybackSpeed,
                 playNextEpisode = {
                     nextEpisodeAutoPlayJob?.cancel()
-                    playNextEpisode()
+                    openNextEpisodeOrEpisodes()
                 },
                 skipActiveSegment = ::skipActiveSegment,
             ),
@@ -2598,7 +2626,7 @@ fun PlayerScreen(
                     autoPlayCountdownSec = nextEpisodeAutoPlayCountdown,
                     onPlayNext = {
                         nextEpisodeAutoPlayJob?.cancel()
-                        playNextEpisode()
+                        openNextEpisodeOrEpisodes()
                     },
                     onDismiss = {
                         nextEpisodeAutoPlayJob?.cancel()
