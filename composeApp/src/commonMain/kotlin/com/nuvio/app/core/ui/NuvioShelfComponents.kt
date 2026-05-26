@@ -399,7 +399,15 @@ private fun NuvioViewAllPill(
                 color = if (isAmoled) androidx.compose.ui.graphics.Color(0xFF0D0D0D) else colorScheme.surface,
                 shape = RoundedCornerShape(20.dp),
             )
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(
+                if (onClick != null) {
+                    Modifier
+                        .desktopClickablePointer()
+                        .clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            )
             .padding(horizontal = horizontalPadding, vertical = verticalPadding),
         horizontalArrangement = Arrangement.spacedBy(iconSpacing),
         verticalAlignment = Alignment.CenterVertically,
@@ -473,7 +481,7 @@ internal fun Modifier.posterCardClickable(
             this.combinedClickable(
                 onClick = { onClick?.invoke() },
                 onLongClick = onLongClick,
-            )
+            ).desktopClickablePointer()
         } else {
             this
         }
