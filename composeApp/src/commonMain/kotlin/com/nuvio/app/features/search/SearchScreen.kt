@@ -348,7 +348,10 @@ fun SearchScreen(
 
             if (normalizedSearchQuery.isBlank()) {
                 if (showSearchChrome && recentSearches.isNotEmpty()) {
-                    item(key = "recent_searches") {
+                    item(
+                        key = "recent_searches",
+                        contentType = "recent_searches",
+                    ) {
                         SearchRecentSection(
                             recentSearches = recentSearches,
                             onSearchPress = SearchRepository::updateQuery,
@@ -375,7 +378,10 @@ fun SearchScreen(
                 val normalizedQuery = normalizedSearchQuery
                 when {
                     showSearchSkeleton -> {
-                        items(2) {
+                        items(
+                            count = 2,
+                            contentType = { "search_skeleton_row" },
+                        ) {
                             HomeSkeletonRow(
                                 modifier = Modifier.padding(horizontal = homeSectionPadding),
                                 showHeaderAccent = !homeCatalogSettingsUiState.hideCatalogUnderline,
@@ -384,7 +390,7 @@ fun SearchScreen(
                     }
 
                     uiState.sections.isEmpty() -> {
-                        item {
+                        item(contentType = "search_empty") {
                             SearchEmptyStateCard(
                                 reason = uiState.emptyStateReason,
                                 errorMessage = uiState.errorMessage,
@@ -407,6 +413,7 @@ fun SearchScreen(
                         items(
                             items = uiState.sections.withDuplicateSafeLazyKeys { section -> section.key },
                             key = { section -> section.lazyKey },
+                            contentType = { "search_section" },
                         ) { keyedSection ->
                             val section = keyedSection.value
                             HomeCatalogRowSection(
@@ -418,7 +425,10 @@ fun SearchScreen(
                             )
                         }
                         if (uiState.isLoading && uiState.pendingCatalogCount > 0) {
-                            item(key = "search_pending_catalog_skeleton") {
+                            item(
+                                key = "search_pending_catalog_skeleton",
+                                contentType = "search_skeleton_row",
+                            ) {
                                 HomeSkeletonRow(
                                     modifier = Modifier.padding(horizontal = homeSectionPadding),
                                     showHeaderAccent = !homeCatalogSettingsUiState.hideCatalogUnderline,

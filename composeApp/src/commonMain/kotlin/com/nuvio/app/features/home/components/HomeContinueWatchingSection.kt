@@ -184,6 +184,7 @@ private fun HomeContinueWatchingSectionContent(
             itemSpacing = layout.itemGap,
             showHeaderAccent = !homeCatalogSettings.hideCatalogUnderline,
             key = { item -> item.videoId },
+            contentType = { style },
         ) { item ->
             when (style) {
                 ContinueWatchingSectionStyle.Wide -> ContinueWatchingWideCard(

@@ -168,6 +168,7 @@ fun DetailTrailersSection(
                 itemsIndexed(
                     items = selectedTrailers,
                     key = { index, trailer -> "${trailer.type}-${trailer.id}-${trailer.seasonNumber ?: 0}#$index" },
+                    contentType = { _, trailer -> trailer.type.ifBlank { "trailer" } },
                 ) { _, trailer ->
                     TrailerCard(
                         trailer = trailer,

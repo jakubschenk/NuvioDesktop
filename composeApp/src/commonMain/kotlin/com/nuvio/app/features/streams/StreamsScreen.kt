@@ -793,13 +793,13 @@ internal fun StreamList(
     ) {
         when {
             hasGroups && anyLoading && !hasAnyStreams -> {
-                item {
+                item(contentType = "loading") {
                     LoadingStateBlock()
                 }
             }
 
             !hasAnyStreams && !uiState.isAnyLoading -> {
-                item {
+                item(contentType = "empty") {
                     EmptyStateBlock(reason = uiState.emptyStateReason)
                 }
             }
@@ -819,11 +819,11 @@ internal fun StreamList(
                     )
                 }
                 if (anyLoading) {
-                    item {
+                    item(contentType = "footer_loading") {
                         FooterLoadingBlock()
                     }
                 }
-                item {
+                item(contentType = "bottom_spacer") {
                     Spacer(modifier = Modifier.height(nuvioSafeBottomPadding(80.dp)))
                 }
             }
@@ -845,7 +845,10 @@ private fun LazyListScope.streamSection(
     if (group.streams.isEmpty() && !group.isLoading) return
 
     if (showHeader) {
-        item(key = "header_$sectionKey") {
+        item(
+            key = "header_$sectionKey",
+            contentType = "stream_section_header",
+        ) {
             StreamSectionHeader(
                 addonName = group.addonName,
                 isLoading = group.isLoading,
@@ -862,7 +865,10 @@ private fun LazyListScope.streamSection(
     sortedSources.forEachIndexed { sourceIndex, sourceName ->
         val sourceStreams = streamsBySource[sourceName].orEmpty()
         if (showSourceHeaders) {
-            item(key = "source_${sectionKey}_$sourceIndex") {
+            item(
+                key = "source_${sectionKey}_$sourceIndex",
+                contentType = "stream_source_header",
+            ) {
                 StreamSourceHeader(sourceName = sourceName)
             }
         }
@@ -877,6 +883,7 @@ private fun LazyListScope.streamSection(
                     stream = stream,
                 )
             },
+            contentType = { _, stream -> if (stream.isTorrentStream) "torrent_stream" else "direct_stream" },
         ) { _, stream ->
             StreamCard(
                 stream = stream,

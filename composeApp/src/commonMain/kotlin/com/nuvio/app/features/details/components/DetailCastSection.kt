@@ -68,6 +68,7 @@ fun DetailCastSection(
                 itemsIndexed(
                     items = cast,
                     key = { index, person -> "${person.name}-${person.role.orEmpty()}-${person.photo.orEmpty()}-$index" },
+                    contentType = { _, _ -> "cast_member" },
                 ) { index, person ->
                     val sharedTransitionKey = person.tmdbId
                         ?.takeIf { it > 0 }

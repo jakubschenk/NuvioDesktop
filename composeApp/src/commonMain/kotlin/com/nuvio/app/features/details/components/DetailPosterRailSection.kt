@@ -33,6 +33,7 @@ fun DetailPosterRailSection(
         showHeaderAccent = false,
         scrollWithoutShift = true,
         key = { item -> item.stableKey() },
+        contentType = { item -> item.posterShape },
     ) { item ->
         HomePosterCard(
             item = item,

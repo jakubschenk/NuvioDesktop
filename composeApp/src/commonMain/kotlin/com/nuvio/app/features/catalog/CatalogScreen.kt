@@ -164,11 +164,17 @@ fun CatalogScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 if (uiState.items.isEmpty() && uiState.isLoading) {
-                    items(columns * 3) {
+                    items(
+                        count = columns * 3,
+                        contentType = { "catalog_skeleton" },
+                    ) {
                         CatalogSkeletonTile(cornerRadiusDp = posterCardStyle.cornerRadiusDp)
                     }
                 } else if (uiState.items.isEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+                    item(
+                        span = { GridItemSpan(maxLineSpan) },
+                        contentType = "empty",
+                    ) {
                         CatalogEmptyState(
                             errorMessage = uiState.errorMessage,
                             networkCondition = networkStatusUiState.condition,
@@ -189,6 +195,7 @@ fun CatalogScreen(
                     items(
                         items = uiState.items.withDuplicateSafeLazyKeys { item -> item.stableKey() },
                         key = { item -> item.lazyKey },
+                        contentType = { item -> item.value.posterShape },
                     ) { keyedItem ->
                         val item = keyedItem.value
                         CatalogPosterTile(
@@ -204,7 +211,10 @@ fun CatalogScreen(
                         )
                     }
                     if (uiState.isLoading) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
+                        item(
+                            span = { GridItemSpan(maxLineSpan) },
+                            contentType = "loading_footer",
+                        ) {
                             CatalogLoadingFooter()
                         }
                     }

@@ -70,7 +70,6 @@ import co.touchlab.kermit.Logger
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.ui.desktopHorizontalLazyRowGestures
 import com.nuvio.app.core.ui.desktopContextMenuPointer
-import com.nuvio.app.core.i18n.localizedSeasonEpisodeCode
 import com.nuvio.app.core.ui.NuvioAnimatedWatchedBadge
 import com.nuvio.app.core.ui.NuvioImageFilterQuality
 import com.nuvio.app.core.ui.NuvioProgressBar
@@ -86,9 +85,7 @@ import com.nuvio.app.features.details.seasonSortKey
 import com.nuvio.app.features.watchprogress.WatchProgressEntry
 import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
 import com.nuvio.app.features.watching.application.WatchingState
-import kotlinx.coroutines.runBlocking
 import nuvio.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.absoluteValue
@@ -300,7 +297,7 @@ fun DetailSeriesContent(
                 val sectionTitle = if (meta.type != "series" && seasons.size == 1 && seasonForContent <= 0) {
                     stringResource(Res.string.details_videos)
                 } else {
-                    seasonForContent.label()
+                    seasonLabel(seasonForContent)
                 }
                 Column(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -385,7 +382,7 @@ private fun SeasonQuickSelectDropdown(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = currentSeason.label(),
+                    text = seasonLabel(currentSeason),
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontSize = sizing.seasonToggleTextSize,
                         fontWeight = FontWeight.SemiBold,
@@ -410,7 +407,7 @@ private fun SeasonQuickSelectDropdown(
                 DropdownMenuItem(
                     text = {
                         Text(
-                            text = season.label(),
+                            text = seasonLabel(season),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     },
@@ -500,7 +497,11 @@ private fun SeasonTextChipScrollRow(
             .desktopHorizontalLazyRowGestures(seasonListState, scrollWithoutShift = true),
         horizontalArrangement = Arrangement.spacedBy(sizing.seasonChipGap),
     ) {
-        items(seasons, key = { season -> season }) { season ->
+        items(
+            items = seasons,
+            key = { season -> season },
+            contentType = { "season_chip" },
+        ) { season ->
             val isSelected = season == currentSeason
             Box(
                 modifier = Modifier
@@ -532,7 +533,7 @@ private fun SeasonTextChipScrollRow(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = season.label(),
+                    text = seasonLabel(season),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontSize = sizing.seasonChipTextSize,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
@@ -580,9 +581,13 @@ private fun SeasonPosterScrollRow(
             .desktopHorizontalLazyRowGestures(seasonListState, scrollWithoutShift = true),
         horizontalArrangement = Arrangement.spacedBy(sizing.seasonChipGap),
     ) {
-        items(seasons, key = { season -> season }) { season ->
+        items(
+            items = seasons,
+            key = { season -> season },
+            contentType = { "season_poster" },
+        ) { season ->
             SeasonPosterButton(
-                label = season.label(),
+                label = seasonLabel(season),
                 imageUrl = groupedEpisodes[season]
                     .orEmpty()
                     .firstNotNullOfOrNull { episode -> episode.seasonPoster }
@@ -729,6 +734,7 @@ private fun EpisodeHorizontalRow(
         itemsIndexed(
             items = episodes,
             key = { index, episode -> "${episode.season}:${episode.episode}:${episode.id}#$index" },
+            contentType = { _, _ -> "episode_horizontal" },
         ) { _, episode ->
             val episodeVideoId = buildPlaybackVideoId(
                 parentMetaId = parentMetaId,
@@ -841,7 +847,7 @@ private fun EpisodeHorizontalCard(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             EpisodeCodeBadge(
-                text = video.episodeBadge(),
+                text = episodeBadgeLabel(video),
                 textSize = metrics.badgeTextSize,
                 radius = metrics.badgeRadius,
                 horizontalPadding = metrics.badgeHorizontalPadding,
@@ -1180,7 +1186,7 @@ private fun EpisodeListCard(
                 }
 
                 EpisodeCodeBadge(
-                    text = video.episodeBadge(),
+                    text = episodeBadgeLabel(video),
                     textSize = sizing.badgeTextSize,
                     radius = sizing.badgeRadius,
                     horizontalPadding = sizing.badgeHorizontalPadding,
@@ -1439,18 +1445,22 @@ private fun seriesContentSizing(maxWidthDp: Float): SeriesContentSizing =
         )
     }
 
-private fun Int.label(): String =
-    if (this <= 0) {
-        runBlocking { getString(Res.string.episodes_specials) }
+@Composable
+private fun seasonLabel(season: Int): String =
+    if (season <= 0) {
+        stringResource(Res.string.episodes_specials)
     } else {
-        runBlocking { getString(Res.string.episodes_season, this@label) }
+        stringResource(Res.string.episodes_season, season)
     }
 
-private fun MetaVideo.episodeBadge(): String =
+@Composable
+private fun episodeBadgeLabel(video: MetaVideo): String =
     when {
-        episode != null || season != null ->
-            localizedSeasonEpisodeCode(seasonNumber = season, episodeNumber = episode).orEmpty()
-        else -> runBlocking { getString(Res.string.details_episode_badge_file) }
+        video.season != null && video.episode != null ->
+            stringResource(Res.string.compose_player_episode_code_full, video.season, video.episode)
+        video.episode != null ->
+            stringResource(Res.string.compose_player_episode_code_episode_only, video.episode)
+        else -> stringResource(Res.string.details_episode_badge_file)
     }
 
 private fun MetaVideo.seasonEpisodeKey(): Pair<Int, Int>? {

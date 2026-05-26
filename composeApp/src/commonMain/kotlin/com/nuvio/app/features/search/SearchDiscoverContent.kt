@@ -65,10 +65,16 @@ internal fun LazyListScope.discoverContent(
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
 ) {
-    item {
+    item(
+        key = "discover_header",
+        contentType = "discover_header",
+    ) {
         DiscoverSectionHeader(modifier = Modifier.padding(horizontal = 16.dp))
     }
-    item {
+    item(
+        key = "discover_filters",
+        contentType = "discover_filters",
+    ) {
         DiscoverFilterRow(
             state = state,
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -78,7 +84,10 @@ internal fun LazyListScope.discoverContent(
         )
     }
     state.selectedCatalog?.let { selectedCatalog ->
-        item {
+        item(
+            key = "discover_catalog_context",
+            contentType = "discover_catalog_context",
+        ) {
             Text(
                 text = stringResource(
                     Res.string.discover_catalog_context,
@@ -97,7 +106,10 @@ internal fun LazyListScope.discoverContent(
 
     when {
         state.isLoading && state.items.isEmpty() -> {
-            items(2) {
+            items(
+                count = 2,
+                contentType = { "discover_skeleton_row" },
+            ) {
                 DiscoverSkeletonRow(
                     columns = columns,
                     modifier = Modifier.padding(horizontal = 16.dp),
@@ -106,7 +118,7 @@ internal fun LazyListScope.discoverContent(
         }
 
         state.items.isEmpty() -> {
-            item {
+            item(contentType = "discover_empty") {
                 DiscoverEmptyStateCard(
                     reason = state.emptyStateReason,
                     errorMessage = state.errorMessage,
@@ -122,6 +134,7 @@ internal fun LazyListScope.discoverContent(
             items(
                 count = rowCount,
                 key = { rowIndex -> discoverGridRowKey(state.items, rowIndex, columns) },
+                contentType = { rowIndex -> discoverGridRowContentType(state.items, rowIndex, columns) },
             ) { rowIndex ->
                 val startIndex = rowIndex * columns
                 val endIndex = minOf(startIndex + columns, state.items.size)
@@ -135,7 +148,7 @@ internal fun LazyListScope.discoverContent(
                 )
             }
             if (state.isLoading) {
-                item {
+                item(contentType = "discover_loading_footer") {
                     CatalogLoadingFooter(
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
@@ -143,6 +156,22 @@ internal fun LazyListScope.discoverContent(
             }
         }
     }
+}
+
+private fun discoverGridRowContentType(
+    items: List<MetaPreview>,
+    rowIndex: Int,
+    columns: Int,
+): String = buildString {
+    val startIndex = rowIndex * columns
+    val endIndex = minOf(startIndex + columns, items.size)
+    append("discover_row:")
+    for (index in startIndex until endIndex) {
+        if (index > startIndex) append('|')
+        append(items[index].posterShape.name)
+    }
+    append(":")
+    append(endIndex - startIndex)
 }
 
 @Composable
