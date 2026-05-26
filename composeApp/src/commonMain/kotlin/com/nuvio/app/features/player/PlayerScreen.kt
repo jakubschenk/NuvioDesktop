@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -186,6 +187,7 @@ private fun PlayerPlaybackSnapshot.displayPositionAt(
 }
 
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 fun PlayerScreen(
     title: String,
     sourceUrl: String,
@@ -2744,6 +2746,8 @@ fun PlayerScreen(
             }
         }
     }
+}
+
 }
 
 private fun buildAddonSubtitleFetchKey(

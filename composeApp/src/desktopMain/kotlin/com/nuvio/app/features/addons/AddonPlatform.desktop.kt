@@ -16,6 +16,7 @@ import okhttp3.ResponseBody
 internal actual object AddonStorage {
     private const val preferencesName = "nuvio_addons"
     private const val addonUrlsKey = "installed_manifest_urls"
+    private const val addonEnabledStatesKey = "addon_enabled_states"
 
     actual fun loadInstalledAddonUrls(profileId: Int): List<String> =
         DesktopPreferences.getString(preferencesName, "${addonUrlsKey}_$profileId")
@@ -30,6 +31,28 @@ internal actual object AddonStorage {
             preferencesName,
             "${addonUrlsKey}_$profileId",
             urls.joinToString(separator = "\n"),
+        )
+    }
+
+    actual fun loadAddonEnabledStates(profileId: Int): Map<String, Boolean> =
+        DesktopPreferences.getString(preferencesName, "${addonEnabledStatesKey}_$profileId")
+            .orEmpty()
+            .lineSequence()
+            .mapNotNull { line ->
+                val separatorIndex = line.lastIndexOf('\t')
+                if (separatorIndex <= 0) return@mapNotNull null
+                val url = line.substring(0, separatorIndex).trim()
+                val enabled = line.substring(separatorIndex + 1).toBooleanStrictOrNull()
+                    ?: return@mapNotNull null
+                url.takeIf(String::isNotEmpty)?.let { it to enabled }
+            }
+            .toMap()
+
+    actual fun saveAddonEnabledStates(profileId: Int, states: Map<String, Boolean>) {
+        DesktopPreferences.putString(
+            preferencesName,
+            "${addonEnabledStatesKey}_$profileId",
+            states.entries.joinToString(separator = "\n") { (url, enabled) -> "$url\t$enabled" },
         )
     }
 }

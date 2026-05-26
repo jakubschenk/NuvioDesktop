@@ -55,6 +55,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -79,8 +80,8 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.appIconPainter
-import com.nuvio.app.core.ui.desktopClickablePointer
 import com.nuvio.app.core.ui.nuvioTypeScale
+import com.nuvio.app.features.watchprogress.WatchProgressClock
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
@@ -676,6 +677,7 @@ private fun ProgressControls(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun PlayerVolumeSlider(
     volumeLevel: PlayerAudioLevel,
@@ -702,7 +704,7 @@ private fun PlayerVolumeSlider(
         force: Boolean = true,
     ) {
         val target = value.coerceIn(0f, 1f)
-        val nowMs = PlayerWallClock.nowEpochMs()
+        val nowMs = WatchProgressClock.nowEpochMs()
         if (!force && nowMs - dragCoalescer.lastCommitMs < PlayerVolumeDragCommitIntervalMs) return
         if (!force) {
             val targetPercent = (target * 100f).roundToInt()
@@ -770,7 +772,6 @@ private fun PlayerVolumeSlider(
             modifier = Modifier
                 .weight(1f)
                 .height(PlayerVolumeSliderTouchHeight)
-                .desktopClickablePointer()
                 .focusRequester(focusRequester)
                 .onFocusChanged { isFocused = it.isFocused }
                 .focusable()

@@ -256,7 +256,7 @@ internal class MpvDesktopPlayerBackend private constructor(
             "osd-level" to 0,
         )
         val failed = options.mapNotNull { (name, value) ->
-            val applied = runCatching { player.impl.setMpvRuntimeOption(name, value) }
+            val applied = runCatching { mpvHandle.setMpvRuntimeOption(name, value) }
                 .onFailure { DesktopRuntimeLog.warn("MPV presentation option failed name=$name message=${it.message}") }
                 .getOrDefault(false)
             if (applied) null else name
@@ -408,7 +408,7 @@ internal class MpvDesktopPlayerBackend private constructor(
     }
 
     private fun mpvPerformanceSnapshotForLog(): String {
-        val handle = player.impl
+        val handle = mpvHandle
         val phase = stateFlow.value.phase
         return buildString {
             append("state=${player.getCurrentPlaybackState()}")

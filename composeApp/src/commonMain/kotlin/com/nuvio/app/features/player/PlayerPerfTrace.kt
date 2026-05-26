@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import com.nuvio.app.features.watchprogress.WatchProgressClock
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -45,7 +46,7 @@ internal class PlayerPerfEventRateCounter(
 
     fun record(details: () -> String = { "" }) {
         if (!PlayerRuntimeTrace.perfEnabled) return
-        val nowMs = PlayerWallClock.nowEpochMs()
+        val nowMs = WatchProgressClock.nowEpochMs()
         if (lastLogMs == 0L) {
             lastLogMs = nowMs
             eventCount = 0
