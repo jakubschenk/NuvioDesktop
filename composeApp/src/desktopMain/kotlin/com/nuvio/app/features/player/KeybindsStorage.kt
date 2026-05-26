@@ -22,20 +22,14 @@ data class KeybindsConfig(
             KeybindEntry("toggle_app_fullscreen", java.awt.event.KeyEvent.VK_F11),
             KeybindEntry("exit_fullscreen", java.awt.event.KeyEvent.VK_ESCAPE),
             KeybindEntry("play_pause", java.awt.event.KeyEvent.VK_SPACE),
-            KeybindEntry("play_pause_alt", java.awt.event.KeyEvent.VK_K),
             KeybindEntry("seek_forward_10s", java.awt.event.KeyEvent.VK_RIGHT),
-            KeybindEntry("seek_forward_10s_alt", java.awt.event.KeyEvent.VK_L),
             KeybindEntry("seek_backward_10s", java.awt.event.KeyEvent.VK_LEFT),
-            KeybindEntry("seek_backward_10s_alt", java.awt.event.KeyEvent.VK_J),
             KeybindEntry("volume_up", java.awt.event.KeyEvent.VK_UP),
             KeybindEntry("volume_down", java.awt.event.KeyEvent.VK_DOWN),
             KeybindEntry("mute", java.awt.event.KeyEvent.VK_M),
-            KeybindEntry("cycle_resize_mode", java.awt.event.KeyEvent.VK_R),
+            KeybindEntry("cycle_speed", java.awt.event.KeyEvent.VK_R),
             KeybindEntry("next_episode", java.awt.event.KeyEvent.VK_N),
-            KeybindEntry("open_audio", java.awt.event.KeyEvent.VK_A),
-            KeybindEntry("open_subtitles", java.awt.event.KeyEvent.VK_S),
-            KeybindEntry("open_sources", java.awt.event.KeyEvent.VK_O),
-            KeybindEntry("open_episodes", java.awt.event.KeyEvent.VK_E),
+            KeybindEntry("skip_intro", java.awt.event.KeyEvent.VK_S),
         )
     }
 }
@@ -78,16 +72,11 @@ object KeybindsStorage {
     private fun KeybindsConfig.withDefaultActions(): KeybindsConfig {
         val savedByAction = binds.associateBy { it.action }
         val normalized = KeybindsConfig.defaultKeybinds().map { defaultEntry ->
-            val saved = savedByAction[defaultEntry.action]
-                ?: when (defaultEntry.action) {
-                    "cycle_resize_mode" -> savedByAction["cycle_speed"]?.copy(action = "cycle_resize_mode")
-                    else -> null
-                }
-                ?: return@map defaultEntry
-            when {
-                defaultEntry.action == "cycle_resize_mode" &&
-                    saved.keyCode == java.awt.event.KeyEvent.VK_CLOSE_BRACKET -> defaultEntry
-                else -> saved
+            val saved = savedByAction[defaultEntry.action] ?: return@map defaultEntry
+            if (saved.action == "cycle_speed" && saved.keyCode == java.awt.event.KeyEvent.VK_CLOSE_BRACKET) {
+                defaultEntry
+            } else {
+                saved
             }
         }
         return copy(binds = normalized)

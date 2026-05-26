@@ -105,8 +105,6 @@ actual val usesNativePlayerChrome: Boolean = false
 
 actual val usesAnimatedPlayerChrome: Boolean = true
 
-actual val usesPlatformPlayerKeyboardShortcuts: Boolean = false
-
 private class IOSPlayerGestureController : PlayerGestureController {
     private val volumeView = MPVolumeView().apply {
         hidden = true

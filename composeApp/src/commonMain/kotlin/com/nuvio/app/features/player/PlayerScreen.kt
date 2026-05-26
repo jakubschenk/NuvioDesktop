@@ -72,6 +72,7 @@ import com.nuvio.app.features.watchprogress.WatchProgressClock
 import com.nuvio.app.features.watchprogress.WatchProgressPlaybackSession
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
+import com.nuvio.app.isDesktop
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -872,6 +873,13 @@ fun PlayerScreen(
             val next = speeds.firstOrNull { it > current + 0.01f } ?: speeds.first()
             playerController?.setPlaybackSpeed(next)
             showGestureMessage(formatPlaybackSpeedLabel(next))
+            revealPlayerChrome()
+        }
+
+        fun skipActiveSegment() {
+            val interval = activeSkipInterval ?: return
+            playerController?.seekTo((interval.endTime * 1000).toLong())
+            skipIntervalDismissed = true
             revealPlayerChrome()
         }
 
@@ -1762,7 +1770,7 @@ fun PlayerScreen(
             }
 
         BindPlayerKeyboardShortcuts(
-            enabled = usesPlatformPlayerKeyboardShortcuts && !blockingPanelOpen && !playerControlsLocked,
+            enabled = isDesktop && !blockingPanelOpen && !playerControlsLocked,
             handlers = PlayerKeyboardShortcutHandlers(
                 toggleFullscreen = ::toggleFullscreen,
                 togglePlayback = ::togglePlayback,
@@ -1771,24 +1779,12 @@ fun PlayerScreen(
                 volumeUp = { adjustPlayerVolume(PlayerKeyboardVolumeStep) },
                 volumeDown = { adjustPlayerVolume(-PlayerKeyboardVolumeStep) },
                 toggleMute = ::toggleMute,
-                cycleResizeMode = ::cycleResizeMode,
+                cyclePlaybackSpeed = ::cyclePlaybackSpeed,
                 playNextEpisode = {
-                    if (isSeries) openNextEpisodeOrEpisodes()
+                    nextEpisodeAutoPlayJob?.cancel()
+                    playNextEpisode(force = true)
                 },
-                openAudioTracks = {
-                    refreshTracks()
-                    showAudioModal = true
-                },
-                openSubtitleTracks = {
-                    refreshTracks()
-                    showSubtitleModal = true
-                },
-                openSources = {
-                    if (activeVideoId != null) openSourcesPanel()
-                },
-                openEpisodes = {
-                    if (isSeries) openEpisodesPanel()
-                },
+                skipActiveSegment = ::skipActiveSegment,
             ),
         )
 
@@ -1802,12 +1798,6 @@ fun PlayerScreen(
                     }
                 }
                 .onPreviewKeyEvent { event ->
-                    if (usesPlatformPlayerKeyboardShortcuts) {
-                        return@onPreviewKeyEvent event.type == KeyEventType.KeyUp &&
-                            event.key == Key.Escape &&
-                            closePlayerOverlayForEscape(includeFullscreen = false)
-                    }
-
                     when {
                         event.type == KeyEventType.KeyDown &&
                             !blockingPanelOpen &&

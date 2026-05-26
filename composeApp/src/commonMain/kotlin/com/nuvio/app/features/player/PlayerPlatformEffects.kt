@@ -26,12 +26,9 @@ data class PlayerKeyboardShortcutHandlers(
     val volumeUp: () -> Unit,
     val volumeDown: () -> Unit,
     val toggleMute: () -> Unit,
-    val cycleResizeMode: () -> Unit,
+    val cyclePlaybackSpeed: () -> Unit,
     val playNextEpisode: () -> Unit,
-    val openAudioTracks: () -> Unit,
-    val openSubtitleTracks: () -> Unit,
-    val openSources: () -> Unit,
-    val openEpisodes: () -> Unit,
+    val skipActiveSegment: () -> Unit,
 )
 
 data class PlayerAudioLevel(
@@ -79,5 +76,3 @@ expect fun PlayerOverlayLayer(
 expect val usesNativePlayerChrome: Boolean
 
 expect val usesAnimatedPlayerChrome: Boolean
-
-expect val usesPlatformPlayerKeyboardShortcuts: Boolean

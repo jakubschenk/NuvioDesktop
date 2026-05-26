@@ -2,6 +2,7 @@ package com.nuvio.app.features.collection
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
+import com.nuvio.app.core.ui.upgradeTmdbImageQuality
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AsyncImage
+import com.nuvio.app.core.ui.NuvioImageFilterQuality
 import com.nuvio.app.core.ui.NuvioPosterCard
 import com.nuvio.app.core.ui.NuvioPosterShape
 import com.nuvio.app.core.ui.NuvioScreenHeader
@@ -61,6 +63,8 @@ import com.nuvio.app.features.home.PosterShape
 import com.nuvio.app.features.home.canOpenCatalog
 import com.nuvio.app.features.home.stableKey
 import com.nuvio.app.features.home.components.HomeCatalogRowSection
+import com.nuvio.app.features.watched.WatchedRepository
+import com.nuvio.app.features.watching.application.WatchingState
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
@@ -79,6 +83,10 @@ fun FolderDetailScreen(
     onPosterClick: (MetaPreview) -> Unit,
 ) {
     val uiState by FolderDetailRepository.uiState.collectAsState()
+    val watchedUiState by remember {
+        WatchedRepository.ensureLoaded()
+        WatchedRepository.uiState
+    }.collectAsState()
     val folder = uiState.folder
     val coverImageUrl = folder?.coverImageUrl?.takeIf { it.isNotBlank() }
     val density = LocalDensity.current
@@ -160,18 +168,21 @@ fun FolderDetailScreen(
         when (uiState.viewMode) {
             FolderViewMode.TABBED_GRID -> TabbedGridContent(
                 uiState = uiState,
+                watchedKeys = watchedUiState.watchedKeys,
                 modifier = Modifier.weight(1f).then(contentModifier),
                 onTabSelected = { FolderDetailRepository.selectTab(it) },
                 onPosterClick = onPosterClick,
             )
             FolderViewMode.ROWS -> RowsContent(
                 uiState = uiState,
+                watchedKeys = watchedUiState.watchedKeys,
                 modifier = Modifier.weight(1f).then(contentModifier),
                 onCatalogClick = onCatalogClick,
                 onPosterClick = onPosterClick,
             )
             FolderViewMode.FOLLOW_LAYOUT -> RowsContent(
                 uiState = uiState,
+                watchedKeys = watchedUiState.watchedKeys,
                 modifier = Modifier.weight(1f).then(contentModifier),
                 onCatalogClick = onCatalogClick,
                 onPosterClick = onPosterClick,
@@ -186,19 +197,22 @@ private fun FolderCoverImage(
     title: String,
     modifier: Modifier = Modifier,
 ) {
+    val resolvedImageUrl = remember(imageUrl) { imageUrl.upgradeTmdbImageQuality() }
     AsyncImage(
-        model = imageUrl,
+        model = resolvedImageUrl,
         contentDescription = title,
         modifier = modifier
             .fillMaxWidth()
             .height(FolderCoverHeight),
         contentScale = ContentScale.Crop,
+        filterQuality = NuvioImageFilterQuality,
     )
 }
 
 @Composable
 private fun TabbedGridContent(
     uiState: FolderDetailUiState,
+    watchedKeys: Set<String>,
     modifier: Modifier = Modifier,
     onTabSelected: (Int) -> Unit,
     onPosterClick: (MetaPreview) -> Unit,
@@ -286,6 +300,10 @@ private fun TabbedGridContent(
                                 imageUrl = item.poster,
                                 shape = NuvioPosterShape.Poster,
                                 detailLine = item.releaseInfo,
+                                isWatched = WatchingState.isPosterWatched(
+                                    watchedKeys = watchedKeys,
+                                    item = item,
+                                ),
                                 onClick = { onPosterClick(item) },
                             )
                         }
@@ -308,6 +326,7 @@ private fun TabbedGridContent(
 @Composable
 private fun RowsContent(
     uiState: FolderDetailUiState,
+    watchedKeys: Set<String>,
     modifier: Modifier = Modifier,
     onCatalogClick: (HomeCatalogSection) -> Unit,
     onPosterClick: (MetaPreview) -> Unit,
@@ -345,6 +364,7 @@ private fun RowsContent(
                 } else {
                     null
                 },
+                watchedKeys = watchedKeys,
                 onPosterClick = { onPosterClick(it) },
             )
         }

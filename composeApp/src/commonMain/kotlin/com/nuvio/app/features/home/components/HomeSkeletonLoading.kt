@@ -183,6 +183,7 @@ fun HomeSkeletonHero(
 fun HomeSkeletonRow(
     modifier: Modifier = Modifier,
     posterCardStyle: PosterCardStyleUiState? = null,
+    showHeaderAccent: Boolean = true,
 ) {
     val brush = rememberHomeSkeletonBrush()
     val resolvedPosterCardStyle = posterCardStyle ?: rememberPosterCardStyleUiState()
@@ -216,14 +217,15 @@ fun HomeSkeletonRow(
                     .clip(RoundedCornerShape(6.dp))
                     .background(brush),
             )
-            // Accent bar
-            Box(
-                modifier = Modifier
-                    .width(60.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(brush),
-            )
+            if (showHeaderAccent) {
+                Box(
+                    modifier = Modifier
+                        .width(60.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(brush),
+                )
+            }
             Spacer(modifier = Modifier.height(2.dp))
             // Poster row
             Row(

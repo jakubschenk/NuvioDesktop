@@ -60,6 +60,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -109,6 +111,17 @@ fun NuvioScreen(
     )
 }
 
+internal fun Modifier.nuvioBlockPointerPassthrough(): Modifier =
+    pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) {
+                awaitPointerEvent(PointerEventPass.Final).changes.forEach { change ->
+                    change.consume()
+                }
+            }
+        }
+    }
+
 @Composable
 fun NuvioSurfaceCard(
     modifier: Modifier = Modifier,
@@ -143,6 +156,7 @@ fun NuvioScreenHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .nuvioBlockPointerPassthrough()
             .background(MaterialTheme.colorScheme.background)
             .padding(top = resolvedTopPadding, bottom = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,

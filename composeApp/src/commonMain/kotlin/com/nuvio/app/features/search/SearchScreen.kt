@@ -33,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,6 +56,8 @@ import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWid
 import com.nuvio.app.features.home.components.HomeSkeletonRow
 import com.nuvio.app.features.watched.WatchedRepository
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_nav_search
 import nuvio.composeapp.generated.resources.compose_search_clear
@@ -76,7 +80,17 @@ fun SearchScreen(
     showSearchChrome: Boolean = true,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
+    searchFocusRequestCount: Int = 0,
+    scrollToTopRequests: Flow<Unit> = emptyFlow(),
 ) {
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(searchFocusRequestCount) {
+        if (searchFocusRequestCount > 0) {
+            focusRequester.requestFocus()
+        }
+    }
+
     LaunchedEffect(Unit) {
         AddonRepository.initialize()
         WatchedRepository.ensureLoaded()
@@ -98,6 +112,12 @@ fun SearchScreen(
     val listState = rememberLazyListState()
     val addonRefreshKey = remember(addonsUiState.addons) {
         buildAddonCatalogRefreshKey(addonsUiState.addons)
+    }
+
+    LaunchedEffect(scrollToTopRequests) {
+        scrollToTopRequests.collect {
+            listState.animateScrollToItem(0)
+        }
     }
 
     LaunchedEffect(normalizedSearchQuery) {
@@ -224,6 +244,7 @@ fun SearchScreen(
                             NuvioInputField(
                                 value = query,
                                 onValueChange = SearchRepository::updateQuery,
+                                modifier = Modifier.focusRequester(focusRequester),
                                 placeholder = stringResource(Res.string.compose_search_placeholder),
                                 trailingContent = if (query.isNotBlank()) {
                                     {

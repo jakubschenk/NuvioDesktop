@@ -3,5 +3,8 @@
 	url = https://github.com/tapframe/MPVNuvio.git
 [submodule "mediamp"]
 	path = mediamp
-	url = https://github.com/CreepsoOff/mediamp-nuvio.git
+	url = https://github.com/jakubschenk/mediamp-nuvio.git
 	branch = windows-nuvio
+[submodule "stremio-community-v5"]
+	path = stremio-community-v5
+	url = https://github.com/Zaarrg/stremio-community-v5.git

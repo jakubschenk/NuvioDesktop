@@ -140,8 +140,6 @@ actual val usesNativePlayerChrome: Boolean = false
 
 actual val usesAnimatedPlayerChrome: Boolean = true
 
-actual val usesPlatformPlayerKeyboardShortcuts: Boolean = false
-
 private tailrec fun Context.findActivity(): Activity? =
     when (this) {
         is Activity -> this

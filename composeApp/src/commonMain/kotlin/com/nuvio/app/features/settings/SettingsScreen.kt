@@ -59,6 +59,9 @@ import com.nuvio.app.features.details.MetaScreenSettingsUiState
 import com.nuvio.app.core.ui.PosterCardStyleRepository
 import com.nuvio.app.core.ui.PosterCardStyleUiState
 import com.nuvio.app.features.collection.CollectionRepository
+import com.nuvio.app.features.addons.enabledAddons
+import com.nuvio.app.features.debrid.DebridSettings
+import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.features.home.HomeCatalogSettingsItem
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.mdblist.MdbListSettings
@@ -78,6 +81,9 @@ import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesUiState
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_settings_page_root
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -88,6 +94,10 @@ private const val SettingsSearchRevealHapticDelayMillis = 90L
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
+    rootActionRequests: Flow<Unit> = emptyFlow(),
+    requestedPageName: String? = null,
+    onRequestedPageConsumed: () -> Unit = {},
+    rootActionsEnabled: Boolean = true,
     onSwitchProfile: (() -> Unit)? = null,
     onHomescreenClick: () -> Unit = {},
     onMetaScreenClick: () -> Unit = {},
@@ -129,6 +139,10 @@ fun SettingsScreen(
             MdbListSettingsRepository.ensureLoaded()
             MdbListSettingsRepository.uiState
         }.collectAsStateWithLifecycle()
+        val debridSettings by remember {
+            DebridSettingsRepository.ensureLoaded()
+            DebridSettingsRepository.uiState
+        }.collectAsStateWithLifecycle()
         val traktAuthUiState by remember {
             TraktAuthRepository.ensureLoaded()
             TraktAuthRepository.uiState
@@ -146,10 +160,11 @@ fun SettingsScreen(
             AddonRepository.uiState
         }.collectAsStateWithLifecycle()
         val homescreenCatalogRefreshKey = remember(addonsUiState.addons) {
-            val allManifestsSettled = addonsUiState.addons.isNotEmpty() &&
-                addonsUiState.addons.none { it.isRefreshing }
+            val enabledAddons = addonsUiState.addons.enabledAddons()
+            val allManifestsSettled = enabledAddons.isNotEmpty() &&
+                enabledAddons.none { it.isRefreshing }
             if (!allManifestsSettled) return@remember emptyList<String>()
-            addonsUiState.addons.mapNotNull { addon ->
+            enabledAddons.mapNotNull { addon ->
                 val manifest = addon.manifest ?: return@mapNotNull null
                 buildString {
                     append(manifest.transportUrl)
@@ -184,7 +199,7 @@ fun SettingsScreen(
 
         LaunchedEffect(homescreenCatalogRefreshKey) {
             if (homescreenCatalogRefreshKey.isEmpty()) return@LaunchedEffect
-            HomeCatalogSettingsRepository.syncCatalogs(addonsUiState.addons)
+            HomeCatalogSettingsRepository.syncCatalogs(addonsUiState.addons.enabledAddons())
         }
 
         LaunchedEffect(Unit) {
@@ -196,17 +211,40 @@ fun SettingsScreen(
         }
 
         var currentPage by rememberSaveable { mutableStateOf(SettingsPage.Root.name) }
+        val scrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val page = remember(currentPage) { SettingsPage.valueOf(currentPage) }
         val previousPage = page.previousPage()
 
+        LaunchedEffect(rootActionRequests, rootActionsEnabled, page) {
+            rootActionRequests.collect {
+                if (!rootActionsEnabled) return@collect
+                val pageToOpen = page.previousPage()
+                if (pageToOpen != null) {
+                    currentPage = pageToOpen.name
+                } else {
+                    scrollToTopRequests.tryEmit(Unit)
+                }
+            }
+        }
+
+        LaunchedEffect(requestedPageName, rootActionsEnabled) {
+            val targetPage = requestedPageName
+                ?.let { runCatching { SettingsPage.valueOf(it) }.getOrNull() }
+                ?: return@LaunchedEffect
+            if (!rootActionsEnabled) return@LaunchedEffect
+            currentPage = targetPage.name
+            onRequestedPageConsumed()
+        }
+
         PlatformBackHandler(
-            enabled = previousPage != null,
+            enabled = rootActionsEnabled && previousPage != null,
             onBack = { previousPage?.let { currentPage = it.name } },
         )
 
         if (maxWidth >= 768.dp) {
             TabletSettingsScreen(
                 page = page,
+                scrollToTopRequests = scrollToTopRequests,
                 onPageChange = { currentPage = it.name },
                 showLoadingOverlay = playerSettingsUiState.showLoadingOverlay,
                 holdToSpeedEnabled = playerSettingsUiState.holdToSpeedEnabled,
@@ -234,6 +272,7 @@ fun SettingsScreen(
                 episodeReleaseNotificationsUiState = episodeReleaseNotificationsUiState,
                 tmdbSettings = tmdbSettings,
                 mdbListSettings = mdbListSettings,
+                debridSettings = debridSettings,
                 traktAuthUiState = traktAuthUiState,
                 traktCommentsEnabled = traktCommentsEnabled,
                 traktSettingsUiState = traktSettingsUiState,
@@ -256,6 +295,7 @@ fun SettingsScreen(
         } else {
             MobileSettingsScreen(
                 page = page,
+                scrollToTopRequests = scrollToTopRequests,
                 onPageChange = { currentPage = it.name },
                 showLoadingOverlay = playerSettingsUiState.showLoadingOverlay,
                 holdToSpeedEnabled = playerSettingsUiState.holdToSpeedEnabled,
@@ -283,6 +323,7 @@ fun SettingsScreen(
                 episodeReleaseNotificationsUiState = episodeReleaseNotificationsUiState,
                 tmdbSettings = tmdbSettings,
                 mdbListSettings = mdbListSettings,
+                debridSettings = debridSettings,
                 traktAuthUiState = traktAuthUiState,
                 traktCommentsEnabled = traktCommentsEnabled,
                 traktSettingsUiState = traktSettingsUiState,
@@ -315,6 +356,7 @@ fun SettingsScreen(
 @Composable
 private fun MobileSettingsScreen(
     page: SettingsPage,
+    scrollToTopRequests: Flow<Unit>,
     onPageChange: (SettingsPage) -> Unit,
     showLoadingOverlay: Boolean,
     holdToSpeedEnabled: Boolean,
@@ -342,6 +384,7 @@ private fun MobileSettingsScreen(
     episodeReleaseNotificationsUiState: EpisodeReleaseNotificationsUiState,
     tmdbSettings: TmdbSettings,
     mdbListSettings: MdbListSettings,
+    debridSettings: DebridSettings,
     traktAuthUiState: TraktAuthUiState,
     traktCommentsEnabled: Boolean,
     traktSettingsUiState: TraktSettingsUiState,
@@ -423,6 +466,12 @@ private fun MobileSettingsScreen(
             if (rootSearchRevealAnimating) {
                 delay(SettingsSearchRevealAnimationMillis)
                 rootSearchRevealAnimating = false
+            }
+        }
+
+        LaunchedEffect(scrollToTopRequests) {
+            scrollToTopRequests.collect {
+                listState.animateScrollToItem(0)
             }
         }
 
@@ -554,6 +603,7 @@ private fun MobileSettingsScreen(
                     isTablet = false,
                     onTmdbClick = { onPageChange(SettingsPage.TmdbEnrichment) },
                     onMdbListClick = { onPageChange(SettingsPage.MdbListRatings) },
+                    onDebridClick = { onPageChange(SettingsPage.Debrid) },
                 )
                 SettingsPage.TmdbEnrichment -> tmdbSettingsContent(
                     isTablet = false,
@@ -562,6 +612,10 @@ private fun MobileSettingsScreen(
                 SettingsPage.MdbListRatings -> mdbListSettingsContent(
                     isTablet = false,
                     settings = mdbListSettings,
+                )
+                SettingsPage.Debrid -> debridSettingsContent(
+                    isTablet = false,
+                    settings = debridSettings,
                 )
                 SettingsPage.TraktAuthentication -> traktSettingsContent(
                     isTablet = false,
@@ -620,6 +674,7 @@ private fun rememberSettingsRootSearchRevealConnection(
 @Composable
 private fun TabletSettingsScreen(
     page: SettingsPage,
+    scrollToTopRequests: Flow<Unit>,
     onPageChange: (SettingsPage) -> Unit,
     showLoadingOverlay: Boolean,
     holdToSpeedEnabled: Boolean,
@@ -647,6 +702,7 @@ private fun TabletSettingsScreen(
     episodeReleaseNotificationsUiState: EpisodeReleaseNotificationsUiState,
     tmdbSettings: TmdbSettings,
     mdbListSettings: MdbListSettings,
+    debridSettings: DebridSettings,
     traktAuthUiState: TraktAuthUiState,
     traktCommentsEnabled: Boolean,
     traktSettingsUiState: TraktSettingsUiState,
@@ -768,6 +824,11 @@ private fun TabletSettingsScreen(
                 if (rootSearchRevealAnimating) {
                     delay(SettingsSearchRevealAnimationMillis)
                     rootSearchRevealAnimating = false
+                }
+            }
+            LaunchedEffect(scrollToTopRequests) {
+                scrollToTopRequests.collect {
+                    listState.animateScrollToItem(0)
                 }
             }
             LazyColumn(
@@ -918,6 +979,7 @@ private fun TabletSettingsScreen(
                         isTablet = true,
                         onTmdbClick = { onPageChange(SettingsPage.TmdbEnrichment) },
                         onMdbListClick = { onPageChange(SettingsPage.MdbListRatings) },
+                        onDebridClick = { onPageChange(SettingsPage.Debrid) },
                     )
                     SettingsPage.TmdbEnrichment -> tmdbSettingsContent(
                         isTablet = true,
@@ -926,6 +988,10 @@ private fun TabletSettingsScreen(
                     SettingsPage.MdbListRatings -> mdbListSettingsContent(
                         isTablet = true,
                         settings = mdbListSettings,
+                    )
+                    SettingsPage.Debrid -> debridSettingsContent(
+                        isTablet = true,
+                        settings = debridSettings,
                     )
                     SettingsPage.TraktAuthentication -> traktSettingsContent(
                         isTablet = true,

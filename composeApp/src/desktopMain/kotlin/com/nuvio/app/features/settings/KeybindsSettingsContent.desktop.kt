@@ -32,34 +32,22 @@ import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import java.awt.event.KeyEvent as AwtKeyEvent
 import nuvio.composeapp.generated.resources.Res
-import nuvio.composeapp.generated.resources.settings_keybind_action_cycle_resize_mode
-import nuvio.composeapp.generated.resources.settings_keybind_action_cycle_resize_mode_desc
+import nuvio.composeapp.generated.resources.settings_keybind_action_cycle_speed
+import nuvio.composeapp.generated.resources.settings_keybind_action_cycle_speed_desc
 import nuvio.composeapp.generated.resources.settings_keybind_action_exit_fullscreen
 import nuvio.composeapp.generated.resources.settings_keybind_action_exit_fullscreen_desc
 import nuvio.composeapp.generated.resources.settings_keybind_action_mute
 import nuvio.composeapp.generated.resources.settings_keybind_action_mute_desc
 import nuvio.composeapp.generated.resources.settings_keybind_action_next_episode
 import nuvio.composeapp.generated.resources.settings_keybind_action_next_episode_desc
-import nuvio.composeapp.generated.resources.settings_keybind_action_open_audio
-import nuvio.composeapp.generated.resources.settings_keybind_action_open_audio_desc
-import nuvio.composeapp.generated.resources.settings_keybind_action_open_episodes
-import nuvio.composeapp.generated.resources.settings_keybind_action_open_episodes_desc
-import nuvio.composeapp.generated.resources.settings_keybind_action_open_sources
-import nuvio.composeapp.generated.resources.settings_keybind_action_open_sources_desc
-import nuvio.composeapp.generated.resources.settings_keybind_action_open_subtitles
-import nuvio.composeapp.generated.resources.settings_keybind_action_open_subtitles_desc
 import nuvio.composeapp.generated.resources.settings_keybind_action_play_pause
-import nuvio.composeapp.generated.resources.settings_keybind_action_play_pause_alt
-import nuvio.composeapp.generated.resources.settings_keybind_action_play_pause_alt_desc
 import nuvio.composeapp.generated.resources.settings_keybind_action_play_pause_desc
 import nuvio.composeapp.generated.resources.settings_keybind_action_seek_backward
-import nuvio.composeapp.generated.resources.settings_keybind_action_seek_backward_alt
-import nuvio.composeapp.generated.resources.settings_keybind_action_seek_backward_alt_desc
 import nuvio.composeapp.generated.resources.settings_keybind_action_seek_backward_desc
 import nuvio.composeapp.generated.resources.settings_keybind_action_seek_forward
-import nuvio.composeapp.generated.resources.settings_keybind_action_seek_forward_alt
-import nuvio.composeapp.generated.resources.settings_keybind_action_seek_forward_alt_desc
 import nuvio.composeapp.generated.resources.settings_keybind_action_seek_forward_desc
+import nuvio.composeapp.generated.resources.settings_keybind_action_skip_intro
+import nuvio.composeapp.generated.resources.settings_keybind_action_skip_intro_desc
 import nuvio.composeapp.generated.resources.settings_keybind_action_toggle_app_fullscreen
 import nuvio.composeapp.generated.resources.settings_keybind_action_toggle_app_fullscreen_desc
 import nuvio.composeapp.generated.resources.settings_keybind_action_toggle_fullscreen
@@ -72,7 +60,6 @@ import nuvio.composeapp.generated.resources.settings_keybind_recording
 import nuvio.composeapp.generated.resources.settings_keybind_reset_defaults
 import nuvio.composeapp.generated.resources.settings_keybind_group_audio
 import nuvio.composeapp.generated.resources.settings_keybind_group_fullscreen
-import nuvio.composeapp.generated.resources.settings_keybind_group_navigation
 import nuvio.composeapp.generated.resources.settings_keybind_group_playback
 import nuvio.composeapp.generated.resources.settings_keybind_group_seek
 import nuvio.composeapp.generated.resources.settings_keybinds_description
@@ -91,120 +78,103 @@ private data class KeybindGroupDescriptor(
     val actions: List<KeybindActionDescriptor>,
 )
 
+private val KeybindActionDescriptors = listOf(
+    KeybindActionDescriptor(
+        "toggle_fullscreen",
+        Res.string.settings_keybind_action_toggle_fullscreen,
+        Res.string.settings_keybind_action_toggle_fullscreen_desc,
+    ),
+    KeybindActionDescriptor(
+        "toggle_app_fullscreen",
+        Res.string.settings_keybind_action_toggle_app_fullscreen,
+        Res.string.settings_keybind_action_toggle_app_fullscreen_desc,
+    ),
+    KeybindActionDescriptor(
+        "exit_fullscreen",
+        Res.string.settings_keybind_action_exit_fullscreen,
+        Res.string.settings_keybind_action_exit_fullscreen_desc,
+    ),
+    KeybindActionDescriptor(
+        "play_pause",
+        Res.string.settings_keybind_action_play_pause,
+        Res.string.settings_keybind_action_play_pause_desc,
+    ),
+    KeybindActionDescriptor(
+        "seek_forward_10s",
+        Res.string.settings_keybind_action_seek_forward,
+        Res.string.settings_keybind_action_seek_forward_desc,
+    ),
+    KeybindActionDescriptor(
+        "seek_backward_10s",
+        Res.string.settings_keybind_action_seek_backward,
+        Res.string.settings_keybind_action_seek_backward_desc,
+    ),
+    KeybindActionDescriptor(
+        "volume_up",
+        Res.string.settings_keybind_action_volume_up,
+        Res.string.settings_keybind_action_volume_up_desc,
+    ),
+    KeybindActionDescriptor(
+        "volume_down",
+        Res.string.settings_keybind_action_volume_down,
+        Res.string.settings_keybind_action_volume_down_desc,
+    ),
+    KeybindActionDescriptor(
+        "mute",
+        Res.string.settings_keybind_action_mute,
+        Res.string.settings_keybind_action_mute_desc,
+    ),
+    KeybindActionDescriptor(
+        "cycle_speed",
+        Res.string.settings_keybind_action_cycle_speed,
+        Res.string.settings_keybind_action_cycle_speed_desc,
+    ),
+    KeybindActionDescriptor(
+        "next_episode",
+        Res.string.settings_keybind_action_next_episode,
+        Res.string.settings_keybind_action_next_episode_desc,
+    ),
+    KeybindActionDescriptor(
+        "skip_intro",
+        Res.string.settings_keybind_action_skip_intro,
+        Res.string.settings_keybind_action_skip_intro_desc,
+    ),
+)
+
+private fun keybindAction(action: String): KeybindActionDescriptor =
+    KeybindActionDescriptors.first { descriptor -> descriptor.action == action }
+
 private val KeybindActionGroups = listOf(
     KeybindGroupDescriptor(
         Res.string.settings_keybind_group_playback,
         listOf(
-            KeybindActionDescriptor(
-                "play_pause",
-                Res.string.settings_keybind_action_play_pause,
-                Res.string.settings_keybind_action_play_pause_desc,
-            ),
-            KeybindActionDescriptor(
-                "play_pause_alt",
-                Res.string.settings_keybind_action_play_pause_alt,
-                Res.string.settings_keybind_action_play_pause_alt_desc,
-            ),
-            KeybindActionDescriptor(
-                "cycle_resize_mode",
-                Res.string.settings_keybind_action_cycle_resize_mode,
-                Res.string.settings_keybind_action_cycle_resize_mode_desc,
-            ),
-            KeybindActionDescriptor(
-                "next_episode",
-                Res.string.settings_keybind_action_next_episode,
-                Res.string.settings_keybind_action_next_episode_desc,
-            ),
+            keybindAction("play_pause"),
+            keybindAction("cycle_speed"),
+            keybindAction("next_episode"),
+            keybindAction("skip_intro"),
         ),
     ),
     KeybindGroupDescriptor(
         Res.string.settings_keybind_group_seek,
         listOf(
-            KeybindActionDescriptor(
-                "seek_backward_10s",
-                Res.string.settings_keybind_action_seek_backward,
-                Res.string.settings_keybind_action_seek_backward_desc,
-            ),
-            KeybindActionDescriptor(
-                "seek_backward_10s_alt",
-                Res.string.settings_keybind_action_seek_backward_alt,
-                Res.string.settings_keybind_action_seek_backward_alt_desc,
-            ),
-            KeybindActionDescriptor(
-                "seek_forward_10s",
-                Res.string.settings_keybind_action_seek_forward,
-                Res.string.settings_keybind_action_seek_forward_desc,
-            ),
-            KeybindActionDescriptor(
-                "seek_forward_10s_alt",
-                Res.string.settings_keybind_action_seek_forward_alt,
-                Res.string.settings_keybind_action_seek_forward_alt_desc,
-            ),
+            keybindAction("seek_backward_10s"),
+            keybindAction("seek_forward_10s"),
         ),
     ),
     KeybindGroupDescriptor(
         Res.string.settings_keybind_group_audio,
         listOf(
-            KeybindActionDescriptor(
-                "volume_up",
-                Res.string.settings_keybind_action_volume_up,
-                Res.string.settings_keybind_action_volume_up_desc,
-            ),
-            KeybindActionDescriptor(
-                "volume_down",
-                Res.string.settings_keybind_action_volume_down,
-                Res.string.settings_keybind_action_volume_down_desc,
-            ),
-            KeybindActionDescriptor(
-                "mute",
-                Res.string.settings_keybind_action_mute,
-                Res.string.settings_keybind_action_mute_desc,
-            ),
-            KeybindActionDescriptor(
-                "open_audio",
-                Res.string.settings_keybind_action_open_audio,
-                Res.string.settings_keybind_action_open_audio_desc,
-            ),
-            KeybindActionDescriptor(
-                "open_subtitles",
-                Res.string.settings_keybind_action_open_subtitles,
-                Res.string.settings_keybind_action_open_subtitles_desc,
-            ),
-        ),
-    ),
-    KeybindGroupDescriptor(
-        Res.string.settings_keybind_group_navigation,
-        listOf(
-            KeybindActionDescriptor(
-                "open_sources",
-                Res.string.settings_keybind_action_open_sources,
-                Res.string.settings_keybind_action_open_sources_desc,
-            ),
-            KeybindActionDescriptor(
-                "open_episodes",
-                Res.string.settings_keybind_action_open_episodes,
-                Res.string.settings_keybind_action_open_episodes_desc,
-            ),
+            keybindAction("volume_up"),
+            keybindAction("volume_down"),
+            keybindAction("mute"),
         ),
     ),
     KeybindGroupDescriptor(
         Res.string.settings_keybind_group_fullscreen,
         listOf(
-            KeybindActionDescriptor(
-                "toggle_fullscreen",
-                Res.string.settings_keybind_action_toggle_fullscreen,
-                Res.string.settings_keybind_action_toggle_fullscreen_desc,
-            ),
-            KeybindActionDescriptor(
-                "toggle_app_fullscreen",
-                Res.string.settings_keybind_action_toggle_app_fullscreen,
-                Res.string.settings_keybind_action_toggle_app_fullscreen_desc,
-            ),
-            KeybindActionDescriptor(
-                "exit_fullscreen",
-                Res.string.settings_keybind_action_exit_fullscreen,
-                Res.string.settings_keybind_action_exit_fullscreen_desc,
-            ),
+            keybindAction("toggle_fullscreen"),
+            keybindAction("toggle_app_fullscreen"),
+            keybindAction("exit_fullscreen"),
         ),
     ),
 )

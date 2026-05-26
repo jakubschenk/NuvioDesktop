@@ -63,6 +63,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -79,6 +81,8 @@ private const val HomeContinueWatchingVisibleMetadataBudget = 8
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
+    animateCollectionGifs: Boolean = true,
+    scrollToTopRequests: Flow<Unit> = emptyFlow(),
     onCatalogClick: ((HomeCatalogSection) -> Unit)? = null,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
@@ -118,6 +122,12 @@ fun HomeScreen(
         TraktAuthRepository.isAuthenticated
     }.collectAsStateWithLifecycle()
     var observedOfflineState by remember { mutableStateOf(false) }
+
+    LaunchedEffect(scrollToTopRequests) {
+        scrollToTopRequests.collect {
+            homeListState.animateScrollToItem(0)
+        }
+    }
 
     LaunchedEffect(networkStatusUiState.condition) {
         when (networkStatusUiState.condition) {
@@ -710,6 +720,7 @@ fun HomeScreen(
                                         sectionPadding = homeSectionPadding,
                                         posterCardStyle = posterCardStyle,
                                         showHeaderAccent = showCatalogHeaderAccent,
+                                        animateGifs = animateCollectionGifs,
                                         onFolderClick = onFolderClick,
                                     )
                                 }

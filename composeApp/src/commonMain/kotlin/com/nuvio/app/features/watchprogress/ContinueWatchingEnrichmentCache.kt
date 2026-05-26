@@ -74,6 +74,7 @@ internal object ContinueWatchingEnrichmentCache {
 
     private const val storageKey = "cw_enrichment_cache"
     private const val nextUpMissTtlMs = 5L * 60L * 1000L
+    private var lastPayloadHash: Int? = null
 
     fun getNextUpSnapshot(): List<CachedNextUpItem> =
         loadPayload()?.nextUp ?: emptyList()
@@ -103,6 +104,7 @@ internal object ContinueWatchingEnrichmentCache {
         inProgress: List<CachedInProgressItem>,
         nextUpMissKeys: Set<String> = getNextUpMissSnapshot(),
         nowEpochMs: Long = WatchProgressClock.nowEpochMs(),
+        force: Boolean = false,
     ) {
         val payload = loadPayload()
         val activeExistingMisses = payload?.nextUpMisses
@@ -116,16 +118,21 @@ internal object ContinueWatchingEnrichmentCache {
             .sorted()
             .map { key -> activeExistingMisses[key] ?: CachedNextUpMiss(key = key, cachedAtEpochMs = nowEpochMs) }
             .toList()
+        val nextPayload = CachedEnrichmentPayload(
+            nextUp = nextUp,
+            inProgress = inProgress,
+            nextUpMisses = nextUpMisses,
+        )
+        val payloadHash = nextPayload.hashCode()
+        if (!force && lastPayloadHash == payloadHash) {
+            return
+        }
+
         val encoded = runCatching {
-            json.encodeToString(
-                CachedEnrichmentPayload(
-                    nextUp = nextUp,
-                    inProgress = inProgress,
-                    nextUpMisses = nextUpMisses,
-                ),
-            )
+            json.encodeToString(nextPayload)
         }.getOrNull() ?: return
         ContinueWatchingEnrichmentStorage.savePayload(ProfileScopedKey.of(storageKey), encoded)
+        lastPayloadHash = payloadHash
     }
 
     private fun loadPayload(): CachedEnrichmentPayload? {
@@ -133,7 +140,9 @@ internal object ContinueWatchingEnrichmentCache {
             ?: return null
         return runCatching {
             json.decodeFromString<CachedEnrichmentPayload>(raw)
-        }.getOrNull()
+        }.getOrNull()?.also { payload ->
+            lastPayloadHash = payload.hashCode()
+        }
     }
 
     private fun List<CachedNextUpMiss>?.activeMissKeys(nowEpochMs: Long): Set<String> =
